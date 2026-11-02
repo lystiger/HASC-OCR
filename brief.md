@@ -117,12 +117,20 @@ Employees put documents on a server, AI extracts their contents, and they downlo
 
 - **P95 (2026-11-02):** The night shift runs 7pm to 7am, so the 5am backup is 2 hours clear of its final photos. Claude reads the day shift as 7am to 7pm, which Lystiger did not state. T2 does not use form A, so form A's machine list stays T1, T3 and T6, at up to 6 sheets a day. This settles Q42 and Q46, and removes the T2 settings change in P82.
 
+- **P96 (2026-11-02):** Form A sheets can have the same table with more rolls on the back, printed under the wrong title. A filled back is the sheet's next page under P92. The October stack may be missing some backs, and the labelled sample needs to include backs. Claude's choices 16 and 17 in `spec.md` follow from this and await acceptance.
+
+- **P97 (2026-11-02):** Lystiger renamed the October photos by date and shift, such as `20_shift1_2.jpg`, and these names replace Claude's date readings. The title on the back is roughly "Màng ống / Báo cáo xén hàng". Claude's reading of the one such photo (`bao_cao_xen_hang_brother_ong_keo.jpg`) differs from P96's "same table": it has no date, shift or staff header, and its columns differ, including production time, grammage, `Tổng KL`, `Lõi`, `KL đã trừ`, `Hàng xén` and `Hàng OK`. How to treat it is Q47.
+
+- **P98 (2026-11-02):** Each paper has form A on one side and the "Báo cáo xén hàng" layout on the other. Crews sometimes write on the Xén side and leave form A empty. On 27/10 the form A side is empty and the data is on the flipped side, so a blank side does not prove a machine was not running. This corrects P91: only a paper with both sides empty, or a missing day, means off or not running. The side with data can be the only side with rows. The Brother photo's other side has nothing written, so its date is not on the paper.
+
+- **P99 (2026-11-02):** A side with data, in either layout, is a page of that machine, date and shift, and the Xén layout is not a separate sheet type. The reader works out the layout and maps `Tổng KL` to gross, `Lõi` to core and `KL đã trừ` to net. `Hàng xén` and `Hàng OK` are read if written. A photo with no rows warns the leader to check the other side, and is still saved. Lystiger accepted Claude's choices 16, 17 and 18. This settles Q47 and corrects P96's "same table". The third sheet type stays open (Q44).
+
 ## October blower folder (Claude's reading of 50 photos, to be confirmed by Lystiger)
 These are observations, not decisions. Handwritten dates may be misread. Folder: `~/Documents/HASC/sheets/oct/blowers report/`.
 
-**Contents:** 50 photos: 47 form A sheets with data, 1 blank form A (27/10 Ca 2, `1f9b`), 1 repeat photo of the 24/10 Ca 1 sheet (`3dc6` and `fe7b`; different files, same sheet), and 1 "Màng ống / Báo cáo xén hàng" sheet with no visible date (`4f40`).
+**Contents:** 50 photos: 47 form A sheets with data, 1 empty form A side (27/10 Ca 2, `1f9b`, with its data on the flipped side per P98), 1 repeat photo of the 24/10 Ca 1 sheet (`3dc6` and `fe7b`; different files, same sheet), and 1 "Màng ống / Báo cáo xén hàng" side with no date (`4f40`).
 
-**Days:** both shifts on 1, 2, 3, 6, 7, 8, 9, 15, 20, 21, 22, 23, 29. Ca 1 only on 10, 13, 24, 30. Ca 2 only on 12, 16, 17, 19, 28. No sheet on 4, 5, 18, 25, 26, 31. These read as off or not running under P91.
+**Days, from Lystiger's file names (P97):** both shifts on 1, 2, 3, 6, 7, 8, 9, 10, 15, 16, 17, 20, 21, 22, 23, 28, 29. Ca 1 only on 11, 13, 24, 30. Ca 2 only on 19, 27. No sheet on 4, 5, 12, 14, 18, 25, 26, 31. These read as off or not running under P91. The file codes elsewhere in this section are the earlier names, which no longer exist.
 
 **Unsure dates, for Lystiger to check on paper:**
 - `340f` and `90e8` read 11/10 Ca 1, a Sunday; the other three Sundays have no sheets. `5501` reads 11 or 14. A wrong reading would change the day list.
@@ -181,4 +189,4 @@ These are observations, not decisions. Handwritten values and some labels may be
 | Q10 | 8. AI and hosting | Which model, chosen by test on labelled sheets on the Dell | Undecided; settled by testing |
 
 ## Claude's choices awaiting acceptance
-None. Those at the end of `spec.md` are accepted (P79, P93).
+None. Those at the end of `spec.md` are accepted (P79, P93, P99).
