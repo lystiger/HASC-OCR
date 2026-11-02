@@ -1,0 +1,181 @@
+# HASC Production Records brief
+
+**Decisions:** Lystiger · **Written by:** Claude · **Status:** Requirements decided, spec accepted 2026-11-02. Later decisions override earlier ones where they differ
+
+The folder stays `hasc-ocr`, as Lystiger specified. Requirements only so far: no code, repo, job panes or agent assignments.
+
+## Starting statement (Lystiger, not yet tested)
+Employees put documents on a server, AI extracts their contents, and they download a readable Excel file.
+
+## Decisions
+- **P1 (2026-10-31):** The first version focuses on the production report sheet of each machine, with samples in `~/Documents/HASC/sheets`. P2 settles the forms.
+- **P2 (2026-10-31):** The first version covers form A only (`BMMT01-2022/HASC`). Other machine forms may be added later if there is enough evidence. What counts as enough evidence is open (Q14).
+- **P3 (2026-10-31):** The shift leader photographs the sheet and uploads it to a website. The boss or the secretary of the office checks the result and downloads it.
+- **P4 (2026-10-31):** There are 3 roles for now: operator, admin and office member. What office members can do is open (Q1d).
+- **P5 (2026-10-31):** Lystiger is the admin and also develops the product. The admin adds and removes people and has statistical information. Which statistics, and whether the admin can see document contents, is open (Q17).
+- **P6 (2026-10-31):** Lystiger is the manager and decided this product should exist. There are 2 shift leaders as operators, 1 for the day shift and 1 for the night shift, and 6 office members.
+- **P7 (2026-10-31):** Operators can only upload and see specs, and have no edit authority. What "specs" means is open (Q19).
+- **P8 (2026-10-31):** "Check" in P3 means looking at dashboards and charts of efficiency, productivity, product quality and more. It does not mean comparing AI values with the photo. Dashboards are out of the first version (P10).
+- **P9 (2026-10-31):** Office members correct numbers by downloading the Excel file, editing it and uploading it again. This covers errors made by accident or on purpose. Operators cannot do this. All 6 office members have this right (P11).
+- **P10 (2026-10-31):** The first version has no dashboard, only Excel download and corrected re-upload. The measures for a later dashboard are still undefined.
+- **P11 (2026-10-31):** All 6 office members get the same download, edit and re-upload rights. Office accounts have 2 roles, boss and employee, and "secretary" is dropped as a role. This replaces "office member" in P4. P13 sets what differs between boss and employee.
+- **P12 (2026-10-31):** The admin adds accounts through an admin interface. Attaching accounts to the organisation's Gmail for notifications and status updates comes later, outside the first version.
+- **P13 (2026-10-31):** Boss accounts can also see the edit history: who uploaded, re-uploaded or edited, and when. Employees see only the current numbers and their own edits. Lystiger left the use of AI here to Claude's judgement: the history is recorded by ordinary code, with no AI, because it must be exact.
+- **P14 (2026-10-31):** The first version detects flaws with rule checks only: fixed calculations and limits in ordinary code. AI trained on a golden dataset comes after scaling. The rule list is open (Q5), and each rule needs factory confirmation.
+- **P15 (2026-10-31):** Success is measured by both time saved, with an accuracy minimum, and usage: the share of sheets that go through the system without falling back to typing. Targets and the accuracy minimum are open (Q5, Q23).
+- **P16 (2026-10-31):** The data is used for collecting production records, quality checks and keeping the records secure.
+- **P17 (2026-10-31):** There is 1 sheet per shift. Lystiger changed the upload timing: the sheet is updated each time a product is done, not once per shift. This changes the single end-of-shift picture assumed in the earlier options. P18 sets the timing.
+- **P18 (2026-11-01):** The shift leader uploads when each product run ends, meaning a stretch of rolls for the same customer and film type, plus one final photo of the finished sheet at shift end.
+- **P19 (2026-11-01):** There is 1 sheet per machine per shift. This replaces the first sentence of P17. With 4 machines (T1, T6, T2, T3) and 2 shifts, that is up to 8 sheets a day.
+- **P20 (2026-11-01):** Today the shift leader handles the paper sheet and sends a photo to the office on Zalo. Capturing and sending takes about a minute. Office members read the photo and judge it. No Excel is used yet, so typing time is unknown; Lystiger expects it to be short because the format exists. Zalo cannot edit, archive or fact-check automatically. The system's purpose is long-term management, history logging, QA/QC of product quality, and knowing who is responsible for what.
+- **P21 (2026-11-01):** This replaces P15. Success means sheets are complete and traceable, values meet the accuracy minimum, people use the system, and each upload stays within a time limit. Traceable means any number shows its original photo, who uploaded it, when, and every later change. The time saved that matters is looking up what happened at a given time instead of finding the paper sheet. The upload limit and other targets are open (Q26).
+- **P22 (2026-11-01):** Protection rule for repeat photos of a sheet: a new row is added; an existing row with the same reading does not change; an existing row with a different reading keeps its current number and is flagged for an office member to decide.
+- **P23 (2026-11-01):** Zalo and the system run side by side for a 1-week trial. Zalo stops after the week if all expected sheets reached the system. What happens if they did not, and how "expected sheets" treats a machine that did not run, is open (Q28).
+- **P24 (2026-11-01):** Each upload takes at most 2 minutes, from opening the website to the system confirming it received the photo. AI processing does not count. Once 2 minutes is met, the team improves it toward 1 minute as far as practical. The 1 minute is an aim, not an acceptance criterion.
+- **P25 (2026-11-01):** Shift leaders can either use an upload button or capture with the camera inside the website. The system must not depend on which phone they use. What happens when the upload is not a form A sheet is open (Q6).
+- **P26 (2026-11-01):** The AI reads every printed field on form A: page details and all row columns, with empty cells left empty. Lystiger confirmed the column list in the sample observations and that each row is one roll.
+- **P27 (2026-11-01):** A correct value is the intended value, matching exactly what a person confirms. A ditto mark becomes the value above, a crossed-out value is replaced by the final one, and 13,6 becomes the number 13.6. There is no tolerance. A value a person cannot read either is labelled "unreadable" and left out of the accuracy score. Text comparison ignores capital letters and extra spaces, but not Vietnamese accent marks.
+- **P28 (2026-11-01):** The first version's minimum accuracy is 95% of values on a labelled sample. This is provisional until tested on labelled samples. Doubtful values must be flagged for people to correct.
+- **P29 (2026-11-01):** The labelled sample is 20 sheets, and Lystiger labels them. This is enough for a first check only: one good or bad sheet can shift the score, and it cannot cover every condition well. The sheets split into 8 for tuning and 12 for the hidden test set, and together include all 4 machines and both shifts, using ordinary photos.
+- **P30 (2026-11-01):** Office members review every value during the 1-week trial, then flagged values only. A value is flagged if the AI reports doubt about it or it fails a rule check. Moving to flagged-only depends on trial results, and the condition is open (Q30).
+- **P31 (2026-11-01):** Any of the 6 office members can pick up a sheet for review, first come first served. How the system prevents sheets being left unreviewed or two people working on one sheet is open (Q30).
+- **P32 (2026-11-01):** Review happens in Excel on office computers. The downloaded file highlights flagged cells and has the original photo on a second tab. Reviewers correct it and re-upload it (P9). If tab-switching makes review slow or careless during the trial, that is evidence for building a website review screen next.
+- **P33 (2026-11-01):** Every uploaded photo is saved. A quick automatic check warns the shift leader to retake a photo that looks bad, and the upload limit in P24 stops once the photo is saved. If reading still fails, the sheet goes on an office list, and an office member fills in a blank Excel template by hand.
+- **P34 (2026-11-01):** The Excel file mirrors the paper form: same Vietnamese headings and column order, with page details at the top. No example file exists yet. Sample photos moved to `~/Documents/HASC/sheets` at Lystiger's request.
+- **P35 (2026-11-01):** The product gets a broader name than HASC-OCR or OXR, matching its long-term purpose. Claude reads this as "HASC Production Records", the example given with the option. The website shows a Vietnamese name (P37).
+- **P36 (2026-11-01):** There is one Excel file per sheet, up to 8 a day, named like `HASC_T1_2026-10-19_Ca2.xlsx`. The shift leader chooses the machine at upload, and the system fills in the date and shift for them to confirm. This step counts within the 2-minute limit.
+- **P37 (2026-11-01):** The product's English name is HASC Production Records and its Vietnamese name is Hồ sơ sản xuất HASC. The first version's website is in Vietnamese only and shows the Vietnamese name. This settles P35.
+- **P38 (2026-11-01):** "Readable" means the Excel file meets all of these: Vietnamese headings; numbers stored as real numbers; consistent decimal places; column widths that show full values; headings that stay visible while scrolling; and flagged cells coloured with a key (yellow = AI unsure, red = failed a rule check, grey = unreadable). Printing is not a requirement.
+- **P39 (2026-11-01):** The AI produces the Excel file within 15 minutes of the photo being saved. The aim is to reach 5 minutes later, which is not a first-version criterion. The photo is visible to the office as soon as it is saved. This figure is untested and may be revisited if security forces slow local hardware.
+- **P40 (2026-11-01):** When reading fails or times out, the system retries automatically within the 15 minutes, then marks the sheet Failed. An office member can then press retry or fill in the template by hand. Each manual retry is recorded in the edit history.
+- **P41 (2026-11-01):** Sheet statuses, shown in Vietnamese: Received (photo saved), Reading (AI working), Needs review (Excel file ready), In review (an office member picked it up), Reviewed (corrected file uploaded), Failed (needs manual retry or hand entry). Shift leaders see the status of sheets they uploaded, and office members see all sheets.
+- **P42 (2026-11-01):** Overlap protection has two parts. Picking up a sheet shows In review under that person's name, and another member can take over, which is recorded. Each file carries a version number, and the system rejects a re-upload made from an out-of-date version and asks the person to download the latest.
+- **P43 (2026-11-01, replaced by P51):** Sheet photos could go to a named, approved cloud AI. The sheets include customer names, pellet formulas and staff names.
+- **P44 (2026-11-01):** No more real sheet photos go to a cloud AI until Q32 is checked, including the labelled sample. Lystiger does this check. Claude already read the 5 sample photos through Anthropic's service during this requirements session. With P51 the product itself sends no photos to a cloud AI.
+- **P45 (2026-11-01):** People log in with a username and password. The admin creates the account and a temporary password, and the user changes it on first login. Shift leader sessions last about 30 days. Office member sessions are shorter, with the length open (Q9). The admin can log out any account immediately.
+- **P46 (2026-11-01):** The system keeps photos, numbers and edit history with no automatic deletion. Lystiger reviews this yearly. A retention period is added if the Q32 check requires one.
+- **P47 (2026-11-01):** Nobody can delete sheets, photos or history through the website in the first version, including the boss and admin. A wrong upload is marked invalid and kept. Direct server access can still reach the data, so server access and backups need their own rules (Q11). Who can mark an upload invalid is open (Q9).
+- **P48 (2026-11-01):** The admin's main screen shows statistics. The admin can open a sheet, but each opening is logged and visible to bosses in the history. This covers website access only, not direct server access. Statistics: sheets per day by status; expected sheets not yet received; failed readings and retries; upload and AI reading times; number of values flagged and corrected.
+- **P49 (2026-11-01):** Office member sessions last 8 hours. Any office member can mark an upload invalid, and the action is recorded in the edit history.
+- **P50 (2026-11-01, replaced by P52):** The website, photos and database would run on a new small cloud server.
+- **P51 (2026-11-01):** Reading uses local AI. This replaces P43 and removes the per-read cost question.
+- **P52 (2026-11-02):** The first version spends no money at all. The local AI runs on an old Dell laptop at the office. The website, photos and database also run on that laptop for the first version. Phones reach it over company Wi-Fi only, and Lystiger says Wi-Fi reaches where shift leaders work. A free tunnel comes later. In-site camera capture (P25) needs HTTPS on the local network or falls back to the phone's camera app. P28 (95%) and P39 (15 minutes) stay as targets but are untested on this hardware. Missing them leads back to Lystiger with the results.
+- **P53 (2026-11-02):** The AI model must be replaceable, for example when the hardware is upgraded. A replacement must pass the same labelled test before going live.
+- **P54 (2026-11-02):** The data is backed up as an encrypted copy to a cloud storage account dedicated to this product, which Lystiger creates. It must stay free to meet P52. The key is kept away from the laptop. A backup counts only after a restore is tested.
+- **P55 (2026-11-02):** The machine is a Dell Inspiron 5521. Claude recalls this as a model from about 2013 and has not confirmed the exact configuration. Its specs per Lystiger: Intel Core i5-3337U, 8 GB RAM, 600 GB disk, onboard GPU, Ubuntu. Modern AI reading may be too slow or need more memory than it has. Candidate models are tested on it against the 20 labelled sheets before anything else is built.
+- **P56 (2026-11-02):** If the Dell misses 95% or 15 minutes, the AI moves to Lystiger's Ryzen workstation over Wi-Fi, with everything else staying on the Dell. If that also fails, money may be spent on hardware or a cloud AI, ending the P52 no-money rule. A cloud AI still depends on Q32.
+- **P57 (2026-11-02):** The Dell emails Lystiger about failed backups, stuck queues, repeated AI failures or a nearly full disk. A heartbeat to a free outside service alerts Lystiger if the laptop stops; it carries no sheet data, and a suitable free plan must be confirmed.
+- **P58 (2026-11-02):** Lystiger operates the system and is the only person with direct server access. All 9 people can use the website at once. The AI reads one photo at a time and others wait in a queue.
+- **P59 (2026-11-02):** Out of scope for now: Grafana monitoring, and alerts through Zalo or Discord using n8n. These are later ideas.
+- **P60 (2026-11-02):** The Dell's disk is not encrypted in the first version. Data security is to be addressed after the first rollout. Accepted risk: anyone who takes the laptop or its disk can read all sheets, formulas and staff names. This covers disk encryption only: login, roles, edit history and encrypted backups stay in the first version.
+- **P61 (2026-11-02):** The "specs" operators see in P7 are form A's printed limits: thickness ≤ 8 mic and roll diameter ≤ 3 mm. They also see the status of their own uploads (P41). They do not see product targets or extracted numbers.
+- **P62 (2026-11-02):** First-version rule checks are: gross weight minus core and cover (subtracted together) equals net weight; the average of the six thicknesses equals the written average; and values within the form's printed limits. A failed rule turns the cell red and never changes the number. A rule is skipped if its values are empty. Lystiger does not know what the printed limits mean, so that rule cannot be written yet (Q36).
+- **P63 (2026-11-02):** Arithmetic rules ship first. Limits and goals live in one settings file that only Lystiger updates, and each rule turns on when its values exist. Adding a product needs no code change. Each check records which values it used. The file holds the metrics printed on form A, by customer and film type: thickness (mic), width (mm), length (mm), weights (kg), measured thickness (mic) and roll diameter (mm). Formulas are not stored. These come from Claude's earlier reading of the photos, without resending them (P44).
+- **P64 (2026-11-02):** First-version targets: 100% of expected sheets in the system; at least 90% of sheets need no hand entry; a past sheet is found by machine, date and shift in under 1 minute. Later aims, not first-version criteria: 100% with no hand entry and under 30 seconds to find a sheet. The figures are untested and can be adjusted after the trial.
+- **P65 (2026-11-02):** Review moves to flagged-only when missed errors are at most 0.5% of values, measured during full checks. A missed error is a wrong value the AI did not flag and that did not fail a rule check. If the trial misses this, full checks continue and it is measured again each week. The figure is untested. A sudden rise in corrections after the move returns the team to full checks; the size of the rise is defined in the spec.
+- **P66 (2026-11-02):** Zalo stops when, during a trial week, all expected sheets reached the system, at least 90% needed no hand entry, and accuracy measured from that week's corrections is at least 95%. If not met, the trial extends a week at a time, up to 4 weeks, then Lystiger decides whether to fix, change or stop. This adds to P23. The shift leader marks "machine not running" for a shift, so that machine is not counted as a missing sheet.
+- **P67 (2026-11-02):** The website uses HTTPS on the local network with a certificate created on the Dell. Lystiger installs trust for it once on every device that opens the website: the shift leaders' phones, the office computers and the admin's device. This replaces the no-HTTPS fallback in P52.
+- **P68 (2026-11-02):** When a new photo adds rows or disagrees with a value on a Reviewed sheet, the sheet returns to Needs review. The Excel file highlights only the new or disputed rows, and finished rows are not rechecked. Reviewed always means every current row has been checked. The system tracks review state per row.
+- **P69 (2026-11-02):** Overdue sheets are marked at the top of the office list, and the count shows on the boss and admin screens. A sheet becomes overdue 24 hours after entering Needs review or In review, weekends included. The factory sometimes works Saturday and Sunday and sometimes not, so the clock does not treat them differently.
+- **P70 (2026-11-02):** Shift leaders or office members can mark a machine or shift as not running. A reason is required, and the mark is recorded in the edit history. This replaces the shift-leader-only wording in P66.
+- **P71 (2026-11-02):** The quick photo check tests that the file is an image under 20 MB and above a minimum resolution, plus blur, darkness, and whether a form-like table fills the frame. It warns and never blocks (P33). Thresholds are tuned in testing.
+- **P72 (2026-11-02):** Original photos stay on the Dell. Backups hold the database, edit history and a smaller copy of each photo, about the size of the samples (P54). If the Dell dies, full-quality originals are lost, but readable copies and all numbers remain. Storage estimates: about 47 GB a year of originals and 3 GB a year of smaller copies, assuming 32 photos a day.
+- **P73 (2026-11-02):** Delivery order: 1. model test on the Dell; 2. end-to-end slice (login, upload, AI read, Excel, download); 3. review, re-upload, history and rules; 4. backups and alerts; 5. trial on all 4 machines. Stage 1 can stop the project before anything is built.
+- **P74 (2026-11-02):** Out of the first version: dashboards and charts; other forms (form B and M machine forms); AI trained to detect flaws; a website review screen; Gmail notifications; Grafana, n8n, and Zalo or Discord alerts; free tunnel and outside access; disk encryption; English interface; printing layout; automatic deletion; showing product targets to operators; storing formulas in the settings file.
+- **P75 (2026-11-02):** Adding a form needs the first version to meet its P64 targets for 4 weeks running, and 20 labelled sheets of that form to reach 95%. Trained AI ("after scaling") needs about 500 sheets confirmed as good runs, plus hardware that can train and run it. These are checkpoints: Lystiger can move earlier, knowingly and on record. The figures are untested, especially 500.
+- **P76 (2026-11-02):** Unigreen is a separate company with no role in this product. The samples were downloaded to its folder by mistake.
+- **P77 (2026-11-02):** On form A, product details are written once on a run's first row, and the rows below are the same product with the same spec. This changes "empty cells left empty" in P26 for those columns. The Excel file shows them as on paper, blank below the first row. The database stores each roll complete with inherited details, so correcting the first row fixes the rows below. Columns that carry down: customer, film type, pellet formula, mixing shift/date, thickness, width and length. Weights do not carry down.
+- **P78 (2026-11-02):** Accepted from Claude's choices: the number of boss accounts is not a requirement; the system accepts JPEG and HEIC; the system never guesses at an empty cell, apart from the carry-down in P77, and accuracy targets apply only to fields with enough real examples; there are 4 roles (operator, employee, boss, admin); and deliberate wrong edits need no separate decision, because P13, P22, P42 and P47 cover them.
+
+- **P79 (2026-11-02):** Lystiger accepted `spec.md`, including Claude's 14 choices listed at its end.
+- **P80 (2026-11-02):** Everything stays local at first. If the Dell can't do the work, a second version moves daily reading to a cloud model such as Gemini. This replaces P56's workstation and hardware fallbacks. Q32, data terms and cost are decided for that version.
+
+- **P81 (2026-11-02):** T1, T3 and T6 are blowing machines, and T2 is a cutting machine. Lystiger thinks the form's title, which lists T2, is wrong. Whether T2 gets form A sheets is open (Q42), and P19's 8 sheets a day and P29's 4 machines depend on it.
+
+- **P82 (2026-11-02):** The system expects form A sheets from T1, T3 and T6 for now, up to 6 sheets a day. This replaces the 4 machines and 8 sheets in P19, P29, P36 and P73, and lowers the storage estimates in P72 by about a quarter. T2 is added by a settings change if the factory confirms it uses form A.
+
+- **P83 (2026-11-02):** The shift leader chooses date and shift by hand at upload, with the date defaulting to today. This replaces the system filling them in (P36), and shift hours are no longer needed.
+- **P84 (2026-11-02):** Lystiger believes "Thông số độ dày đo được", "Đường kính cuộn" and "Máy" are left blank in practice, from the 4 photos. They are read if written and stay out of the 95% score. The machine comes from the upload choice. In practice only the weight rule is expected to fire at launch, which limits the QA/QC goal in P20.
+
+- **P85 (2026-11-02):** Starter limits for the settings file, to be updated during development: thickness ±50 mic, width ±5 mm, and weight 13 to 13.5 kg, as Lystiger stated. A value inside is okay, and outside is flagged by a rule. Open: what each ± is measured against, whether the weight range is net weight and applies to all products, and whether ±50 mic is right (Q43).
+- **P86 (2026-11-02):** Lystiger will capture all of October's sheets for training, covering 3 different sheets. Claude waits for them. Open: whether "3 different sheets" means T1, T3 and T6 on form A or 3 form types, which P2 would not cover, and how this changes the 20-sheet labelled sample in P29 (Q44).
+
+- **P87 (2026-11-02):** This corrects P85. Starter limits: thickness ±5 mic, width ±5 mm, and net weight (`Sau trừ bì`) 13 to 13.5 kg. Open: what the ± limits are measured against, and whether the weight range applies to all products (Q43).
+- **P88 (2026-11-02):** Lystiger found 3 types of sheet to cover and update to the website. This conflicts with form A only (P2, P74) and the checkpoint for adding forms (P75). Which types, and when, is open (Q44).
+
+- **P89 (2026-11-02):** Form A is built first. October's photos cover all 3 sheet types, and stage 1 also tests the other 2. The design allows new forms, and each goes live once form A has met P64 for 4 weeks and that form passes its own test. Lystiger labels 20 sheets per type (8 tuning, 12 hidden test), 60 in total, which Claude reads as including form A's 20 in P29. This updates P2, P29, P74 and P75. The other 2 types are not yet named (Q44).
+
+- **P90 (2026-11-02):** Thickness ±5 mic and width ±5 mm are measured against the run's first row. Net weight has its own range per product, and Lystiger thinks 13 to 13.5 kg is not universal; a product with no range gets no check. Form B is one of the 3 sheet types, and another is named by the machine that produces it. Carried-down values always match the first row, so the thickness and width checks fire only where a lower row has its own written value.
+
+- **P91 (2026-11-02):** In the October stack, a missing day or a blank sheet means the day was off or the machine was not running. Neither counts as a gap in the data.
+
+- **P92 (2026-11-02):** One machine and shift can fill more than one page. The shift leader picks the same date, machine and shift, then a page number. Each page keeps its own photo and review, and Excel joins the pages into one shift. This updates P19: there is still one set of pages per machine per shift, and extra pages do not raise the expected count in P82. It settles Q45.
+
+- **P93 (2026-11-02):** The joined shift Excel file is read-only. Corrections go through the per-page files, and the system refuses the joined file on re-upload. Lystiger accepted this as Claude's choice 15 in `spec.md`.
+
+## October blower folder (Claude's reading of 50 photos, to be confirmed by Lystiger)
+These are observations, not decisions. Handwritten dates may be misread. Folder: `~/Documents/HASC/sheets/oct/blowers report/`.
+
+**Contents:** 50 photos: 47 form A sheets with data, 1 blank form A (27/10 Ca 2, `1f9b`), 1 repeat photo of the 24/10 Ca 1 sheet (`3dc6` and `fe7b`; different files, same sheet), and 1 "Màng ống / Báo cáo xén hàng" sheet with no visible date (`4f40`).
+
+**Days:** both shifts on 1, 2, 3, 6, 7, 8, 9, 15, 20, 21, 22, 23, 29. Ca 1 only on 10, 13, 24, 30. Ca 2 only on 12, 16, 17, 19, 28. No sheet on 4, 5, 18, 25, 26, 31. These read as off or not running under P91.
+
+**Unsure dates, for Lystiger to check on paper:**
+- `340f` and `90e8` read 11/10 Ca 1, a Sunday; the other three Sundays have no sheets. `5501` reads 11 or 14. A wrong reading would change the day list.
+- `0b36` reads 28 or 29/10 Ca 1.
+- `afd4` has a month that looks like 9 rather than 10.
+- `d5b0` has a year that looks like 2025 rather than 2026.
+
+**More than one sheet in a shift:**
+- 20/10 Ca 1: `65d7` has Vinfast rolls 1-25, and `4789` continues with rolls 26-43.
+- 24/10 Ca 1: `fe7b` has Vinfast rolls 1-25, and `cfc4` continues with rolls 26-30.
+- 19/10 Ca 2: 4 Vinfast sheets (`882a`, `d692`, `0bb3`, `dfc6`). Numbering restarts and totals differ, so they are not repeat photos. There are more sheets than the 3 machines.
+- 8/10 Ca 2 (if `afd4` is October), 11/10 Ca 1, 21/10 Ca 2 and 23/10 Ca 2 each have 2 sheets, which may be separate machines.
+
+The machine column is blank, so the photos cannot show which machine each sheet belongs to.
+
+**Other things seen:**
+- Most days have 1 or 2 sheets, well under the 6 a day allowed by P82.
+- Staff names are sometimes on the Ca 2 line of a sheet marked Ca 1 (`596d`, `815a`, `90e8`, `5501`).
+- Subtotals sometimes carry a red correction beside them (`7842`, `90e8`, `b9ac`).
+- `8100` has net weights only, so gross minus core and cover cannot be checked.
+- `0b36` has no roll codes.
+- Formula and mixing columns are filled on some sheets (`90e8`, `815a`, `9978`, `b458`).
+- Width is sometimes not a plain number: `500+40`, `3cm`.
+- Vinfast net weights are mostly around 13-14 kg, but some rows are outside that, up to about 17 kg.
+
+## Sample observations (Claude's reading of 5 photos, to be confirmed by Lystiger)
+These are observations, not decisions. Handwritten values and some labels may be misread.
+
+**Files:** 5 JPEG phone photos, 960x1280 or 1280x960, about 170-290 KB each. `examplejpg` is a JPEG with no file extension.
+
+**Form A, in 4 photos:** "BÁO CÁO CHI TIẾT MÁY THỔI T1,T6,T2,T3", form code `BMMT01-2022/HASC`, version 02, issued 13/6/2023, effective 15/6/2023.
+- Page header: day, month, year, shift (`Ca`) and the shift's staff names.
+- Columns: machine, customer, film type, roll code, pellet formula, pellet-mixing shift/date, thickness (mic), width (mm), length (mm), gross weight (kg), core and cover weight (kg), net weight (kg), six measured thicknesses plus average (limit ≤ 8 mic), and roll diameter at winders 1(A) and 2(B) (limit ≤ 3 mm).
+- Content is handwritten Vietnamese and digits on a printed table, with up to about 25 rows filled per photo.
+- The measured-thickness and roll-diameter columns look empty in all 4 photos. The machine column also looks empty, or its value is hard to read.
+
+**Form B, in 1 photo (`examplejpg`):** a different form, "Thông Tin Hạt Đầu Vào" (input pellet information), with a heading about the total weight of HASC scrap chopped into pellets. The page holds two copies of the table, and one is rotated relative to the other.
+
+**Other form:** the background of one photo shows a separate form with rows T1, T6, T2, T3, M1, M2, M3 and production totals. There is no usable sample of it.
+
+**Difficulties seen:** photos taken at varied rotations, with shadows, perspective distortion, page curl, stains, overlapping pages, clipboards and blur. Writers also use ditto marks, crossed-out values, and handwritten subtotals placed in other columns.
+
+**Possible cross-check:** on rows read so far, gross minus core and cover appears to equal net (15.8 - 2.2 = 13.6). The reading is unverified.
+
+**Sample gap:** 5 photos are enough to understand the forms, but too few to measure accuracy. P29 sets the labelled sample at 20 sheets.
+
+## Open questions
+| # | Section | Question | Status |
+|---|---|---|---|
+| Q43 | 3. Extraction | Each product's net weight range, and which product 13–13.5 kg belongs to | Lystiger, from the factory; does not block |
+| Q44 | 2. Documents | Which machine names the third sheet type? Confirm from October's photos | Undecided; does not block form A |
+| Q42 | 2. Documents | Does T2 (cutting) ever get a form A sheet? | Lystiger to ask the factory; does not block |
+| Q36 | 3. Extraction | From the factory: each product's values, what the printed limits mean, and what difference from a goal triggers a flag | Lystiger to ask; does not block the first version |
+| Q7 | 5. Excel output | Sample layout for acceptance, in the spec | Undecided |
+| Q9 | 7. Security and data | How edit history is protected | Undecided; design in spec |
+| Q32 | 7. Security and data | Do customer contracts or company rules restrict sharing this data with a cloud service? Do Vietnam's data-protection rules affect staff names? | Lystiger checks; blocks any cloud AI (P44, P56) and should cover encrypted backups (P54). Does not block local labelling or testing |
+| Q10 | 8. AI and hosting | Which model, chosen by test on labelled sheets on the Dell | Undecided; settled by testing |
+
+## Claude's choices awaiting acceptance
+None. Those at the end of `spec.md` are accepted (P79, P93).
