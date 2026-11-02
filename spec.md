@@ -1,6 +1,6 @@
 # HASC Production Records (Hồ sơ sản xuất HASC) — first version
 
-**Decisions:** Lystiger · **Written by:** Claude · **Status:** Accepted 2026-11-02 · **Source:** `brief.md` P1–P93
+**Decisions:** Lystiger · **Written by:** Claude · **Status:** Accepted 2026-11-02 · **Source:** `brief.md` P1–P95, `decisions.md` ADR 1–5
 
 ## 1. Context and problem
 After each product run, a shift leader photographs a handwritten machine report (form `BMMT01-2022/HASC`, "form A") and sends it to the office on Zalo. Office members read the photo and judge it. Sending takes about a minute, but Zalo cannot edit, archive or fact-check. Tracing what happened at a past time means finding a paper sheet, and nothing records who is responsible for a number (P20).
@@ -150,7 +150,7 @@ If this adds rows or flags to a Reviewed sheet, the sheet returns to Needs revie
 - Zalo and the system run side by side for 1 week.
 - Zalo stops when, during a trial week, all expected sheets arrived, at least 90% needed no hand entry, and accuracy from that week's corrections is at least 95%.
 - If not met, the trial extends a week at a time, up to 4 weeks. Lystiger then decides whether to fix, change or stop.
-- Expected sheets are each machine in the settings list × each shift, minus shifts marked not running. The list starts as T1, T3 and T6, up to 6 sheets a day. T2 is added by a settings change if the factory confirms it uses form A (P82). A shift counts as received once any page arrives, and extra pages don't raise the expected count (P92).
+- Expected sheets are each machine in the settings list × each shift, minus shifts marked not running. For form A the list is T1, T3 and T6, up to 6 sheets a day. T2 doesn't use form A (P95). A shift counts as received once any page arrives, and extra pages don't raise the expected count (P92).
 
 ## 5. Acceptance criteria
 Automated criteria use a fake reader that returns set values, unless they name the labelled test. Criteria 37–43 are measured on real sheets, the Dell or the trial.
@@ -357,7 +357,7 @@ Tab "_meta"     Hidden: sheet_id, version, row keys and a layout version.
 
 **Rule comparison.** Weights are compared at the precision written, usually one decimal. A written average passes if it's within half of the last written digit of the calculated one.
 
-**Operations.** A nightly job backs up, encrypts and uploads. Reading alerts: a job queued over 15 minutes, 3 failures in a row, or a disk over 80% full. The heartbeat is sent every 5 minutes, and the outside service alerts after 15 minutes without one.
+**Operations.** A daily job at 5am backs up, encrypts and uploads with `restic` through `rclone`, taking turns with the reader (ADR 5). Prune and an integrity check run on Sunday. Reading alerts: a job queued over 15 minutes, 3 failures in a row, or a disk over 80% full. The heartbeat is sent every 5 minutes, and the outside service alerts after 15 minutes without one.
 
 ## 7. Alternatives considered
 | Alternative | Why rejected |
@@ -396,11 +396,9 @@ Tab "_meta"     Hidden: sheet_id, version, row keys and a layout version.
 
 | # | Item | Owner | Blocks |
 |---|---|---|---|
-| Q42 | Does T2 (cutting) ever use form A? | Lystiger, from the factory | Adding T2 to the machine list only |
 | Q36 | Product values, what the limits mean, and when a difference flags | Lystiger, from the factory | Limit and goal rules only |
 | Q32 | Contracts and data-protection rules | Lystiger | The second-version cloud model; should also cover backups |
 | Q10 | Which model | Stage 1 test | Stage 2 |
-
 ## 9. Test plan
 | Layer | How | Criteria |
 |---|---|---|
@@ -432,7 +430,7 @@ Labelled sheets stay local and are never committed to a repository, and the 12 t
 4. **Reading a disputed row:** it shows as yellow, with the differing reading in the added `Cần kiểm tra` column, which is the one addition to the paper's columns.
 5. **Your own edits in carry-down cells:** typing a value into a blank inherited cell overrides it for that row only, and it's recorded.
 6. **Invalid uploads:** rows that came only from an invalid photo leave the current data but stay stored.
-7. **Thresholds:** 3 reading attempts within the 15 minutes; alerts for a job queued over 15 minutes, 3 failures in a row, or a disk over 80% full; a heartbeat every 5 minutes; and a nightly backup.
+7. **Thresholds:** 3 reading attempts within the 15 minutes; alerts for a job queued over 15 minutes, 3 failures in a row, or a disk over 80% full; and a heartbeat every 5 minutes. The backup schedule is now Lystiger's decision (ADR 5).
 8. **Return to full checks (P65):** after moving to flagged-only, corrections to unflagged values in a week above 0.5% of values, or double the previous 4-week average, alert the admin. Lystiger then sets the review mode back. People aren't prompted to check unflagged values, so this can undercount.
 9. **Enough real examples (P78):** a field needs at least 100 labelled non-empty values to count toward the 95%. Other fields are reported separately.
 10. **Rule precision:** weights are compared as written, and an average passes within half of its last written digit.

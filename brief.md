@@ -113,6 +113,10 @@ Employees put documents on a server, AI extracts their contents, and they downlo
 
 - **P93 (2026-11-02):** The joined shift Excel file is read-only. Corrections go through the per-page files, and the system refuses the joined file on re-upload. Lystiger accepted this as Claude's choice 15 in `spec.md`.
 
+- **P94 (2026-11-02):** Architecture decisions are recorded as ADR 1-5 in `decisions.md`. The website and worker are two processes sharing SQLite. The reader is a fresh process per photo. The code is one repo and one package with an import check. Deploys use a git tag, a script, a virtual environment and systemd. Backups use `restic` through `rclone`, daily at 5am and taking turns with the reader, with prune and integrity checks on Sunday.
+
+- **P95 (2026-11-02):** The night shift runs 7pm to 7am, so the 5am backup is 2 hours clear of its final photos. Claude reads the day shift as 7am to 7pm, which Lystiger did not state. T2 does not use form A, so form A's machine list stays T1, T3 and T6, at up to 6 sheets a day. This settles Q42 and Q46, and removes the T2 settings change in P82.
+
 ## October blower folder (Claude's reading of 50 photos, to be confirmed by Lystiger)
 These are observations, not decisions. Handwritten dates may be misread. Folder: `~/Documents/HASC/sheets/oct/blowers report/`.
 
@@ -170,7 +174,6 @@ These are observations, not decisions. Handwritten values and some labels may be
 |---|---|---|---|
 | Q43 | 3. Extraction | Each product's net weight range, and which product 13–13.5 kg belongs to | Lystiger, from the factory; does not block |
 | Q44 | 2. Documents | Which machine names the third sheet type? Confirm from October's photos | Undecided; does not block form A |
-| Q42 | 2. Documents | Does T2 (cutting) ever get a form A sheet? | Lystiger to ask the factory; does not block |
 | Q36 | 3. Extraction | From the factory: each product's values, what the printed limits mean, and what difference from a goal triggers a flag | Lystiger to ask; does not block the first version |
 | Q7 | 5. Excel output | Sample layout for acceptance, in the spec | Undecided |
 | Q9 | 7. Security and data | How edit history is protected | Undecided; design in spec |

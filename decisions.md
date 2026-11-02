@@ -1,0 +1,60 @@
+# HASC Production Records decisions
+
+## ADR 1: Website and reading run as two processes (2026-11-02)
+**Context:** The Dell has 8 GB RAM and 2 CPU cores. A reading may use most of both for minutes, while 9 users must keep working with no errors (spec criterion 41).
+
+**Options:** One process with a background thread. Two processes sharing SQLite. Two processes plus Redis and Celery.
+
+**Decision (Lystiger):** Two processes sharing SQLite. The website saves the photo and adds a row to `read_jobs`. A separate worker takes one job at a time. Each runs as its own systemd service, and SQLite runs in WAL mode.
+
+**Consequences:** A worker crash leaves uploads working. The worker can have lower CPU priority and a memory cap. There are two services to run, and a job's state must survive a worker crash.
+
+**What would make this wrong (Claude's suggestion, not yet confirmed by Lystiger):** Criterion 41 fails even with the limits in place, because the Dell has too little capacity for both. Reading moving to a cloud model (P80) would not change this layout, since the worker would still run the calls.
+
+## ADR 2: The reader runs as a fresh process for each photo (2026-11-02)
+**Context:** The model is chosen by the stage 1 test (Q10). A local model can take a long time to load and holds several GB while loaded. At most 6 sheets a day, plus repeat photos, leave it idle most of the time.
+
+**Options:** A model server kept loaded, such as Ollama or `llama-server`. A fresh process per photo. The model loaded inside the worker.
+
+**Decision (Lystiger):** A fresh process per photo. The worker starts a small reader program for each job, and it exits when done.
+
+**Consequences:** All the reader's memory returns to the system between reads. The worker can kill a reader on timeout, and a crashed model can't damage the worker. Every read pays the load time inside the 15-minute limit.
+
+**What would make this wrong:** Stage 1 shows load time takes too much of the 15 minutes. The `read(image_path)` contract stays the same, so moving to a model server later changes only the reader.
+
+## ADR 3: One repo, one Python package, one folder per part (2026-11-02)
+**Context:** The spec lists 7 parts that should be buildable in parallel against contracts. The website and worker share database code, rules and data shapes. One person maintains the system. Real sheets and labels must never enter the repo.
+
+**Options:** One repo with one package and one folder per part. One repo with several installable packages. Separate repos per part.
+
+**Decision (Lystiger):** One repo and one package, with folders such as `hasc/web`, `hasc/worker`, `hasc/reader`, `hasc/rules` and `hasc/excel`. An automated import check enforces the boundaries, for example `web` can't import `reader`.
+
+**Consequences:** One version, one test run and one install. The boundaries depend on the import check staying in the test suite.
+
+**What would make this wrong:** The reader's AI libraries conflict with the website's libraries. The reader then gets its own virtual environment, which stays cheap because ADR 2 already runs it as a separate process.
+
+## ADR 4: Deploy by git tag and script, with a virtual environment and systemd (2026-11-02)
+**Context:** The Dell runs Ubuntu with 8 GB RAM and two services. A new version may change the database. Lystiger alone has server access and does production deploys. A bad update must not lose sheets.
+
+**Options:** Git tag, script, virtual environment and systemd. Docker Compose. Copying files from a laptop with `rsync`.
+
+**Decision (Lystiger):** Lystiger connects over SSH and runs one deploy script with a version tag. The script backs up the database, checks out the tag, installs libraries, applies database changes, restarts both services, and confirms the website answers. Going back means running it with the old tag, and restoring that backup if the database changed.
+
+**Consequences:** No extra software runs on the Dell, and the running version is always known. The Dell's Ubuntu setup is done by hand once, so its steps must be written down.
+
+**What would make this wrong:** Rebuilding a dead Dell takes too long by hand. The written steps then become a script, tested during the restore test (criterion 42).
+
+## ADR 5: Backups use `restic` through `rclone` (2026-11-02)
+**Context:** Backups must be encrypted before leaving the Dell, and go to a dedicated free cloud account with limited space. They hold the database, history and smaller photo copies.
+
+**Options:** `restic` through `rclone`. A full `tar` and `gpg` archive each night. An `rclone crypt` mirror.
+
+**Decision (Lystiger):** `restic` through `rclone`, starting from a snapshot taken with SQLite's backup command. Check current docs for both tools at build time.
+
+**Consequences:** Any past night can be restored, and only changes are uploaded. There are two tools to learn and a regular prune step.
+
+**What would make this wrong:** The free account fills up even with changes-only uploads. Lystiger then decides what to do, since P52 forbids paying.
+
+**Timing (Lystiger):** Lystiger pointed out that a night backup could clash with the night shift. The backup runs daily at 5am, a time held in settings. It waits for the current read to finish, the worker holds new jobs until it is done, and upload speed is capped to protect Wi-Fi. Uploads and the website keep working. `restic` prune and its integrity check run on Sunday. The first full upload is run by hand before go-live. A Sunday-only backup was rejected, because it could lose up to about a week of corrections and history.
+
+**What would make the timing wrong:** Backups run so long that sheets miss the 15-minute limit. The trial shows this, because backup and read times are both recorded. The night shift runs 7pm to 7am (P95), so 5am is 2 hours clear of its final photos, though photos after a product run can still arrive and wait their turn.
