@@ -1,6 +1,6 @@
 # HASC Production Records (Hồ sơ sản xuất HASC) — first version
 
-**Decisions:** Lystiger · **Written by:** Claude · **Status:** Accepted 2026-11-02 · **Source:** `brief.md` P1–P101, `decisions.md` ADR 1–5
+**Decisions:** Lystiger · **Written by:** Claude · **Status:** Accepted 2026-11-02 · **Source:** `brief.md` P1–P102, `decisions.md` ADR 1–5
 
 ## 1. Context and problem
 After each product run, a shift leader photographs a handwritten machine report (form `BMMT01-2022/HASC`, "form A") and sends it to the office on Zalo. Office members read the photo and judge it. Sending takes about a minute, but Zalo cannot edit, archive or fact-check. Tracing what happened at a past time means finding a paper sheet, and nothing records who is responsible for a number (P20).

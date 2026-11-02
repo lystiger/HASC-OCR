@@ -129,6 +129,8 @@ Employees put documents on a server, AI extracts their contents, and they downlo
 
 - **P101 (2026-11-02):** The word "xén" is dropped from this project, and that side is called the back. Files are named `DD_shiftN_back.jpg`, and the reader layout is `back`. The printed trimming and OK columns are not read as fields. The leader picks the machine for each side at upload, and the product-to-machine pattern is learned from real use, which closes Q48 for now and updates P99. The October photos, both sides, are the labelling set. Lystiger judges them very useful. "Xén" stays in the record only in P96-P100 and where the printed title is quoted.
 
+- **P102 (2026-11-02):** Lystiger asked for the form A label template, which is `~/Documents/HASC/labels/form_a_labels.xlsx`, kept local and out of any repository. Claude picked the 20 sheets, 10 per shift across all weeks, without using their contents, and a seeded shuffle set the split. Tuning: `01_shift1`, `07_shift2_2`, `09_shift1`, `10_shift2`, `11_shift1`, `13_shift1`, `21_shift2`, `29_shift2`. Hidden: `06_shift1`, `08_shift2_1`, `15_shift2`, `17_shift1`, `19_shift2_1`, `20_shift1_2`, `22_shift1`, `23_shift2_1`, `24_shift2`, `28_shift1`, `28_shift2`, `30_shift1`. The machine spread P29 asks for cannot be checked, because the machine column is blank on paper. Labels record blanks as blank, and carry-down stays in the worker. A last column records handwritten subtotals, not scored. The photo file names, not the written dates, identify each sheet.
+
 ## October blower folder (Claude's reading of 50 photos, to be confirmed by Lystiger)
 These are observations, not decisions. Handwritten dates may be misread. Folder: `~/Documents/HASC/sheets/oct/blowers report/`.
 
@@ -173,6 +175,13 @@ The machine column is blank, so the photos cannot show which machine each sheet 
 - Formula and mixing columns are filled on some sheets (`90e8`, `815a`, `9978`, `b458`).
 - Width is sometimes not a plain number: `500+40`, `3cm`.
 - Vinfast net weights are mostly around 13-14 kg, but some rows are outside that, up to about 17 kg.
+
+## First local model try (2026-11-02, one sheet, not a score)
+Qwen3.5-4B-Q4_K_M with `mmproj-F16.gguf`, llama.cpp `llama-mtmd-cli`, CPU only with 8 threads on the Ryzen 7 H 255, on `01_shift1` (12 rows), judged against Claude's own reading.
+- Full rotated-upright photo with a comma CSV prompt: 155 s, 3 of 12 net weights right.
+- Hand-cropped table, `|` separators, `--image-min-tokens 1024`: 78 s, 11 of 12 net weights and 10 of 12 gross weights right, all 12 rows and roll codes found. Core `1,6` was read as `11,6`, ditto marks stayed `11`, `BBHN` became `BB+K`, `HCK` became `HIC`, and `2030` became `2020`.
+- Dell run with the same crop and prompt (i5-3337U, 4 threads, llama.cpp `d854d98ba`, CPU only): exit 0 in 541 s, image encoding 149 s, peak memory 3.9 GiB, lowest available RAM 4.4 GiB, swap peak 274 MiB, 80 C, no thermal throttle counted, CPU 366%. Heavy desktop programs were closed. By Claude's reading, 11 of 12 net and 9 of 12 gross weights were right, with the same core, ditto and name errors.
+- Claude's estimate from that run: about 32 s per row after a 160 s start, so about 16 minutes for a 25-row sheet, just over the 15-minute target. A shorter output format has not been tried.
 
 ## Sample observations (Claude's reading of 5 photos, to be confirmed by Lystiger)
 These are observations, not decisions. Handwritten values and some labels may be misread.
