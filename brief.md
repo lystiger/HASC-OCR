@@ -125,12 +125,30 @@ Employees put documents on a server, AI extracts their contents, and they downlo
 
 - **P99 (2026-11-02):** A side with data, in either layout, is a page of that machine, date and shift, and the Xén layout is not a separate sheet type. The reader works out the layout and maps `Tổng KL` to gross, `Lõi` to core and `KL đã trừ` to net. `Hàng xén` and `Hàng OK` are read if written. A photo with no rows warns the leader to check the other side, and is still saved. Lystiger accepted Claude's choices 16, 17 and 18. This settles Q47 and corrects P96's "same table". The third sheet type stays open (Q44).
 
+- **P100 (2026-11-02):** The side printed "Báo cáo xén hàng" does not record trimming in practice. Crews use it to record another product being produced. "Xén" is only a name for the printed layout. Which machine produces those products will be learned once the new collection is adopted.
+
+- **P101 (2026-11-02):** The word "xén" is dropped from this project, and that side is called the back. Files are named `DD_shiftN_back.jpg`, and the reader layout is `back`. The printed trimming and OK columns are not read as fields. The leader picks the machine for each side at upload, and the product-to-machine pattern is learned from real use, which closes Q48 for now and updates P99. The October photos, both sides, are the labelling set. Lystiger judges them very useful. "Xén" stays in the record only in P96-P100 and where the printed title is quoted.
+
 ## October blower folder (Claude's reading of 50 photos, to be confirmed by Lystiger)
 These are observations, not decisions. Handwritten dates may be misread. Folder: `~/Documents/HASC/sheets/oct/blowers report/`.
 
 **Contents:** 50 photos: 47 form A sheets with data, 1 empty form A side (27/10 Ca 2, `1f9b`, with its data on the flipped side per P98), 1 repeat photo of the 24/10 Ca 1 sheet (`3dc6` and `fe7b`; different files, same sheet), and 1 "Màng ống / Báo cáo xén hàng" side with no date (`4f40`).
 
-**Days, from Lystiger's file names (P97):** both shifts on 1, 2, 3, 6, 7, 8, 9, 10, 15, 16, 17, 20, 21, 22, 23, 28, 29. Ca 1 only on 11, 13, 24, 30. Ca 2 only on 19, 27. No sheet on 4, 5, 12, 14, 18, 25, 26, 31. These read as off or not running under P91. The file codes elsewhere in this section are the earlier names, which no longer exist.
+**Days, from Lystiger's file names (P97):** both shifts on 1, 2, 6, 7, 8, 9, 10, 15, 16, 17, 20, 21, 22, 23, 24, 28, 29. Ca 1 only on 3, 11, 13, 30. Ca 2 only on 19, 27. No sheet on 4, 5, 12, 14, 18, 25, 26, 31. These read as off or not running under P91. The file codes elsewhere in this section are the earlier names, which no longer exist.
+
+**Photos sharing a date and shift, rechecked against Lystiger's names (Claude's reading):**
+- Lystiger confirmed on paper: 7/10 has 2 sheets and `07_shift2_2` belongs there. 19/10 has 4 pages. 20/10 has 3 sheets. 23/10 has 3 sheets, and the year 2025 on `23_shift2_1` is a writing mistake for 2026. 24/10 has 3 sheets, and `24_shift1_2` was a capture error. 27/10 has 1 shift.
+- Continuation: `20_shift1_1` and `_2` (rolls 1-25, then 26-43), and `24_shift1_1` and `_3` (rolls 1-25, then 26-30).
+- Numbering restarts: `19_shift2_1` to `_4` (24, 25, 25 and 7 rows, same staff, lengths 150, 147, 146, 147), and `23_shift2_1` and `_2`.
+- Lystiger confirmed that the Vinfast 1-20 sheet (total 271,1) is 24/10 Ca 2, now `24_shift2.jpg`. `27_shift2_2` was another photo of it, and `24_shift1_2` was a capture error; both are deleted at Lystiger's request. The photo named `03_shift2` is 8/10 Ca 2, so 8/10 Ca 2 has 2 sheets: `08_shift2_1` and `08_shift2_2`.
+
+**Flipped sides (Claude's reading, named from Lystiger's handwritten labels such as `S2-27`):** 21 photos hold 30 back sides, named `DD_shiftN_back.jpg`, or `DD_shift1_shift2_back.jpg` when one photo holds 2 sides. Days: 1, 2, 3, 6, 7, 8, 9, 10, 19, 20, 21, 22, 23, 24, 27, 28, 29. `10_shift2_back` is a second photo of the lower side in `10_shift1_shift2_back`, and `24_shift1_back_copy` is byte-identical to `24_shift1_back`.
+- 3/10 Ca 2 and 27/10 Ca 2 have back-side rows but no form A rows, so those shifts ran.
+- Lystiger confirmed the labels on `10_shift1_shift2_back` and `20_shift1_shift2_back` as days 10 and 20. The 10 two-side photos need one photo per side for labelling; 19 retakes, since `10_shift2_back` already exists alone.
+- `27_shift2_back` has `T3` written in the machine column, and its rows are bag film for other customers (TX, Đông Á, Thái Bình). The sides seen list customers and products unlike their form A fronts. Settled for now by P101.
+- The 19 one-side retakes arrived and are named `DD_shiftN_back.jpg`, with 3 extra retakes named `_retake` (1/10 both shifts, 10/10 Ca 2). Every handwritten subtotal Claude could check on the retakes equals the sum of the net weights Claude read, so subtotals could work as a rule check. P101 does not read them today.
+- Subtotals sit in the `Hàng xén` customer column, roll codes are often blank, weights are whole numbers, and `Định lượng` holds values such as `gh15`.
+- 30 sides meet the 20 labelled sheets P89 asks for per type, which replaces the earlier note that too few exist. 10 photos hold 2 sides, while the reader reads one page per photo.
 
 **Unsure dates, for Lystiger to check on paper:**
 - `340f` and `90e8` read 11/10 Ca 1, a Sunday; the other three Sundays have no sheets. `5501` reads 11 or 14. A wrong reading would change the day list.

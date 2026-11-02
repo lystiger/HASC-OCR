@@ -1,6 +1,6 @@
 # HASC Production Records (Hồ sơ sản xuất HASC) — first version
 
-**Decisions:** Lystiger · **Written by:** Claude · **Status:** Accepted 2026-11-02 · **Source:** `brief.md` P1–P99, `decisions.md` ADR 1–5
+**Decisions:** Lystiger · **Written by:** Claude · **Status:** Accepted 2026-11-02 · **Source:** `brief.md` P1–P101, `decisions.md` ADR 1–5
 
 ## 1. Context and problem
 After each product run, a shift leader photographs a handwritten machine report (form `BMMT01-2022/HASC`, "form A") and sends it to the office on Zalo. Office members read the photo and judge it. Sending takes about a minute, but Zalo cannot edit, archive or fact-check. Tracing what happened at a past time means finding a paper sheet, and nothing records who is responsible for a number (P20).
@@ -72,12 +72,12 @@ Employees and bosses together are the 6 office members. Nobody can delete sheets
 **Upload (P18, P22, P25, P33, P36, P71)**
 - The shift leader uploads after each product run, plus a final photo at shift end. A first upload creates the sheet; later uploads add to it.
 - They can use the upload button or the camera. The system accepts JPEG and HEIC, on any phone.
-- They choose the machine, date and shift by hand, with the date defaulting to today (P83). They also choose a page number, defaulting to page 1 (P92). Each paper has form A on one side and the "Báo cáo xén hàng" layout on the other, and a side with data is a page in either layout (P98, P99). The leader's date and shift are the only source for a Xén side, which has none printed. Machine, date, shift and page identify the sheet.
+- They choose the machine, date and shift by hand, with the date defaulting to today (P83). They also choose a page number, defaulting to page 1 (P92). Each paper has form A on one side and a back layout on the other, and a side with data is a page in either layout (P98, P99). The leader chooses the machine for each side (P101). The back has no printed date or shift, so the leader's choice is the only source. Machine, date, shift and page identify the sheet.
 - The system always saves the photo before anything else, and always keeps the original.
 - A quick check tests that the file is an image under 20 MB and above a minimum resolution, plus blur, darkness and whether a form-like table fills the frame. It warns and suggests a retake, and never blocks. After reading, a photo with no rows shows the leader a warning to check the other side (P99).
 
 **Reading (P26, P27, P40, P53, P58, P77)**
-- The AI reads every printed field on form A or the Xén layout, one photo at a time, in a queue. It works out the layout from the columns, not the title. On a Xén side, `Tổng KL` is gross, `Lõi` is core and `KL đã trừ` is net.
+- The AI reads every printed field on form A or the back layout, one photo at a time, in a queue. It works out the layout from the columns, not the title. On a back side, `Tổng KL` is gross, `Lõi` is core and `KL đã trừ` is net.
 - Reads are stored as intended values: a ditto mark becomes the value above, a crossed-out value becomes the final one, and 13,6 becomes 13.6.
 - Empty cells stay empty, except for carry-down: customer, film type, pellet formula, mixing shift/date, thickness, width and length carry from a run's first row to the rows below. Weights do not.
 - The system retries automatically within 15 minutes, then marks the reading Failed. An office member can press retry or hand-enter using a blank template.
@@ -94,7 +94,7 @@ If this adds rows or flags to a Reviewed sheet, the sheet returns to Needs revie
 
 **Flags and rule checks (P14, P30, P62, P63, P65)**
 - A value is flagged if the AI reports doubt or it fails a rule. A rule never changes a number, and is skipped if its values are empty.
-- Rules at launch: gross weight − (core + cover) = net weight, and the average of the six thicknesses = the written average. A Xén side has no cover column, so its rows skip the weight rule (P99).
+- Rules at launch: gross weight − (core + cover) = net weight, and the average of the six thicknesses = the written average. A back side has no cover column, so its rows skip the weight rule (P99).
 - Limit and goal rules stay off until their values and meaning exist in the settings file (Q36, Q43). Formulas are not stored there. Starter limits, updated during development (P87, P90): thickness ±5 mic and width ±5 mm from the run's first row; net weight (`Sau trừ bì`) by a range set per product, with no check for a product that has no range yet. Values carried down from the first row always match it, so the thickness and width checks fire only where a lower row has its own written value.
 - Lystiger believes "Thông số độ dày đo được", "Đường kính cuộn" and "Máy" are left blank in practice (P84). They are read if written and stay out of the 95% score, so in practice only the weight rule is expected to fire at launch.
 - Office members check every value during the trial, then only flagged values once missed errors are at most 0.5% of values.
@@ -221,7 +221,7 @@ Automated criteria use a fake reader that returns set values, unless they name t
 49. A shift with only page 2 counts as received. Two pages of one shift count as one expected sheet.
 
 **Two-sided paper (P98, P99)**
-50. A reader result with layout `xen` stores `Tổng KL`, `Lõi` and `KL đã trừ` as gross, core and net, is not refused for its title, and skips the weight rule.
+50. A reader result with layout `back` stores `Tổng KL`, `Lõi` and `KL đã trừ` as gross, core and net, is not refused for its title, and skips the weight rule.
 51. A photo read as having no rows is kept and warns the leader to check the other side.
 52. Blank product details at the top of a page take the last run's values from the previous page. If that page hasn't arrived, they stay empty and flagged, then fill when it does. Values written on the page are never replaced.
 
@@ -290,11 +290,11 @@ read(image_path: str) -> ReadResult
 }
 ```
 
-`null` means an empty cell. A failure raises `ReaderError(kind, message)`, with `kind` either `timeout`, `not_form_a` or `other`. `layout` is `form_a` or `xen`, and `not_form_a` means the photo is neither. Carry-down happens in the worker, not the reader.
+`null` means an empty cell. A failure raises `ReaderError(kind, message)`, with `kind` either `timeout`, `not_form_a` or `other`. `layout` is `form_a` or `back`, and `not_form_a` means the photo is neither. Carry-down happens in the worker, not the reader.
 
 **Fields.** These English keys are stable across the API, reader, rules and Excel:
 
-`machine`, `customer`, `film_type`, `roll_code`, `pellet_formula`, `mixing_shift_date`, `thickness_mic`, `width_mm`, `length_mm`, `gross_kg`, `core_kg`, `cover_kg`, `net_kg`, `thickness_1`…`thickness_6`, `thickness_avg`, `diameter_a`, `diameter_b`. The Xén layout also has `production_time`, `grammage`, `trim_customer`, `trim_width`, `trim_thickness`, `ok_customer`, `ok_thickness`, `ok_weight` and `ok_length`. These headings are Claude's reading of one photo, so check them against the paper.
+`machine`, `customer`, `film_type`, `roll_code`, `pellet_formula`, `mixing_shift_date`, `thickness_mic`, `width_mm`, `length_mm`, `gross_kg`, `core_kg`, `cover_kg`, `net_kg`, `thickness_1`…`thickness_6`, `thickness_avg`, `diameter_a`, `diameter_b`. The back layout also has `production_time` and `grammage`. Its printed trimming and OK columns are not read as fields, because crews use that space for handwritten subtotals (P101).
 
 **API.** All endpoints need a session. All errors look like `{"error": {"code": "stale_version", "message": "<Vietnamese text>"}}`.
 
@@ -359,7 +359,7 @@ Tab "Ảnh"       The sheet's valid photos, newest first.
 Tab "_meta"     Hidden: sheet_id, version, row keys and a layout version.
 ```
 
-`Cần kiểm tra` is an added last column, which marks new or disputed rows and holds the differing reading. A Xén page's file uses that layout's own headings. The joined shift file uses the shared columns, followed by the Xén-only ones.
+`Cần kiểm tra` is an added last column, which marks new or disputed rows and holds the differing reading. A back page's file uses that layout's own headings. The joined shift file uses the shared columns, followed by the back-only ones.
 
 **Rule comparison.** Weights are compared at the precision written, usually one decimal. A written average passes if it's within half of the last written digit of the calculated one.
 
@@ -398,7 +398,7 @@ Tab "_meta"     Hidden: sheet_id, version, row keys and a layout version.
 | Direct server access bypasses the history | Only Lystiger has it (P58), and it's not covered by website logs (P48) |
 | A contract or rule restricts the data | Lystiger checks Q32. Encrypted backups should be included |
 | A leader photographs only one side, so rows on the other side are missed | The no-rows warning catches an empty side. A shift counts as received once any page arrives, so a missed side with rows on both is still invisible |
-| Few Xén-layout photos exist to test on | The Xén layout's accuracy is reported separately, and the 95% gate is measured on form A sides |
+| Which machine makes which back-side product is unknown | The leader picks the machine at upload, and the new collection will show the pattern (P101) |
 
 **Open items that don't block accepting this spec**
 
@@ -447,6 +447,6 @@ Labelled sheets stay local and are never committed to a repository, and the 12 t
 13. **Vietnamese labels:** the status labels in section 4 and the column headings in section 6 are my wording, so please check them.
 14. **Failed sheets after hand entry:** a hand-entered template goes straight to Reviewed, because a person typed it from the photo.
 15. **Joined Excel is read-only:** because each page has its own review (P92), corrections go through the per-page files. The joined shift file is for reading and downloading, and the system refuses it on re-upload.
-16. **Printed title is ignored:** the reader works out the layout from the columns, so a Xén side is not refused as `not_form_a` for its title (P99).
+16. **Printed title is ignored:** the reader works out the layout from the columns, so a back side is not refused as `not_form_a` for its title (P99).
 17. **Carry-down across pages:** if a page's first rows have blank product details, they carry from the last run on the previous page. If that page hasn't arrived, they stay empty and flagged until it does. Values written on the page itself always win.
 18. **Empty-side warning:** a photo read as having no rows is saved, and the leader is warned to check the other side.
