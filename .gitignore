@@ -1,0 +1,8 @@
+__pycache__/
+*.env
+.env*
+*.xlsx
+*.jpg
+*.jpeg
+*.png
+known_names.json
