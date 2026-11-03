@@ -2,7 +2,9 @@
 """Score reader output against the labelled sheets (spec criterion 37, brief P27).
 
 Usage: score.py LABELS.xlsx OUTPUT_DIR [--split tuning|hidden]
-OUTPUT_DIR holds one <tab>.out per sheet, in the pipe format of COLUMNS.
+OUTPUT_DIR holds one <tab>.out per sheet: one row per line, either
+`key=value key=value` with keys from COLUMNS, or cells in COLUMNS order split by `|`.
+Product fields are copied down a run on both sides before scoring (P103).
 """
 import argparse
 import re
@@ -17,6 +19,7 @@ COLUMNS = ["customer", "film_type", "roll_code", "thickness_mic", "width_mm", "l
            "gross_kg", "core_kg", "cover_kg", "net_kg"]
 UNSCORED = {"machine", "subtotal_note", "diameter_a", "diameter_b", "thickness_avg",
             *(f"thickness_{i}" for i in range(1, 7))}  # P84, and subtotals are not fields
+CARRIED = ["customer", "film_type", "thickness_mic", "width_mm", "length_mm"]  # P103
 MIN_VALUES = 100  # Claude's choice 9 in the spec
 TARGET = 0.95
 HEADER_ROW, FIRST_ROW = 4, 7
@@ -61,6 +64,42 @@ def parse_pipe(text):
             continue
         rows.append({k: (c or None) for k, c in zip(COLUMNS, cells)})
     return rows, malformed
+
+
+def parse_key_values(text):
+    """Return (rows, malformed). A line with a key outside COLUMNS is counted, never guessed at."""
+    rows, malformed = [], 0
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.S)
+    for line in text.splitlines():
+        if not re.match(r"\s*\w+=", line):
+            continue
+        pairs = [p.split("=", 1) for p in re.split(r"\s+(?=\w+=)", line.strip())]
+        if any(k not in COLUMNS for k, _ in pairs):
+            malformed += 1
+            continue
+        rows.append({k: v.strip() for k, v in pairs if v.strip()})
+    return rows, malformed
+
+
+def parse_output(text):
+    if re.search(r"^\s*\w+=", text, flags=re.M):
+        return parse_key_values(text)
+    return parse_pipe(text)
+
+
+def carry_down(rows):
+    """Fill blank product fields from the row above, as the worker does (P102, P103)."""
+    filled, last = [], {}
+    for row in rows:
+        row = dict(row)
+        for key in CARRIED:
+            if _blank(row.get(key)):
+                if key in last:
+                    row[key] = last[key]
+            else:
+                last[key] = row[key]
+        filled.append(row)
+    return filled
 
 
 def _agreement(label, pred):
@@ -136,9 +175,9 @@ def run(labels_path, output_dir, split):
         if not out.exists():
             result["missing_output"].append(name)
             continue
-        preds, malformed = parse_pipe(out.read_text(encoding="utf-8"))
+        preds, malformed = parse_output(out.read_text(encoding="utf-8"))
         result["malformed"] += malformed
-        tally = score_sheet(rows, preds)
+        tally = score_sheet(carry_down(rows), carry_down(preds))
         result["sheets"][name] = tally
         for key, (right, total) in tally.items():
             entry = result["fields"].setdefault(key, [0, 0])
@@ -170,7 +209,7 @@ def main():
         right, total = sum(v[0] for v in tally.values()), sum(v[1] for v in tally.values())
         print(f"{name:<16}{right:>7}{total:>7}{100 * right / total:>8.1f}")
     if r["malformed"]:
-        print(f"\nRows dropped for a wrong cell count: {r['malformed']}")
+        print(f"\nRows dropped as malformed: {r['malformed']}")
     if r["unlabelled"]:
         print(f"\nNot labelled yet: {', '.join(r['unlabelled'])}")
     if r["missing_output"]:

@@ -90,6 +90,30 @@ class Scoring(unittest.TestCase):
         t = self.tally([{"net_kg": "60"}], [{"net_kg": "60"}, {"net_kg": "61"}])
         self.assertEqual(t["net_kg"], [1, 2])
 
+    def test_reads_key_value_lines(self):
+        rows, malformed = score.parse_output("<think></think>\nroll_code=1 gross_kg=70,6 core_kg=1,6 net_kg=68,6 customer=Toàn Mỹ\n\nroll_code=2 net_kg=68\n")
+        self.assertEqual(malformed, 0)
+        self.assertEqual(rows[0]["customer"], "Toàn Mỹ")
+        self.assertEqual(rows[1], {"roll_code": "2", "net_kg": "68"})
+
+    def test_unknown_key_is_malformed(self):
+        rows, malformed = score.parse_output("roll_code=1 weight=70\n")
+        self.assertEqual((rows, malformed), ([], 1))
+
+
+class CarryDown(unittest.TestCase):
+    def test_product_fields_fill_down_and_weights_do_not(self):
+        rows = score.carry_down([{"customer": "HD", "width_mm": "480", "net_kg": "68"}, {"net_kg": "67"},
+                                 {"customer": "BBHN", "net_kg": "70"}, {}])
+        self.assertEqual([r.get("customer") for r in rows], ["HD", "HD", "BBHN", "BBHN"])
+        self.assertEqual(rows[1].get("width_mm"), "480")
+        self.assertIsNone(rows[3].get("net_kg"))
+
+    def test_copied_product_details_are_not_invented_values(self):
+        labels = score.carry_down([{"customer": "HD", "net_kg": "68"}, {"net_kg": "67"}])
+        preds = score.carry_down([{"customer": "HD", "net_kg": "68"}, {"customer": "HD", "net_kg": "67"}])
+        self.assertEqual(score.score_sheet(labels, preds)["customer"], [2, 2])
+
 
 class Report(unittest.TestCase):
     def setUp(self):
