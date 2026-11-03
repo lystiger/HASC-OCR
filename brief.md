@@ -214,6 +214,7 @@ These are observations, not decisions. Handwritten values and some labels may be
 | Q9 | 7. Security and data | How edit history is protected | Undecided; design in spec |
 | Q32 | 7. Security and data | Do customer contracts or company rules restrict sharing this data with a cloud service? Do Vietnam's data-protection rules affect staff names? | Lystiger checks; blocks any cloud AI (P44, P56) and should cover encrypted backups (P54). Does not block local labelling or testing |
 | Q10 | 8. AI and hosting | Which model, chosen by test on labelled sheets on the Dell | Undecided; settled by testing |
+| Q46 | 2. Documents | Where each row's machine comes from. Form A leaves `Máy` blank and one paper holds several machines: on day 29 the front mixed T6 and T1 and the back held T3 (Claude's reading). The office copies form A by hand into the daily report "Báo cáo sản xuất ngày" and assigns machines from the production plan (`~/Documents/HASC/production plan`, PDFs with selectable text, T1 and T6 only). Matching day 29 rows to the latest plan placed every T1 and T6 line; T3 had no plan, and some products appear on both T1 and T6. Does the office get a plan for T3 and M1–M3? This affects P84 and the expected-sheets count | Parked by Lystiger (2026-11-03) until form A labelling is done; does not block labelling |
 
 ## Claude's choices awaiting acceptance
 None. Those at the end of `spec.md` are accepted (P79, P93, P99).
