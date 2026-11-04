@@ -20,7 +20,7 @@ Each build step is one Hermes goal job (`POST localhost:8000/jobs/goal`). It is 
 
 | # | Step | Spec criteria | Depends on |
 |---|---|---|---|
-| B1 | Skeleton: the `hasc/` package with one folder per part (ADR 3), the existing reader moved into `hasc/reader`, the import-boundary check, and CI running the tests on every PR | Import check | CI decision |
+| B1 | Skeleton: the `hasc/` package with one folder per part (ADR 3), the existing reader moved into `hasc/reader`, the import-boundary check, and CI running the tests on every PR | Import check | ADR 6 |
 | B2 | Database schema and migrations, accounts, login, sessions and roles | 1–10 | B1 |
 | B3 | Upload: photos, quality check, sheets and pages | 11–15, 47, 49 | B2 |
 | B4 | Worker: queue, retries, the reader behind its contract, carry-down, repeat photos, rules | 16–28, 50–52, 53 | B3 |
@@ -36,8 +36,6 @@ B2–B6 follow the spec's rollout stages 2 and 3; B7 is stage 4, and B8–B9 are
 
 | Item | Needed by |
 |---|---|
-| CI: where it runs, and what it may never touch (real sheets, the API key) | B1 |
-| Page approach for the website: plain server-rendered forms, or with a small library such as htmx | B2 |
 | What the operator upload screen and the office list look like on a phone and a PC | B3 |
 | Whether ADR 2 (a fresh reader process per photo) still fits a cloud reader | B4 |
 | Whether an internet outage holds jobs longer instead of failing them after 15 minutes | B4 |

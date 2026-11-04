@@ -69,3 +69,14 @@
 **Consequences:** CI works when Lystiger's machines are off, and it gives the merge rule an independent check. CI has no secrets: every automated test uses the fake reader and made-up data, and a test needing real data is skipped when the local files are absent. The free tier allows 2,000 minutes a month for a private repository.
 
 **What would make this wrong:** to be named by Lystiger.
+
+## ADR 7: Server-rendered pages with htmx (2026-11-04)
+**Context:** FastAPI renders the pages on the Dell (spec section 6). Operators upload from a phone or a laptop, and office members watch statuses change on the sheet list. Devices reach the Dell over company Wi-Fi only.
+
+**Options:** Plain forms, with whole-page reloads and a timed refresh. Plain forms plus htmx, which swaps parts of a page with HTML from the server.
+
+**Decision (Lystiger):** Plain forms plus htmx, so the upload status updates live (Received, Reading, Needs review).
+
+**Consequences:** No separate frontend app, and the server stays the only place pages are built. Every page must still work as plain forms if htmx fails to load. The htmx file is served from the Dell, not a CDN, so pages don't depend on internet access.
+
+**What would make this wrong:** to be named by Lystiger.
