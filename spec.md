@@ -1,6 +1,6 @@
 # HASC Production Records (Hồ sơ sản xuất HASC) — first version
 
-**Decisions:** Lystiger · **Written by:** Claude · **Status:** Accepted 2026-11-02 · **Source:** `brief.md` P1–P102, `decisions.md` ADR 1–5
+**Decisions:** Lystiger · **Written by:** Claude · **Status:** Accepted 2026-11-02, revised 2026-11-04 for the cloud reader · **Source:** `brief.md` P1–P108, `decisions.md` ADR 1–5
 
 ## 1. Context and problem
 After each product run, a shift leader photographs a handwritten machine report (form `BMMT01-2022/HASC`, "form A") and sends it to the office on Zalo. Office members read the photo and judge it. Sending takes about a minute, but Zalo cannot edit, archive or fact-check. Tracing what happened at a past time means finding a paper sheet, and nothing records who is responsible for a number (P20).
@@ -38,7 +38,7 @@ Out of the first version (P12, P59, P74):
 - Showing product targets to operators.
 - Storing formulas in the settings file.
 
-The first version spends no money and sends no sheet photos to a cloud AI (P52, P80). A cloud model such as Gemini belongs to a second version, only if the Dell can't do the work.
+The first version reads sheets with a pay-as-you-go cloud model, Gemini 3.8 Flash through OpenRouter, because local models on the Dell scored far below 95% (P104, P108). Reading is the only paid part, at about $0.004 per sheet; everything else stays free (P52). No real sheet goes to the reader in the running system until Lystiger finishes the Q32 check.
 
 A new form goes live after form A has met the P64 targets for 4 weeks, and 20 labelled sheets of that form (8 tuning, 12 hidden test) reach 95%. Trained AI needs about 500 sheets confirmed as good runs, plus suitable hardware. Lystiger can move earlier, on record (P75).
 
@@ -81,6 +81,7 @@ Employees and bosses together are the 6 office members. Nobody can delete sheets
 - Reads are stored as intended values: a ditto mark becomes the value above, a crossed-out value becomes the final one, and 13,6 becomes 13.6.
 - Empty cells stay empty, except for carry-down: customer, film type, pellet formula, mixing shift/date, thickness, width and length carry from a run's first row to the rows below. Weights do not.
 - The system retries automatically within 15 minutes, then marks the reading Failed. An office member can press retry or hand-enter using a blank template.
+- Each photo is turned upright before reading (P107). **Undecided:** how back pages, which aren't always photographed the same way, are turned.
 - The reader is replaceable. A replacement must pass the same labelled test before going live.
 
 **Repeat photos (P22, P68)**
@@ -129,14 +130,15 @@ If this adds rows or flags to a Reviewed sheet, the sheet returns to Needs revie
 ### Non-functional
 
 **Hosting (P50, P52, P55, P56, P58)**
-- Website, database, photos and local AI run on the Dell Inspiron 5521 (i5-3337U, 8 GB RAM, 600 GB disk, onboard GPU, Ubuntu).
+- Website, database, photos and the reading worker run on the Dell Inspiron 5521 (i5-3337U, 8 GB RAM, 600 GB disk, onboard GPU, Ubuntu). The worker sends each photo to the cloud reader (P104).
 - Phones and computers reach it over company Wi-Fi only.
-- If the Dell misses 95% or 15 minutes, a second version moves daily reading to a cloud model such as Gemini (P80). That version needs the Q32 check, terms that bar training on the data, its own cost decision, and internet access for the reader. It must pass the same labelled test.
+- The reader needs internet. Every request asks OpenRouter for providers that neither store nor train on the data (`data_collection: deny`). The API key lives only on the Dell, outside the repository and logs. A fallback model on the same terms takes over when the main one fails (P104).
+- Without internet, photos still save and jobs wait, then end Failed after 15 minutes like any other reader failure. **Undecided:** whether an outage should hold jobs longer instead of failing them.
 - All 9 people can use the website at the same time.
 
 **Data (P44, P46, P47, P54, P60, P72)**
 - Photos, numbers and history are kept with no automatic deletion. Lystiger reviews this yearly.
-- No real sheet photo goes to a cloud AI until Lystiger finishes the Q32 check.
+- No real sheet photo goes to the cloud reader in the running system until Lystiger finishes the Q32 check. Labelled October sheets were sent for the stage 1 test only.
 - Backups are encrypted and go to a dedicated free cloud storage account. They hold the database, history and a smaller copy of each photo. Original photos stay only on the Dell.
 - The encryption key is kept away from the laptop. A backup counts only after a restore is tested.
 - Accepted risk: the Dell's disk is not encrypted (P60).
@@ -202,13 +204,14 @@ Automated criteria use a fake reader that returns set values, unless they name t
 36. A file with changed structure or a missing metadata tab is refused with a clear message. Cell formulas in re-uploaded files are not executed or stored as formulas.
 
 **Measured on real data or the Dell**
-37. **Stage 1 gate:** on the 12-sheet hidden test set, the chosen reader reaches at least 95% of values, excluding values labelled unreadable, and fields with fewer than 100 labelled non-empty values are reported separately (see section 8).
-38. On the Dell, every one of those 12 sheets is read in under 15 minutes.
+37. **Stage 1 gate:** on a fresh 12-sheet hidden test set (the first one became tuning data, P106), the chosen reader reaches at least 95% of values, excluding values labelled unreadable, and fields with fewer than 100 labelled non-empty values are reported separately (see section 8).
+38. On the Dell, every one of those 12 sheets is read through the cloud reader in under 15 minutes, and the run's cost is recorded.
 39. A timed upload by each shift leader takes at most 2 minutes, from opening the website to confirmation.
 40. A person finds a named past sheet by machine, date and shift in under 1 minute.
 41. Nine logged-in users working at once get no errors while a reading runs.
 42. A backup restored onto a clean machine gives the same sheets, numbers, history and smaller photos, and a copy in cloud storage can't be read without the key.
-43. Stopping the Dell raises the heartbeat alert, and forcing a failed backup, stuck queue, repeated AI failure and nearly full disk each emails Lystiger.
+43. Stopping the Dell raises the heartbeat alert, and forcing a failed backup, stuck queue, repeated AI failure, nearly full disk and low OpenRouter credit each emails Lystiger.
+53. Every reader request carries `data_collection: deny`, and the API key appears in no file in the repository, no log line and no error message.
 
 **Trial and statistics**
 44. Expected-sheet counts are correct for a shift with a sheet, one without, and one marked not running. A not-running mark without a reason is refused.
@@ -363,13 +366,16 @@ Tab "_meta"     Hidden: sheet_id, version, row keys and a layout version.
 
 **Rule comparison.** Weights are compared at the precision written, usually one decimal. A written average passes if it's within half of the last written digit of the calculated one.
 
-**Operations.** A daily job at 5am backs up, encrypts and uploads with `restic` through `rclone`, taking turns with the reader (ADR 5). Prune and an integrity check run on Sunday. Reading alerts: a job queued over 15 minutes, 3 failures in a row, or a disk over 80% full. The heartbeat is sent every 5 minutes, and the outside service alerts after 15 minutes without one.
+**Reader.** `hasc/reader` calls Gemini 3.8 Flash through OpenRouter, asks for plain `key=value` lines, re-reads once with more thinking where a row fails a rule, and falls back to a second model after 3 failed tries (P104). The prompt lists the standard names from `known_names.json`, which stays on the Dell (P105).
+
+**Operations.** A daily job at 5am backs up, encrypts and uploads with `restic` through `rclone`, taking turns with the reader (ADR 5). Prune and an integrity check run on Sunday. Reading alerts: a job queued over 15 minutes, 3 failures in a row, a disk over 80% full, or OpenRouter credit below a set amount (**undecided**, suggested $1). The heartbeat is sent every 5 minutes, and the outside service alerts after 15 minutes without one.
 
 ## 7. Alternatives considered
 | Alternative | Why rejected |
 |---|---|
-| Cloud AI in the first version | Everything stays local at first (P51, P52, P80); a cloud model is the second-version path |
-| Moving the AI to the Ryzen workstation | Replaced by the second-version cloud path (P80) |
+| A local model on the Dell | Scored far below 95% in 4 test runs, mostly by putting values under the wrong columns (P104) |
+| Moving the AI to the Ryzen workstation | Replaced by the cloud reader (P80, P104) |
+| Gemini through Antigravity on a personal account | Its terms don't rule out training on personal-account data, and it's a coding agent with quotas, not a reader (P108) |
 | A paid or separate cloud server | No money in the first version (P52) |
 | Website review screen | Larger build; trial evidence can justify it later (P32) |
 | Dashboards in the first version | Charts on unmeasured data look reliable while being wrong, and form A lacks some inputs (P10) |
@@ -382,8 +388,11 @@ Tab "_meta"     Hidden: sheet_id, version, row keys and a layout version.
 ## 8. Risks
 | Risk | Handling |
 |---|---|
-| The Dell can't run a suitable model, or runs it too slowly | Likely. Stage 1 tests this before anything is built, then the second-version cloud path applies (P80) |
 | A cloud model's terms, cost or data rules don't fit | Check Q32 and the provider's current terms before any real photo is sent. Free plans must not be assumed to bar training on the data |
+| The model's score varies between runs (92.7–98.2% on the same 12 sheets, P107) | Reading twice and flagging disagreements is the next reader step. Full checks in the trial measure what slips through |
+| The model is retired, changes or rises in price | The fallback model keeps reading. A replacement must pass the labelled test |
+| Spending runs away through retries or a bug | The OpenRouter key has a spending limit, and a low-credit alert emails Lystiger |
+| Internet outage | Photos still save; jobs fail after 15 minutes and are retried by hand |
 | 20 labelled sheets give weak evidence, with 12 in the test set | Treat a pass as encouraging, not proof. The trial's corrections provide more evidence |
 | Measured thickness and diameter are left blank (P84) | The average and printed-limit rules rarely or never fire, and the records hold little measured quality data, which limits the QA/QC goal until the factory fills them in |
 | AI doubt misses wrong values | Full checks during the trial measure this before moving to flagged-only (P65) |
@@ -405,8 +414,8 @@ Tab "_meta"     Hidden: sheet_id, version, row keys and a layout version.
 | # | Item | Owner | Blocks |
 |---|---|---|---|
 | Q36 | Product values, what the limits mean, and when a difference flags | Lystiger, from the factory | Limit and goal rules only |
-| Q32 | Contracts and data-protection rules | Lystiger | The second-version cloud model; should also cover backups |
-| Q10 | Which model | Stage 1 test | Stage 2 |
+| Q32 | Contracts and data-protection rules | Lystiger | Sending real sheets to the cloud reader in the running system; should also cover backups |
+| Q10 | Which model | Closed 2026-11-04: Gemini 3.8 Flash through OpenRouter, pending criterion 37 on a fresh hidden set | Go-live, not the build |
 ## 9. Test plan
 | Layer | How | Criteria |
 |---|---|---|
@@ -420,10 +429,10 @@ Tab "_meta"     Hidden: sheet_id, version, row keys and a layout version.
 | Real use | Timed sessions on the Dell with real phones and office computers | 39–41 |
 | Operations | Restore test on a clean machine, and alert tests with forced failures | 42, 43 |
 
-Labelled sheets stay local and are never committed to a repository, and the 12 test sheets are not used for tuning. Tests must not use real sheet data unless they run locally.
+Labelled sheets stay local and are never committed to a repository, and the 12 test sheets are not used for tuning. The first 12 became tuning data after their errors were studied (P106), so a fresh 12 are labelled for the gate. Tests must not use real sheet data unless they run locally.
 
 ## 10. Rollout
-1. **Model test (P55, P73):** capture all of October's sheets and keep them local. Lystiger labels 20 per sheet type, spread across machines, shifts and weeks, with 8 for tuning and 12 hidden for testing. Run candidate local models on the Dell. Only form A's result decides criteria 37–38; the other 2 types report their results for later. **If criteria 37–38 fail**, stop the local path and plan the second version with a cloud model (P80). Lystiger confirms how stages 2–5 proceed, based on the results.
+1. **Model test (P55, P73, P104, P106):** local models failed, and Gemini 3.8 Flash through OpenRouter scores about 95% on 20 labelled form A sheets with upright photos. Still to do: a fresh 12-sheet hidden test, then criteria 37–38. The build runs alongside it; going live waits for it and for Q32. The other 2 sheet types report their results later.
 2. **End-to-end slice:** login, upload, AI read, Excel, download.
 3. **Review:** re-upload, version check, history, rules, not-running marks, overdue list.
 4. **Operations:** backups with a restore test, alerts, heartbeat, statistics.
