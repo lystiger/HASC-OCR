@@ -1,0 +1,48 @@
+{% if uploads %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Biểu mẫu</th>
+        <th>Thời gian gửi</th>
+        <th>Trạng thái</th>
+        <th>Kết quả kiểm tra</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in uploads %}
+      <tr>
+        <td>
+          <strong>{{ u.machine }}</strong> · Ca {{ u.shift }} · <span class="num">{{ u.production_date }}</span> · Trang {{ u.page_no }}
+        </td>
+        <td class="num">
+          {{ u.uploaded_at[:16].replace('T', ' ') }}
+        </td>
+        <td>
+          <span class="status-badge status-badge--{{ u.status }}">
+            {{ u.status_vi }}
+          </span>
+        </td>
+        <td>
+          {% if u.problems %}
+          <ul class="problem-list" style="margin: 0; padding-left: 1.2rem; color: var(--color-error);">
+            {% for p in u.problems %}
+            <li>
+              Cuộn <span class="num">{{ p.roll_code }}</span>: {{ p.label }}
+            </li>
+            {% endfor %}
+          </ul>
+          {% elif u.status in ('received', 'reading') %}
+          <span style="color: var(--color-muted);">Đang xử lý...</span>
+          {% else %}
+          <span style="color: var(--color-success); font-weight: 500;">✓ Hợp lệ</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p style="color: var(--color-muted); margin: 0.5rem 0;">Chưa có biểu mẫu nào được gửi.</p>
+{% endif %}
