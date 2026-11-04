@@ -70,10 +70,10 @@ Employees and bosses together are the 6 office members. Nobody can delete sheets
 - The website is in Vietnamese only (P37).
 
 **Upload (P18, P22, P25, P33, P36, P71)**
-- The shift leader uploads after each product run, plus a final photo at shift end. A first upload creates the sheet; later uploads add to it.
+- The shift leader uploads once, at shift end (P113). Retakes and extra pages are uploaded too. A first upload creates the sheet; later uploads add to it.
 - They can use the upload button or the camera, from a phone or a laptop (P109). The system accepts JPEG and HEIC.
 - They choose the machine, date and shift (P83). The screen pre-selects the shift from the clock and the machine this account chose last, and between midnight and 7am the date defaults to yesterday (P110). The upload button shows what it will send, like `Gửi: T1 · Ca 2 · 19/10 · Trang 1`. They also choose a page number, defaulting to page 1 (P92). Each paper has form A on one side and a back layout on the other, and a side with data is a page in either layout (P98, P99). The leader chooses the machine for each side (P101). The back has no printed date or shift, so the leader's choice is the only source. Machine, date, shift and page identify the sheet.
-- The system always saves the photo before anything else, and always keeps the original.
+- The system always saves the photo before anything else, and always keeps the original. It stores the photo's camera time, when the file has one, next to the upload time. An identical photo (same `sha256`) is saved but not read again (P113).
 - A quick check tests that the file is an image under 20 MB and above a minimum resolution, plus blur, darkness and whether a form-like table fills the frame. It warns and suggests a retake, and never blocks. After reading, a photo with no rows shows the leader a warning to check the other side (P99).
 
 **Reading (P26, P27, P40, P53, P58, P77)**
@@ -147,8 +147,9 @@ If this adds rows or flags to a Reviewed sheet, the sheet returns to Needs revie
 
 **Running it (P57, P58)**
 - Lystiger operates the system and is the only person with direct server access.
-- The Dell emails Lystiger about failed backups, stuck queues, repeated AI failures or a nearly full disk.
-- A heartbeat carrying no sheet data alerts Lystiger if the laptop stops.
+- Healthchecks.io's free tier emails Lystiger about failed backups, stuck queues, repeated AI failures, a nearly full disk or low OpenRouter credit. Alert text never carries sheet data (P113).
+- A heartbeat to the same service alerts Lystiger if the laptop stops.
+- The OpenRouter key has a $5 spending limit. Low credit means fewer than 14 days left at the last 7 days' rate, or under $1.
 
 **Trial (P23, P30, P65, P66, P70)**
 - Zalo and the system run side by side for 1 week.
@@ -216,6 +217,7 @@ Automated criteria use a fake reader that returns set values, unless they name t
 53. Every reader request carries `data_collection: deny`, and the API key appears in no file in the repository, no log line and no error message.
 54. Confirming a sheet at its current version makes it Reviewed and records who confirmed it. Confirming an older version is refused with `409 stale_version` and changes nothing.
 55. After a reading, the operator's upload status lists each roll that failed a rule or was unreadable, as a roll code and a problem type (`weight`, `thickness` or `unreadable`) with a Vietnamese label. The response holds no other values, and AI doubt alone is not listed.
+56. A second upload with the same `sha256` is saved and recorded but starts no reading, and the photo's camera time is stored when present.
 
 **Trial and statistics**
 44. Expected-sheet counts are correct for a shift with a sheet, one without, and one marked not running. A not-running mark without a reason is refused.
@@ -256,7 +258,7 @@ users(id, username, password_hash, role[operator|employee|boss|admin],
 sheets(id, form, machine, production_date, shift, page_no, status, version,
        picked_up_by, status_since,
        UNIQUE(form, machine, production_date, shift, page_no))
-photos(id, sheet_id, path, small_copy_path, sha256, uploaded_by, uploaded_at,
+photos(id, sheet_id, path, small_copy_path, sha256, uploaded_by, uploaded_at, taken_at,
        upload_ms, quality_warnings, invalid, invalid_by)
 read_jobs(id, photo_id, status, attempts, last_error, reader_name,
           queued_at, started_at, finished_at)
@@ -373,7 +375,7 @@ Tab "_meta"     Hidden: sheet_id, version, row keys and a layout version.
 
 **Reader.** `hasc/reader` calls Gemini 3.8 Flash through OpenRouter, asks for plain `key=value` lines, re-reads once with more thinking where a row fails a rule, and falls back to a second model after 3 failed tries (P104). The prompt lists the standard names from `known_names.json`, which stays on the Dell (P105).
 
-**Operations.** A daily job at 5am backs up, encrypts and uploads with `restic` through `rclone`, taking turns with the reader (ADR 5). Prune and an integrity check run on Sunday. Reading alerts: a job queued over 15 minutes, 3 failures in a row, a disk over 80% full, or OpenRouter credit below a set amount (**undecided**, suggested $1). The heartbeat is sent every 5 minutes, and the outside service alerts after 15 minutes without one.
+**Operations.** A daily job at 5am backs up, encrypts and uploads with `restic` through `rclone`, taking turns with the reader (ADR 5). Prune and an integrity check run on Sunday. Reading alerts: a job queued over 15 minutes, 3 failures in a row, a disk over 80% full, or low OpenRouter credit as defined in section 4 (P113). The heartbeat is sent every 5 minutes, and the outside service alerts after 15 minutes without one.
 
 ## 7. Alternatives considered
 | Alternative | Why rejected |
