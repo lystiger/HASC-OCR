@@ -1,0 +1,49 @@
+{% if not sheets %}
+<div class="alert" style="background: var(--color-surface); border: 1px dashed var(--color-border); color: var(--color-muted); text-align: center; padding: 2rem 1rem;">
+  Không có biểu mẫu nào phù hợp điều kiện lọc.
+</div>
+{% else %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Máy</th>
+        <th>Ngày</th>
+        <th>Ca</th>
+        <th>Trang</th>
+        <th>Trạng thái</th>
+        <th>Trưởng ca tải lên</th>
+        <th>Thời gian chờ</th>
+        <th>Thao tác</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in sheets %}
+      <tr class="{% if s.is_overdue %}row-overdue{% endif %}" {% if s.is_overdue %}style="background: #FEF2F2;"{% endif %}>
+        <td><strong class="num">{{ s.machine }}</strong></td>
+        <td class="num">{{ s.production_date }}</td>
+        <td>Ca {{ s.shift }}</td>
+        <td>Trang {{ s.page_no }}</td>
+        <td>
+          <span class="badge badge--{{ s.status }}" style="font-weight: 500;">
+            {{ s.status_label }}
+          </span>
+          {% if s.is_overdue %}
+            <span class="badge badge--danger" style="background: #FEE2E2; color: #991B1B; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; margin-left: 4px; border: 1px solid #FCA5A5;">
+              Quá hạn
+            </span>
+          {% endif %}
+        </td>
+        <td>{{ s.uploader_username or '-' }}</td>
+        <td class="num">{{ s.time_waited }}</td>
+        <td>
+          <a href="/office/sheets/{{ s.id }}" class="btn btn--secondary" style="padding: 0.25rem 0.6rem; min-height: unset; font-size: 0.85rem; font-weight: 600;">
+            Xem chi tiết
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
