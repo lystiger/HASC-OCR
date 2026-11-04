@@ -32,4 +32,7 @@ echo "==> Running import-boundary test..."
 echo "==> Running full unittest suite..."
 "$PY" -m unittest discover -s tests
 
+echo "==> Running scorer tests..."
+"$PY" -m unittest discover -s eval
+
 echo "==> All checks passed successfully."
