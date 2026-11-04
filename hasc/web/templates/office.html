@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Danh sách biểu mẫu cần kiểm tra – HASC VN{% endblock %}
+
+{% block nav %}
+<span style="font-size: 0.9rem; color: var(--color-muted); margin-right: 0.75rem;">
+  {{ user.username }} ({{ user.role }})
+</span>
+<a href="/logout">Đăng xuất</a>
+{% endblock %}
+
+{% block content %}
+<div style="max-width: 960px; margin: 1.5rem auto;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.5rem;">
+    <div>
+      <h1 style="margin: 0; font-size: 1.5rem;">Quản lý biểu mẫu sản xuất</h1>
+      <p style="margin: 0.25rem 0 0; font-size: 0.9rem; color: var(--color-muted);">
+        Biểu mẫu Cần kiểm tra, Đang kiểm tra và Lỗi (ưu tiên quá hạn lên đầu)
+      </p>
+    </div>
+    <div>
+      <a href="/office" class="btn btn--secondary" style="font-size: 0.9rem; padding: 0.4rem 0.8rem; min-height: unset;">
+        Làm mới
+      </a>
+    </div>
+  </div>
+
+  <!-- Filter Form (Works as plain GET form) -->
+  <div class="card" style="margin-bottom: 1.5rem; padding: 1rem 1.25rem;">
+    <form method="get" action="/office" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; align-items: end;">
+      <div class="form-field" style="margin-bottom: 0;">
+        <label for="machine-select" style="font-size: 0.85rem;">Máy</label>
+        <select id="machine-select" name="machine">
+          <option value="">Tất cả máy</option>
+          <option value="T1" {% if filters.machine == 'T1' %}selected{% endif %}>T1</option>
+          <option value="T3" {% if filters.machine == 'T3' %}selected{% endif %}>T3</option>
+          <option value="T6" {% if filters.machine == 'T6' %}selected{% endif %}>T6</option>
+        </select>
+      </div>
+
+      <div class="form-field" style="margin-bottom: 0;">
+        <label for="date-input" style="font-size: 0.85rem;">Ngày sản xuất</label>
+        <input type="date" id="date-input" name="date" value="{{ filters.date }}" />
+      </div>
+
+      <div class="form-field" style="margin-bottom: 0;">
+        <label for="shift-select" style="font-size: 0.85rem;">Ca</label>
+        <select id="shift-select" name="shift">
+          <option value="">Tất cả ca</option>
+          <option value="1" {% if filters.shift|string == '1' %}selected{% endif %}>Ca 1</option>
+          <option value="2" {% if filters.shift|string == '2' %}selected{% endif %}>Ca 2</option>
+        </select>
+      </div>
+
+      <div class="form-field" style="margin-bottom: 0;">
+        <label for="status-select" style="font-size: 0.85rem;">Trạng thái</label>
+        <select id="status-select" name="status">
+          <option value="" {% if not filters.status %}selected{% endif %}>Cần xử lý (Mặc định)</option>
+          <option value="needs_review" {% if filters.status == 'needs_review' %}selected{% endif %}>Cần kiểm tra</option>
+          <option value="in_review" {% if filters.status == 'in_review' %}selected{% endif %}>Đang kiểm tra</option>
+          <option value="failed" {% if filters.status == 'failed' %}selected{% endif %}>Lỗi</option>
+          <option value="reviewed" {% if filters.status == 'reviewed' %}selected{% endif %}>Đã kiểm tra</option>
+          <option value="all" {% if filters.status == 'all' %}selected{% endif %}>Tất cả trạng thái</option>
+        </select>
+      </div>
+
+      <div>
+        <button type="submit" class="btn" style="width: 100%; min-height: 42px; font-size: 0.9rem;">
+          Lọc
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Sheet List Container with HTMX Polling and Fallback Plain Page -->
+  <div class="card" style="padding: 0; overflow: hidden;">
+    <div id="office-sheet-list"
+         hx-get="/office/sheets/partial?machine={{ filters.machine }}&date={{ filters.date }}&shift={{ filters.shift }}&status={{ filters.status }}"
+         hx-trigger="every 5s"
+         hx-swap="innerHTML">
+      {% include "office_sheets_partial.html" %}
+    </div>
+  </div>
+</div>
+{% endblock %}

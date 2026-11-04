@@ -159,6 +159,9 @@ def create_app(
         if user.get("role") == "operator":
             from hasc.web.operator import render_operator_screen
             return render_operator_screen(request, user, conn)
+        if user.get("role") in ("employee", "boss", "admin"):
+            from hasc.web.office import render_office_screen
+            return render_office_screen(request, user, conn)
 
         return templates.TemplateResponse(
             request=request,
@@ -446,11 +449,13 @@ def create_app(
         return Response(status_code=204)
 
     # -------------------------------------------------------------------------
-    # Operator Routes (Upload screen, POST /api/photos, GET /api/uploads/mine)
+    # Operator & Office Routes
     # -------------------------------------------------------------------------
     from hasc.web.operator import router as operator_router
+    from hasc.web.office import router as office_router
 
     app.include_router(operator_router)
+    app.include_router(office_router)
 
     # -------------------------------------------------------------------------
     # API Routes: Section 4 Role Table Endpoints
@@ -462,35 +467,8 @@ def create_app(
     ):
         return {"thickness_max_mic": 8, "diameter_max_mm": 3}
 
-    @app.get("/api/sheets")
-    def api_sheets(
-        user: dict = Depends(require_role("view_all_sheets")),
-    ):
-        return []
-
     @app.get("/api/shifts/excel")
     def api_shifts_excel(
-        user: dict = Depends(require_role("review_sheet")),
-    ):
-        return Response(content=b"", media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
-    @app.get("/api/sheets/{sheet_id}")
-    def api_sheet_detail(
-        sheet_id: int,
-        user: dict = Depends(require_role("view_sheet_numbers")),
-    ):
-        return {"id": sheet_id}
-
-    @app.post("/api/sheets/{sheet_id}/pickup")
-    def api_sheet_pickup(
-        sheet_id: int,
-        user: dict = Depends(require_role("review_sheet")),
-    ):
-        return {"status": "in_review", "picked_up_by": user["id"]}
-
-    @app.get("/api/sheets/{sheet_id}/excel")
-    def api_sheet_excel_download(
-        sheet_id: int,
         user: dict = Depends(require_role("review_sheet")),
     ):
         return Response(content=b"", media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
@@ -501,13 +479,6 @@ def create_app(
         user: dict = Depends(require_role("review_sheet")),
     ):
         return {"version": 1, "status": "reviewed", "changed": 0}
-
-    @app.post("/api/sheets/{sheet_id}/confirm")
-    def api_sheet_confirm(
-        sheet_id: int,
-        user: dict = Depends(require_role("review_sheet")),
-    ):
-        return {"version": 1, "status": "reviewed"}
 
     @app.get("/api/sheets/{sheet_id}/template")
     def api_sheet_template(
