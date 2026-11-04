@@ -36,7 +36,7 @@ B2–B6 follow the spec's rollout stages 2 and 3; B7 is stage 4, and B8–B9 are
 
 | Item | Needed by |
 |---|---|
-| What the operator upload screen and the office list look like on a phone and a PC | B3 |
+| What the office sheet list looks like on a PC (the upload screen is P110) | B6 |
 | Whether ADR 2 (a fresh reader process per photo) still fits a cloud reader | B4 |
 | Whether an internet outage holds jobs longer instead of failing them after 15 minutes | B4 |
 | Which free services send alert email and receive the heartbeat, and the low-credit amount | B7 |
