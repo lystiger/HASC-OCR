@@ -24,7 +24,8 @@ from hasc.reader.reader import ReaderError
 from hasc.rules import rules
 
 MAX_ATTEMPTS = 3
-CARRIED = ("customer", "film_type", "thickness_mic", "width_mm", "length_mm")  # weights are never carried
+CARRIED = ("customer", "film_type", "pellet_formula", "mixing_shift_date", "thickness_mic", "width_mm",
+           "length_mm")  # weights are never carried (P115)
 RULE_FIELDS = {
     "weight": ("gross_kg", "core_kg", "cover_kg", "net_kg"),
     "thickness": ("thickness_1", "thickness_2", "thickness_3", "thickness_4", "thickness_5", "thickness_6",

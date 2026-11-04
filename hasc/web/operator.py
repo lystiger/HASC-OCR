@@ -331,7 +331,7 @@ def process_photo_upload(
     opened_at: str | None,
 ) -> tuple[int, int, str, list[str]]:
     """Validate, save byte-identical original, store EXIF camera time, create sheet,
-    create read job unless an identical photo was already read.
+    create read job unless an identical photo was already read for this sheet.
     Returns (photo_id, sheet_id, status, warnings).
     """
     if machine not in ALLOWED_MACHINES:
@@ -437,16 +437,16 @@ def process_photo_upload(
         detail=f"Tải lên ảnh {photo_id}",
     )
 
-    # 7. Create read job unless identical photo was already read or queued
+    # 7. Create read job unless an identical photo was already read or queued for this sheet (P116)
     cursor = conn.execute(
         """
         SELECT rj.id
         FROM read_jobs rj
         JOIN photos p ON rj.photo_id = p.id
-        WHERE p.sha256 = ? AND p.id != ?
+        WHERE p.sha256 = ? AND p.sheet_id = ? AND p.id != ?
         LIMIT 1
         """,
-        (sha256, photo_id),
+        (sha256, sheet_id, photo_id),
     )
     already_read = cursor.fetchone() is not None
     if not already_read:

@@ -172,6 +172,23 @@ class CarryDownAndRules(WorkerTest):
                           row(roll_code="3", customer="CD", net_kg=12), row(roll_code="4", net_kg=11)))
         self.assertEqual([c["customer"]["value"] for c in self.cells(1)], ["AB", "AB", "CD", "CD"])
 
+    def test_carry_down_keeps_details_across_a_customer_change(self):
+        """P115: a row that writes only a new customer takes the other details from the row above."""
+        self.queue()
+        self.drain(result(row(roll_code="1", customer="AB", film_type="GT", width_mm=600, net_kg=13.2),
+                          row(roll_code="2", customer="CD", net_kg=12)))
+        second = self.cells(1)[1]
+        self.assertEqual((second["film_type"]["value"], second["width_mm"]["value"]), ("GT", "600"))
+
+    def test_carry_down_includes_pellet_formula_and_mixing_shift_date(self):
+        self.queue()
+        self.drain(result(row(roll_code="1", pellet_formula="F2", mixing_shift_date="Ca 1 18/10", net_kg=13.2),
+                          row(roll_code="2", net_kg=12)))
+        second = self.cells(1)[1]
+        self.assertEqual(second["pellet_formula"]["value"], "F2")
+        self.assertEqual(second["mixing_shift_date"]["value"], "Ca 1 18/10")
+        self.assertTrue(second["pellet_formula"]["inherited"])
+
     def test_rule_failures_flag_cells_and_change_no_number(self):
         sheet_id, _ = self.queue()
         bad = row(roll_code="1", gross_kg=17.6, core_kg=0.8, net_kg=16.6, thickness_avg=61,

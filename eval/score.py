@@ -20,7 +20,8 @@ COLUMNS = ["customer", "film_type", "roll_code", "thickness_mic", "width_mm", "l
            "gross_kg", "core_kg", "cover_kg", "net_kg"]
 UNSCORED = {"machine", "subtotal_note", "diameter_a", "diameter_b", "thickness_avg",
             *(f"thickness_{i}" for i in range(1, 7))}  # P84, and subtotals are not fields
-CARRIED = ["customer", "film_type", "thickness_mic", "width_mm", "length_mm"]  # P103
+CARRIED = ["customer", "film_type", "pellet_formula", "mixing_shift_date", "thickness_mic", "width_mm",
+           "length_mm"]  # P103, P116
 MIN_VALUES = 100  # Claude's choice 9 in the spec
 TARGET = 0.95
 HEADER_ROW, FIRST_ROW = 4, 7
