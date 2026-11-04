@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}Tải lên biểu mẫu sản xuất – HASC VN{% endblock %}
+
+{% block content %}
+<div style="max-width: 760px; margin: 1.5rem auto;">
+  <div class="card" style="margin-bottom: 1.5rem;">
+    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem;">
+      <h1 style="margin: 0; font-size: 1.4rem;">Tải lên biểu mẫu sản xuất</h1>
+      <span style="font-size: 0.85rem; color: var(--color-muted);">Biểu mẫu A (BMMT01-2022/HASC)</span>
+    </div>
+
+    <!-- Printed limits per spec P53 -->
+    <div style="background: var(--color-page); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 0.6rem 0.85rem; margin-bottom: 1.25rem; font-size: 0.9rem; color: var(--color-muted);">
+      <strong>Tiêu chuẩn in:</strong> Sai lệch độ dày tối đa ±8 µm · Sai lệch đường kính cuộn tối đa 3 mm
+    </div>
+
+    {% if error %}
+    <div class="alert alert--error" role="alert">
+      {{ error }}
+    </div>
+    {% endif %}
+
+    {% if success_message %}
+    <div class="alert alert--success" role="status">
+      {{ success_message }}
+    </div>
+    {% endif %}
+
+    {% if warnings %}
+    <div class="alert" style="background: #FEFCE8; color: #854D0E; border-color: #FEF08A;" role="alert">
+      <strong>Lưu ý chất lượng ảnh:</strong>
+      <ul style="margin: 0.25rem 0 0; padding-left: 1.2rem;">
+        {% for w in warnings %}
+        <li>{{ w }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <form id="upload-form" method="post" action="/operator/upload" enctype="multipart/form-data">
+      <input type="hidden" id="opened-at-input" name="opened_at" value="" />
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem;">
+        <div class="form-field">
+          <label for="machine-select">Máy</label>
+          <select id="machine-select" name="machine" required>
+            <option value="T1" {% if default_machine == 'T1' %}selected{% endif %}>T1</option>
+            <option value="T3" {% if default_machine == 'T3' %}selected{% endif %}>T3</option>
+            <option value="T6" {% if default_machine == 'T6' %}selected{% endif %}>T6</option>
+          </select>
+        </div>
+
+        <div class="form-field">
+          <label for="shift-select">Ca làm việc</label>
+          <select id="shift-select" name="shift" required>
+            <option value="1" {% if default_shift == 1 %}selected{% endif %}>Ca 1 (7:00 - 19:00)</option>
+            <option value="2" {% if default_shift == 2 %}selected{% endif %}>Ca 2 (19:00 - 7:00)</option>
+          </select>
+        </div>
+
+        <div class="form-field">
+          <label for="date-input">Ngày sản xuất</label>
+          <input
+            type="date"
+            id="date-input"
+            name="production_date"
+            value="{{ default_date }}"
+            required
+          />
+        </div>
+
+        <div class="form-field">
+          <label for="page-input">Trang</label>
+          <input
+            type="number"
+            id="page-input"
+            name="page_no"
+            value="{{ default_page }}"
+            min="1"
+            required
+          />
+        </div>
+      </div>
+
+      <div class="form-field" style="margin-top: 0.5rem;">
+        <label for="file-input">Ảnh chụp biểu mẫu</label>
+        <input
+          type="file"
+          id="file-input"
+          name="file"
+          accept="image/*,.heic,.heif"
+          capture="environment"
+          required
+        />
+        <small style="color: var(--color-muted); margin-top: 0.25rem;">Chấp nhận ảnh chụp trực tiếp từ máy ảnh hoặc tệp JPEG, HEIC (dưới 20 MB).</small>
+      </div>
+
+      <div style="margin-top: 1.25rem;">
+        <button type="submit" id="submit-btn" class="btn" style="width: 100%; font-size: 1.05rem;">
+          {{ button_label }}
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+      <h2 style="margin: 0; font-size: 1.2rem;">Biểu mẫu đã gửi</h2>
+      <a href="/" class="btn btn--secondary" style="min-height: 36px; padding: 0.35rem 0.75rem; font-size: 0.9rem;">
+        Làm mới
+      </a>
+    </div>
+
+    <!-- Polling container via htmx every 5s; falls back to pre-rendered content -->
+    <div
+      id="upload-list-container"
+      hx-get="/operator/uploads"
+      hx-trigger="every 5s"
+      hx-swap="innerHTML"
+    >
+      {% include "operator_uploads_partial.html" %}
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const openedAt = document.getElementById("opened-at-input");
+    if (openedAt) {
+      openedAt.value = new Date().toISOString();
+    }
+
+    function updateButtonLabel() {
+      const machineSelect = document.getElementById("machine-select");
+      const shiftSelect = document.getElementById("shift-select");
+      const dateInput = document.getElementById("date-input");
+      const pageInput = document.getElementById("page-input");
+      const btn = document.getElementById("submit-btn");
+
+      if (!btn || !machineSelect || !shiftSelect || !dateInput || !pageInput) return;
+
+      const machine = machineSelect.value || "T1";
+      const shift = shiftSelect.value || "1";
+      let dateText = "";
+      if (dateInput.value) {
+        const parts = dateInput.value.split("-");
+        if (parts.length === 3) {
+          dateText = parts[2] + "/" + parts[1];
+        }
+      }
+      const page = pageInput.value || "1";
+      btn.textContent = "Gửi: " + machine + " · Ca " + shift + " · " + dateText + " · Trang " + page;
+    }
+
+    const form = document.getElementById("upload-form");
+    if (form) {
+      form.addEventListener("input", updateButtonLabel);
+      form.addEventListener("change", updateButtonLabel);
+    }
+  })();
+</script>
+{% endblock %}

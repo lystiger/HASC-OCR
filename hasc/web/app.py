@@ -70,6 +70,7 @@ def create_app(
     db_path: str | Path | None = None,
     enforce_https: bool = False,
     secure_cookies: bool = False,
+    photos_dir: str | Path | None = None,
 ) -> FastAPI:
     """FastAPI application factory.
     - Runs migrations at start-up.
@@ -86,6 +87,11 @@ def create_app(
 
     app = FastAPI(title="HASC Production Records", lifespan=lifespan)
     app.state.db_path = db_path
+    app.state.photos_dir = (
+        Path(photos_dir)
+        if photos_dir
+        else (Path(db_path).parent / "photos" if db_path else Path("data/photos"))
+    )
     app.state.secure_cookies = secure_cookies
     app.state.enforce_https = enforce_https
 
@@ -144,11 +150,15 @@ def create_app(
     def home(
         request: Request,
         user: Optional[dict] = Depends(get_current_user_optional),
+        conn: sqlite3.Connection = Depends(get_db),
     ):
         if not user:
             return RedirectResponse(url="/login", status_code=303)
         if user.get("must_change_password"):
             return RedirectResponse(url="/change-password", status_code=303)
+        if user.get("role") == "operator":
+            from hasc.web.operator import render_operator_screen
+            return render_operator_screen(request, user, conn)
 
         return templates.TemplateResponse(
             request=request,
@@ -436,23 +446,15 @@ def create_app(
         return Response(status_code=204)
 
     # -------------------------------------------------------------------------
+    # Operator Routes (Upload screen, POST /api/photos, GET /api/uploads/mine)
+    # -------------------------------------------------------------------------
+    from hasc.web.operator import router as operator_router
+
+    app.include_router(operator_router)
+
+    # -------------------------------------------------------------------------
     # API Routes: Section 4 Role Table Endpoints
     # -------------------------------------------------------------------------
-
-    @app.post("/api/photos", status_code=201)
-    def api_upload_photo(
-        user: dict = Depends(require_role("upload_photo")),
-    ):
-        return JSONResponse(
-            status_code=201,
-            content={"photo_id": 1, "sheet_id": 1, "status": "received", "warnings": []},
-        )
-
-    @app.get("/api/uploads/mine")
-    def api_uploads_mine(
-        user: dict = Depends(require_role("view_own_uploads")),
-    ):
-        return []
 
     @app.get("/api/limits")
     def api_limits(
