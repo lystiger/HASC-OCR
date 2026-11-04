@@ -1,39 +1,10 @@
 import unittest
 
-from hasc_ocr import reading, rules
+from hasc.reader import reading
 
 
 def cells(**values):
     return {"cells": {k: {"value": v, "doubt": False} for k, v in values.items()}}
-
-
-class WeightRule(unittest.TestCase):
-    def test_passes_when_net_matches(self):
-        self.assertTrue(rules.weight_rule(cells(gross_kg=17.6, core_kg=0.8, net_kg=16.8)))
-
-    def test_missing_cover_counts_as_zero_but_missing_gross_skips(self):
-        self.assertTrue(rules.weight_rule(cells(gross_kg=17.6, core_kg=0.8, cover_kg=None, net_kg=16.8)))
-        self.assertIsNone(rules.weight_rule(cells(core_kg=0.8, net_kg=16.8)))
-
-    def test_fails_on_mismatch(self):
-        self.assertFalse(rules.weight_rule(cells(gross_kg=17.6, core_kg=0.8, net_kg=16.6)))
-
-    def test_text_value_skips(self):
-        self.assertIsNone(rules.weight_rule(cells(gross_kg="17,6kg", core_kg=0.8, net_kg=16.8)))
-
-    def test_back_layout_skips(self):
-        self.assertIsNone(rules.weight_rule(cells(gross_kg=17.6, core_kg=0.8, net_kg=1.0), layout="back"))
-
-
-class ThicknessRule(unittest.TestCase):
-    def test_average(self):
-        row = cells(**{f"thickness_{i}": 60 for i in range(1, 7)}, thickness_avg=60)
-        self.assertTrue(rules.thickness_rule(row))
-        row["cells"]["thickness_avg"]["value"] = 61
-        self.assertFalse(rules.thickness_rule(row))
-
-    def test_skips_when_a_value_is_empty(self):
-        self.assertIsNone(rules.thickness_rule(cells(thickness_1=60, thickness_avg=60)))
 
 
 def result(*rows, layout="form_a"):

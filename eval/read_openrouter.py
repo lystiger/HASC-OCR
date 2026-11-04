@@ -2,12 +2,13 @@
 """Read sheet photos with a cloud model through OpenRouter, one <photo>.out per photo for score.py.
 
 Usage: read_openrouter.py PROMPT.txt PHOTO_DIR OUT_DIR [--model google/gemini-3.8-flash]
-The key is read from ~/.config/hasc-ocr/gemini.env (OPENROUTER_API_KEY) and never printed.
+The key is read from OPENROUTER_API_KEY, HASC_WORKER_ENV or ~/.config/hasc-ocr/gemini.env and never printed.
 Requests deny providers that collect data for training.
 """
 import argparse
 import base64
 import json
+import os
 import sys
 import time
 import urllib.error
@@ -18,11 +19,16 @@ ENV = Path.home() / ".config/hasc-ocr/gemini.env"
 URL = "https://openrouter.ai/api/v1/chat/completions"
 
 
-def api_key():
-    for line in ENV.read_text().splitlines():
-        if line.startswith("OPENROUTER_API_KEY="):
-            return line.split("=", 1)[1].strip()
-    sys.exit(f"OPENROUTER_API_KEY missing from {ENV}")
+def api_key(env_path=None):
+    if os.environ.get("OPENROUTER_API_KEY"):
+        return os.environ["OPENROUTER_API_KEY"]
+    env_file = env_path or os.environ.get("HASC_WORKER_ENV") or ENV
+    if env_file and Path(env_file).exists():
+        for line in Path(env_file).read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line.startswith("OPENROUTER_API_KEY="):
+                return line.split("=", 1)[1].strip()
+    sys.exit("OPENROUTER_API_KEY missing from environment or HASC_WORKER_ENV")
 
 
 def read(photo, prompt, model, key, effort):
@@ -52,8 +58,9 @@ def main():
     parser.add_argument("out")
     parser.add_argument("--model", default="google/gemini-3.8-flash")
     parser.add_argument("--effort", default="low", choices=["low", "medium", "high"])
+    parser.add_argument("--env", default=None, help="path to env file")
     args = parser.parse_args()
-    prompt, key, out = Path(args.prompt).read_text(encoding="utf-8"), api_key(), Path(args.out)
+    prompt, key, out = Path(args.prompt).read_text(encoding="utf-8"), api_key(args.env), Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     total = 0.0
     for photo in sorted(Path(args.photos).glob("*.jpg")):

@@ -8,23 +8,28 @@ import argparse
 import json
 import sys
 import time
+import os
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import score  # noqa: E402
-from hasc_ocr.reader import CloudReader, ReaderError, openrouter_transport  # noqa: E402
-from hasc_ocr.photo import upright  # noqa: E402
-from hasc_ocr.reading import read_sheet  # noqa: E402
+from hasc.reader.reader import CloudReader, ReaderError, openrouter_transport  # noqa: E402
+from hasc.reader.photo import upright  # noqa: E402
+from hasc.reader.reading import read_sheet  # noqa: E402
 
-LOCAL = Path.home() / "Documents/HASC/labels"
+NAMES = Path.home() / "Documents/HASC/labels/known_names.json"
 ENV = Path.home() / ".config/hasc-ocr/gemini.env"
 
-
-def key():
-    for line in ENV.read_text().splitlines():
-        if line.startswith("OPENROUTER_API_KEY="):
-            return line.split("=", 1)[1].strip()
-    sys.exit(f"OPENROUTER_API_KEY missing from {ENV}")
+def key(env_path=None):
+    if os.environ.get("OPENROUTER_API_KEY"):
+        return os.environ["OPENROUTER_API_KEY"]
+    env_file = env_path or os.environ.get("HASC_WORKER_ENV") or ENV
+    if env_file and Path(env_file).exists():
+        for line in Path(env_file).read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line.startswith("OPENROUTER_API_KEY="):
+                return line.split("=", 1)[1].strip()
+    sys.exit("OPENROUTER_API_KEY missing from environment or env file")
 
 
 def text(cell):
@@ -42,9 +47,12 @@ def main():
     parser.add_argument("--split", default="tuning")
     parser.add_argument("--model", default="google/gemini-3.8-flash")
     parser.add_argument("--fallback", default="qwen/qwen3.8-27b")
+    parser.add_argument("--names", default=None, help="path to known_names.json")
+    parser.add_argument("--env", default=None, help="path to env file")
     args = parser.parse_args()
-    names = json.loads((LOCAL / "known_names.json").read_text(encoding="utf-8"))
-    reader = CloudReader(openrouter_transport(key()), names, args.model, args.fallback)
+    names_path = args.names or os.environ.get("HASC_KNOWN_NAMES") or NAMES
+    names = json.loads(Path(names_path).read_text(encoding="utf-8"))  # reading without names lowers the score
+    reader = CloudReader(openrouter_transport(key(args.env)), names, args.model, args.fallback)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     labels = score.load_labels(args.labels, args.split)

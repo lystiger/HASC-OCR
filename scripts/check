@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+# Select Python interpreter:
+# 1. Explicit PYTHON environment variable if set
+# 2. Active virtual environment (VIRTUAL_ENV)
+# 3. Local virtual environment in repo (.venv)
+# 4. Global/user virtual environment (~/.venv) if current python3 lacks dependencies
+# 5. System python3
+if [ -n "${PYTHON:-}" ]; then
+  PY="$PYTHON"
+elif [ -n "${VIRTUAL_ENV:-}" ] && [ -x "${VIRTUAL_ENV}/bin/python" ]; then
+  PY="${VIRTUAL_ENV}/bin/python"
+elif [ -x "$ROOT/.venv/bin/python" ]; then
+  PY="$ROOT/.venv/bin/python"
+elif python3 -c "import fastapi" >/dev/null 2>&1; then
+  PY="python3"
+elif [ -x "$HOME/.venv/bin/python" ]; then
+  PY="$HOME/.venv/bin/python"
+else
+  PY="python3"
+fi
+
+export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
+
+echo "==> Running import-boundary test..."
+"$PY" -m unittest tests/test_import_boundaries.py
+
+echo "==> Running full unittest suite..."
+"$PY" -m unittest discover -s tests
+
+echo "==> Running scorer tests..."
+"$PY" -m unittest discover -s eval
+
+echo "==> All checks passed successfully."

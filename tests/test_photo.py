@@ -3,7 +3,7 @@ import unittest
 
 from PIL import Image
 
-from hasc_ocr import photo
+from hasc.reader import photo
 
 
 def jpeg(width, height, mark_top_left=False):

@@ -6,3 +6,7 @@ __pycache__/
 *.jpeg
 *.png
 known_names.json
+.venv/
+*.db
+*.db-wal
+*.db-shm

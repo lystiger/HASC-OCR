@@ -1,0 +1,59 @@
+from datetime import datetime, timezone
+from pathlib import Path
+import sqlite3
+
+
+def get_migrations_dir() -> Path:
+    return Path(__file__).resolve().parent / "migrations"
+
+
+def get_applied_migrations(conn: sqlite3.Connection) -> list[str]:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+            version TEXT PRIMARY KEY,
+            applied_at TEXT NOT NULL
+        )
+        """
+    )
+    cursor = conn.execute("SELECT version FROM schema_migrations ORDER BY version ASC")
+    return [row[0] for row in cursor.fetchall()]
+
+
+def migrate(
+    conn: sqlite3.Connection, migrations_dir: Path | None = None
+) -> list[str]:
+    """Apply any unapplied SQL migration files in numerical/alphabetical order."""
+    if migrations_dir is None:
+        migrations_dir = get_migrations_dir()
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+            version TEXT PRIMARY KEY,
+            applied_at TEXT NOT NULL
+        )
+        """
+    )
+
+    applied = set(get_applied_migrations(conn))
+    applied_now: list[str] = []
+
+    if not migrations_dir.is_dir():
+        return applied_now
+
+    migration_files = sorted(migrations_dir.glob("*.sql"))
+    for file in migration_files:
+        version = file.name
+        if version not in applied:
+            sql = file.read_text(encoding="utf-8")
+            with conn:
+                conn.executescript(sql)
+                conn.execute(
+                    "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)",
+                    (version, datetime.now(timezone.utc).isoformat()),
+                )
+            applied.add(version)
+            applied_now.append(version)
+
+    return applied_now

@@ -1,7 +1,7 @@
 import unittest
 
-from hasc_ocr import reader
-from hasc_ocr.reader import ReaderError
+from hasc.reader import reader
+from hasc.reader.reader import ReaderError
 
 NAMES = {"customers": {"Toàn Mỹ": ["T-Mỹ"], "HD": []}, "products": {"Cuộn PE": ["cuộn PE"], "GT": []}}
 
