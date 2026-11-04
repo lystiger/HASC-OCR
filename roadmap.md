@@ -18,6 +18,8 @@ Each build step is one Hermes goal job (`POST localhost:8000/jobs/goal`). It is 
 
 ## Build track (Hermes goal jobs, one PR each)
 
+**S1, the first job (P114):** a thin end-to-end slice through B1–B5: CI, the package skeleton, the database, login, the operator upload screen in the HASC design, the worker with the fake reader, and the Excel download. Later jobs widen each part to its full criteria.
+
 | # | Step | Spec criteria | Depends on |
 |---|---|---|---|
 | B1 | Skeleton: the `hasc/` package with one folder per part (ADR 3), the existing reader moved into `hasc/reader`, the import-boundary check, and CI running the tests on every PR | Import check | ADR 6 |
