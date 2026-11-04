@@ -12,9 +12,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import score  # noqa: E402
-from hasc_ocr.reader import CloudReader, ReaderError, openrouter_transport  # noqa: E402
-from hasc_ocr.photo import upright  # noqa: E402
-from hasc_ocr.reading import read_sheet  # noqa: E402
+from hasc.reader.reader import CloudReader, ReaderError, openrouter_transport  # noqa: E402
+from hasc.reader.photo import upright  # noqa: E402
+from hasc.reader.reading import read_sheet  # noqa: E402
 
 LOCAL = Path.home() / "Documents/HASC/labels"
 ENV = Path.home() / ".config/hasc-ocr/gemini.env"
