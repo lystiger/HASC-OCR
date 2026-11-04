@@ -95,6 +95,14 @@ class TestSection4RoleTable(unittest.TestCase):
             else:
                 self._assert_forbidden(role, res, "POST /api/sheets/1/pickup")
 
+    def test_unbuilt_review_endpoints_pass_the_role_check_and_answer_501(self):
+        for role in ["employee", "boss"]:
+            client = self.clients[role]
+            for res, name in ((client.get("/api/shifts/excel"), "GET /api/shifts/excel"),
+                              (client.post("/api/sheets/1/excel"), "POST /api/sheets/1/excel"),
+                              (client.get("/api/sheets/1/template"), "GET /api/sheets/1/template")):
+                self._assert_allowed_unbuilt(role, res, name)
+
     def test_role_table_row_5_mark_invalid(self):
         """Action 5: Mark an upload invalid: Office=Yes, Operator=No, Admin=No"""
         for role in ["operator", "employee", "boss", "admin"]:

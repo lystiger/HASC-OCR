@@ -517,6 +517,16 @@ class TestOfficeScreens(unittest.TestCase):
             self.assertEqual(res.json()["error"]["code"], "not_reviewable")
             self.assertEqual(get_sheet_by_id(self._get_conn(), s1)["status"], status)
 
+    def test_bad_shift_filter_is_a_validation_error(self):
+        for shift in ("abc", "1.5"):
+            res = self.clients["employee"].get(f"/office/sheets/partial?shift={shift}")
+            self.assertEqual(res.status_code, 422, shift)
+
+    def test_stale_confirm_is_stale_even_when_already_reviewed(self):
+        s1 = self._sheet("reviewed")
+        res = self.clients["employee"].post(f"/api/sheets/{s1}/confirm", json={"version": 0})
+        self.assertEqual(res.json()["error"]["code"], "stale_version")
+
     def test_missing_sheet_is_not_found(self):
         emp = self.clients["employee"]
         for res in (emp.get("/api/sheets/999"), emp.post("/api/sheets/999/pickup", json={}),

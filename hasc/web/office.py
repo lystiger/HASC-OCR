@@ -196,6 +196,15 @@ def get_office_sheets(
     return results
 
 
+def _shift_filter(shift: str | None) -> int | None:
+    """An empty shift from the live-refresh URL means no filter; anything else must be a whole number."""
+    if not shift:
+        return None
+    if not shift.isdigit():
+        raise AppError("validation_error", "Dữ liệu không hợp lệ", 422)
+    return int(shift)
+
+
 class PickupRequest(BaseModel):
     takeover: bool = False
 
@@ -260,7 +269,7 @@ def office_sheet_list_page(
         conn=conn,
         machine=machine or None,
         date=date or None,
-        shift=int(shift) if shift else None,
+        shift=_shift_filter(shift),
         status=status or None,
     )
 
@@ -281,7 +290,7 @@ def office_sheets_partial(
         conn=conn,
         machine=machine or None,
         production_date=date or None,
-        shift=int(shift) if shift else None,
+        shift=_shift_filter(shift),
         status=status,
         include_all_statuses=(status is not None),
     )
@@ -523,17 +532,17 @@ def _perform_confirm(
     if not sheet:
         raise AppError("not_found", "Không tìm thấy biểu mẫu", 404)
 
-    if sheet["status"] not in ("needs_review", "in_review"):
-        raise AppError(
-            code="not_reviewable",
-            message="Chỉ xác nhận được bảng đang chờ hoặc đang kiểm tra",
-            status_code=409,
-        )
-
     if version != sheet["version"]:
         raise AppError(
             code="stale_version",
             message="Dữ liệu đã thay đổi kể từ khi tải xuống. Vui lòng tải lại tệp mới nhất.",
+            status_code=409,
+        )
+
+    if sheet["status"] not in ("needs_review", "in_review"):
+        raise AppError(
+            code="not_reviewable",
+            message="Chỉ xác nhận được bảng đang chờ hoặc đang kiểm tra",
             status_code=409,
         )
 
