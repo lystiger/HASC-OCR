@@ -215,8 +215,8 @@ Automated criteria use a fake reader that returns set values, unless they name t
 43. Stopping the Dell raises the heartbeat alert, and forcing a failed backup, stuck queue, repeated AI failure, nearly full disk and low OpenRouter credit each emails Lystiger.
 53. Every reader request carries `data_collection: deny`, and the API key appears in no file in the repository, no log line and no error message.
 54. Confirming a sheet at its current version makes it Reviewed and records who confirmed it. Confirming an older version is refused with `409 stale_version` and changes nothing.
-
 55. After a reading, the operator's upload status lists each roll that failed a rule or was unreadable, as a roll code and a problem type (`weight`, `thickness` or `unreadable`) with a Vietnamese label. The response holds no other values, and AI doubt alone is not listed.
+
 **Trial and statistics**
 44. Expected-sheet counts are correct for a shift with a sheet, one without, and one marked not running. A not-running mark without a reason is refused.
 45. A sheet shows as overdue exactly 24 hours after entering Needs review or In review, including across a weekend.
