@@ -200,9 +200,10 @@ def _shift_filter(shift: str | None) -> int | None:
     """An empty shift from the live-refresh URL means no filter; anything else must be a whole number."""
     if not shift:
         return None
-    if not shift.isdigit():
-        raise AppError("validation_error", "Dữ liệu không hợp lệ", 422)
-    return int(shift)
+    try:
+        return int(shift)
+    except ValueError:
+        raise AppError("validation_error", "Dữ liệu không hợp lệ", 422) from None
 
 
 class PickupRequest(BaseModel):

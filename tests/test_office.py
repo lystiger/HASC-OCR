@@ -518,7 +518,7 @@ class TestOfficeScreens(unittest.TestCase):
             self.assertEqual(get_sheet_by_id(self._get_conn(), s1)["status"], status)
 
     def test_bad_shift_filter_is_a_validation_error(self):
-        for shift in ("abc", "1.5"):
+        for shift in ("abc", "1.5", "²"):
             res = self.clients["employee"].get(f"/office/sheets/partial?shift={shift}")
             self.assertEqual(res.status_code, 422, shift)
 
