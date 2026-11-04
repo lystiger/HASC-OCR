@@ -58,3 +58,14 @@
 **Timing (Lystiger):** Lystiger pointed out that a night backup could clash with the night shift. The backup runs daily at 5am, a time held in settings. It waits for the current read to finish, the worker holds new jobs until it is done, and upload speed is capped to protect Wi-Fi. Uploads and the website keep working. `restic` prune and its integrity check run on Sunday. The first full upload is run by hand before go-live. A Sunday-only backup was rejected, because it could lose up to about a week of corrections and history.
 
 **What would make the timing wrong:** Backups run so long that sheets miss the 15-minute limit. The trial shows this, because backup and read times are both recorded. The night shift runs 7pm to 7am (P95), so 5am is 2 hours clear of its final photos, though photos after a product run can still arrive and wait their turn.
+
+## ADR 6: Tests run on GitHub Actions for every PR (2026-11-04)
+**Context:** Build steps run as Hermes jobs, and a PR merges only once CI is green and an independent agent has verified it. The repository is private. Real sheets, labels, `known_names.json` and the OpenRouter key must never leave Lystiger's machines.
+
+**Options:** GitHub Actions on GitHub's servers. A self-hosted runner on the Ryzen. No CI, with the Hermes verifier running the tests.
+
+**Decision (Lystiger):** GitHub Actions runs the whole test suite on every PR and on `main`. Tests that need real sheets stay local and never run in CI.
+
+**Consequences:** CI works when Lystiger's machines are off, and it gives the merge rule an independent check. CI has no secrets: every automated test uses the fake reader and made-up data, and a test needing real data is skipped when the local files are absent. The free tier allows 2,000 minutes a month for a private repository.
+
+**What would make this wrong:** to be named by Lystiger.
