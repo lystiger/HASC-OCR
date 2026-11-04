@@ -30,3 +30,23 @@ def thickness_rule(row):
     if None in values or average is None:
         return None
     return abs(sum(values) / 6 - average) <= TOLERANCE
+
+
+def failures(row, layout="form_a"):
+    """List rule failure names ('weight', 'thickness') for a row."""
+    found = []
+    if weight_rule(row, layout) is False:
+        found.append("weight")
+    if thickness_rule(row) is False:
+        found.append("thickness")
+    return found
+
+
+_failures = failures
+
+
+def flag_row(row, layout="form_a"):
+    """Return all flags for a row: rule failures plus doubtful cells."""
+    return failures(row, layout) + [
+        f"doubt:{field}" for field, cell in row.get("cells", {}).items() if cell.get("doubt")
+    ]
