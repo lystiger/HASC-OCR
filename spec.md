@@ -53,7 +53,7 @@ A new form goes live after form A has met the P64 targets for 4 weeks, and 20 la
 | Upload a photo, see the printed limits | Yes | No | No | No |
 | See the status of own uploads | Yes | n/a | n/a | n/a |
 | See the status of all sheets, and photos | No | Yes | Yes | Yes |
-| Pick up, download, correct, re-upload, retry, hand-enter | No | Yes | Yes | No |
+| Pick up, download, correct, re-upload, confirm, retry, hand-enter | No | Yes | Yes | No |
 | Mark an upload invalid | No | Yes | Yes | No |
 | Mark a machine or shift not running, with a reason | Yes | Yes | Yes | No |
 | See sheet numbers | No | Yes | Yes | Yes, each opening logged |
@@ -105,15 +105,17 @@ If this adds rows or flags to a Reviewed sheet, the sheet returns to Needs revie
 - There is one correctable Excel file per page, named like `HASC_T1_2026-10-19_Ca2_Trang1.xlsx`. See the layout in section 6.
 - Pages are reviewed separately. A read-only file named like `HASC_T1_2026-10-19_Ca2.xlsx` joins all of a shift's pages in page order (P92).
 - Correcting means editing that file and re-uploading it. The system compares it with the current data and records each changed value.
+- If the file needs no change, the office member presses `Đúng, xác nhận` on the sheet's detail page instead (P111). It confirms the version they downloaded, and is refused like an out-of-date file if the data changed since.
 - The system rejects a re-upload made from an out-of-date version, and asks the person to download the latest.
 - A sheet is overdue 24 hours after entering Needs review or In review, weekends included. Overdue sheets top the office list, and the count shows on boss and admin screens.
 
 **Lookup (P21, P39)**
+- The office sheet list opens on Needs review, In review and Failed sheets, overdue first. Each row shows machine, date, shift, page, status, the uploading shift leader and how long it has waited, and clicking it opens the sheet's detail page (P111).
 - Office members find a sheet by machine, date and shift, see all of that shift's pages, and see each page's photos, status and current file.
 - A photo is visible to the office as soon as it's saved.
 
 **History and statistics (P13, P48)**
-- The system appends an event for each upload, re-upload, value change, pick-up, takeover, retry, invalid mark, not-running mark, admin sheet opening and account change. There is no way to edit or remove an event through the website.
+- The system appends an event for each upload, re-upload, confirm, value change, pick-up, takeover, retry, invalid mark, not-running mark, admin sheet opening and account change. There is no way to edit or remove an event through the website.
 - The admin's main screen shows sheets per day by status; expected sheets not yet received; failed readings and retries; upload and AI reading times; and values flagged and corrected.
 
 **Sheet statuses (P41)**
@@ -124,7 +126,7 @@ If this adds rows or flags to a Reviewed sheet, the sheet returns to Needs revie
 | Reading | `reading` | Đang đọc | AI working |
 | Needs review | `needs_review` | Cần kiểm tra | Excel file ready, nobody has it |
 | In review | `in_review` | Đang kiểm tra | An office member picked it up |
-| Reviewed | `reviewed` | Đã kiểm tra | Corrected file uploaded, all current rows checked |
+| Reviewed | `reviewed` | Đã kiểm tra | Corrected file uploaded or confirmed, all current rows checked |
 | Failed | `failed` | Lỗi | Needs manual retry or hand entry |
 
 ### Non-functional
@@ -211,6 +213,7 @@ Automated criteria use a fake reader that returns set values, unless they name t
 41. Nine logged-in users working at once get no errors while a reading runs.
 42. A backup restored onto a clean machine gives the same sheets, numbers, history and smaller photos, and a copy in cloud storage can't be read without the key.
 43. Stopping the Dell raises the heartbeat alert, and forcing a failed backup, stuck queue, repeated AI failure, nearly full disk and low OpenRouter credit each emails Lystiger.
+54. Confirming a sheet at its current version makes it Reviewed and records who confirmed it. Confirming an older version is refused with `409 stale_version` and changes nothing.
 53. Every reader request carries `data_collection: deny`, and the API key appears in no file in the repository, no log line and no error message.
 
 **Trial and statistics**
@@ -314,6 +317,7 @@ read(image_path: str) -> ReadResult
 | `POST /api/sheets/{id}/pickup` | Office | `{takeover: bool}` | `{status, picked_up_by}`, or `409 already_picked_up` |
 | `GET /api/sheets/{id}/excel` | Office | | The `.xlsx` file |
 | `POST /api/sheets/{id}/excel` | Office | Multipart: `file` | `{version, status, changed: n}`, or `409 stale_version`, or `422 bad_layout` |
+| `POST /api/sheets/{id}/confirm` | Office | `{version}` | `{version, status}`, or `409 stale_version` |
 | `GET /api/sheets/{id}/template` | Office | | Blank `.xlsx` for hand entry |
 | `POST /api/photos/{id}/retry` | Office | | `202 {job_status}` |
 | `POST /api/photos/{id}/invalid` | Office | `{reason}` | `{sheet_id, version}` |
@@ -338,7 +342,7 @@ read(image_path: str) -> ReadResult
 | `failed` | Manual retry | `reading` |
 | `failed` | Hand-entered template uploaded | `reviewed` |
 | `needs_review` | Pick-up | `in_review` |
-| `in_review` | Valid re-upload | `reviewed` |
+| `in_review` | Valid re-upload or confirm | `reviewed` |
 | `reviewed` | New photo adds rows or flags | `needs_review` |
 
 A new photo during `needs_review` or `in_review` keeps that status. If it changes data, the version goes up, so an older file gets rejected.

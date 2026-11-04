@@ -24,7 +24,7 @@ Each build step is one Hermes goal job (`POST localhost:8000/jobs/goal`). It is 
 | B2 | Database schema and migrations, accounts, login, sessions and roles | 1–10 | B1 |
 | B3 | Upload: photos, quality check, sheets and pages | 11–15, 47, 49 | B2 |
 | B4 | Worker: queue, retries, the reader behind its contract, carry-down, repeat photos, rules | 16–28, 50–52, 53 | B3 |
-| B5 | Excel: build files, parse re-uploads, version check, hand-entry template, joined shift file | 29–36, 48 | B4 |
+| B5 | Excel: build files, parse re-uploads, confirm button, version check, hand-entry template, joined shift file | 29–36, 48, 54 | B4 |
 | B6 | Office screens: lookup, pick-up, history, not-running marks, overdue list, statistics | 44–46 | B5 |
 | B7 | Operations: deploy script (ADR 4), backups (ADR 5), alerts, heartbeat | 42, 43 | B6 |
 | B8 | Set-up on the Dell: certificate on every device, accounts, timed sessions | 38–41 | B7, R4 |
@@ -36,7 +36,6 @@ B2–B6 follow the spec's rollout stages 2 and 3; B7 is stage 4, and B8–B9 are
 
 | Item | Needed by |
 |---|---|
-| What the office sheet list looks like on a PC (the upload screen is P110) | B6 |
 | Whether ADR 2 (a fresh reader process per photo) still fits a cloud reader | B4 |
 | Whether an internet outage holds jobs longer instead of failing them after 15 minutes | B4 |
 | Which free services send alert email and receive the heartbeat, and the low-credit amount | B7 |
