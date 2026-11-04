@@ -115,6 +115,17 @@ class CarryDown(unittest.TestCase):
         self.assertEqual(score.score_sheet(labels, preds)["customer"], [2, 2])
 
 
+class Names(unittest.TestCase):
+    NAMES = {"customers": {"VinFast": ["Vinfast"]}, "products": {"Màng ống": ["ống", "ống cuộn"]}}
+
+    def test_written_shorthand_counts_as_its_standard_name(self):
+        rows = score.standardise([{"customer": "vinfast", "film_type": " ống  cuộn", "net_kg": "13"}], self.NAMES)
+        self.assertEqual(rows, [{"customer": "VinFast", "film_type": "Màng ống", "net_kg": "13"}])
+
+    def test_unknown_name_stays_as_written(self):
+        self.assertEqual(score.standardise([{"film_type": "túi"}], self.NAMES), [{"film_type": "túi"}])
+
+
 class Report(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
