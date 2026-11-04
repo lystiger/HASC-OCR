@@ -17,11 +17,13 @@ from hasc.reader.reader import CloudReader, ReaderError, openrouter_transport  #
 from hasc.reader.photo import upright  # noqa: E402
 from hasc.reader.reading import read_sheet  # noqa: E402
 
+NAMES = Path.home() / "Documents/HASC/labels/known_names.json"
+ENV = Path.home() / ".config/hasc-ocr/gemini.env"
 
 def key(env_path=None):
     if os.environ.get("OPENROUTER_API_KEY"):
         return os.environ["OPENROUTER_API_KEY"]
-    env_file = env_path or os.environ.get("HASC_WORKER_ENV")
+    env_file = env_path or os.environ.get("HASC_WORKER_ENV") or ENV
     if env_file and Path(env_file).exists():
         for line in Path(env_file).read_text(encoding="utf-8").splitlines():
             line = line.strip()
@@ -48,11 +50,8 @@ def main():
     parser.add_argument("--names", default=None, help="path to known_names.json")
     parser.add_argument("--env", default=None, help="path to env file")
     args = parser.parse_args()
-    names_path = args.names or os.environ.get("HASC_KNOWN_NAMES")
-    if names_path and Path(names_path).exists():
-        names = json.loads(Path(names_path).read_text(encoding="utf-8"))
-    else:
-        names = {"customers": {}, "products": {}}
+    names_path = args.names or os.environ.get("HASC_KNOWN_NAMES") or NAMES
+    names = json.loads(Path(names_path).read_text(encoding="utf-8"))  # reading without names lowers the score
     reader = CloudReader(openrouter_transport(key(args.env)), names, args.model, args.fallback)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)

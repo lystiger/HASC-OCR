@@ -85,14 +85,12 @@ def process_job(conn, job, reader, scratch_dir):
 
 
 def carry_down(rows):
-    """A carried product detail that is missing from a row takes the first row's value. A cell the reader wrote is kept."""
-    if not rows:
-        return
-    first = rows[0]["cells"]
-    for row in rows[1:]:
+    """A carried product detail that is missing from a row takes the value above it. A cell the reader wrote is kept."""
+    for above, row in zip(rows, rows[1:]):
         for field in CARRIED:
-            if field not in row["cells"] and field in first and first[field]["value"] is not None:
-                row["cells"][field] = {**first[field], "inherited": True}
+            cell = above["cells"].get(field)
+            if field not in row["cells"] and cell and cell["value"] is not None:
+                row["cells"][field] = {**cell, "inherited": True}
 
 
 def _record_failure(conn, job, error, not_retryable=False):

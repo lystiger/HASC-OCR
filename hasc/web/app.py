@@ -487,6 +487,7 @@ def create_app(
 
     # -------------------------------------------------------------------------
     # API Routes: Section 4 Role Table Endpoints
+    # Endpoints after /api/limits are not built in S1: they check the role, then answer 501.
     # -------------------------------------------------------------------------
 
     @app.get("/api/limits")
@@ -499,62 +500,52 @@ def create_app(
     def api_shifts_excel(
         user: dict = Depends(require_role("review_sheet")),
     ):
-        return Response(content=b"", media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        raise AppError(code="not_implemented", message="Chức năng này chưa có trong bản S1", status_code=501)
 
     @app.post("/api/sheets/{sheet_id}/excel")
     def api_sheet_excel_upload(
         sheet_id: int,
         user: dict = Depends(require_role("review_sheet")),
     ):
-        return {"version": 1, "status": "reviewed", "changed": 0}
+        raise AppError(code="not_implemented", message="Chức năng này chưa có trong bản S1", status_code=501)
 
     @app.get("/api/sheets/{sheet_id}/template")
     def api_sheet_template(
         sheet_id: int,
         user: dict = Depends(require_role("review_sheet")),
     ):
-        return Response(content=b"", media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        raise AppError(code="not_implemented", message="Chức năng này chưa có trong bản S1", status_code=501)
 
     @app.post("/api/photos/{photo_id}/retry", status_code=202)
     def api_photo_retry(
         photo_id: int,
         user: dict = Depends(require_role("review_sheet")),
     ):
-        return JSONResponse(status_code=202, content={"job_status": "queued"})
+        raise AppError(code="not_implemented", message="Chức năng này chưa có trong bản S1", status_code=501)
 
     @app.post("/api/photos/{photo_id}/invalid")
     def api_photo_invalid(
         photo_id: int,
         user: dict = Depends(require_role("mark_invalid")),
     ):
-        return {"sheet_id": 1, "version": 1}
+        raise AppError(code="not_implemented", message="Chức năng này chưa có trong bản S1", status_code=501)
 
     @app.post("/api/not-running", status_code=201)
     def api_not_running(
         user: dict = Depends(require_role("mark_not_running")),
     ):
-        return JSONResponse(status_code=201, content={"status": "ok"})
+        raise AppError(code="not_implemented", message="Chức năng này chưa có trong bản S1", status_code=501)
 
     @app.get("/api/history")
     def api_history(
         user: dict = Depends(require_role("view_history")),
     ):
-        return []
+        raise AppError(code="not_implemented", message="Chức năng này chưa có trong bản S1", status_code=501)
 
     @app.get("/api/admin/stats")
     def api_admin_stats(
         user: dict = Depends(require_role("view_stats")),
     ):
-        return {
-            "sheets_by_status": {},
-            "missing_expected": 0,
-            "failed_reads": 0,
-            "retries": 0,
-            "upload_ms": 0,
-            "read_ms": 0,
-            "flagged": 0,
-            "corrected": 0,
-            "overdue": 0,
-        }
+        raise AppError(code="not_implemented", message="Chức năng này chưa có trong bản S1", status_code=501)
 
     return app

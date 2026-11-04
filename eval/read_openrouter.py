@@ -2,7 +2,7 @@
 """Read sheet photos with a cloud model through OpenRouter, one <photo>.out per photo for score.py.
 
 Usage: read_openrouter.py PROMPT.txt PHOTO_DIR OUT_DIR [--model google/gemini-3.8-flash]
-The key is read from OPENROUTER_API_KEY or HASC_WORKER_ENV and never printed.
+The key is read from OPENROUTER_API_KEY, HASC_WORKER_ENV or ~/.config/hasc-ocr/gemini.env and never printed.
 Requests deny providers that collect data for training.
 """
 import argparse
@@ -15,13 +15,14 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+ENV = Path.home() / ".config/hasc-ocr/gemini.env"
 URL = "https://openrouter.ai/api/v1/chat/completions"
 
 
 def api_key(env_path=None):
     if os.environ.get("OPENROUTER_API_KEY"):
         return os.environ["OPENROUTER_API_KEY"]
-    env_file = env_path or os.environ.get("HASC_WORKER_ENV")
+    env_file = env_path or os.environ.get("HASC_WORKER_ENV") or ENV
     if env_file and Path(env_file).exists():
         for line in Path(env_file).read_text(encoding="utf-8").splitlines():
             line = line.strip()

@@ -249,7 +249,7 @@ def office_sheet_list_page(
     request: Request,
     machine: Optional[str] = None,
     date: Optional[str] = None,
-    shift: Optional[int] = None,
+    shift: Optional[str] = None,
     status: Optional[str] = None,
     user: dict = Depends(require_role("view_all_sheets")),
     conn: sqlite3.Connection = Depends(get_db),
@@ -258,10 +258,10 @@ def office_sheet_list_page(
         request=request,
         user=user,
         conn=conn,
-        machine=machine,
-        date=date,
-        shift=shift,
-        status=status,
+        machine=machine or None,
+        date=date or None,
+        shift=int(shift) if shift else None,
+        status=status or None,
     )
 
 
@@ -271,16 +271,17 @@ def office_sheets_partial(
     request: Request,
     machine: Optional[str] = None,
     date: Optional[str] = None,
-    shift: Optional[int] = None,
+    shift: Optional[str] = None,
     status: Optional[str] = None,
     user: dict = Depends(require_role("view_all_sheets")),
     conn: sqlite3.Connection = Depends(get_db),
 ):
+    status = status or None  # the live-refresh URL sends empty filters
     sheets = get_office_sheets(
         conn=conn,
-        machine=machine,
-        production_date=date,
-        shift=shift,
+        machine=machine or None,
+        production_date=date or None,
+        shift=int(shift) if shift else None,
         status=status,
         include_all_statuses=(status is not None),
     )
@@ -432,8 +433,7 @@ def api_sheet_detail(
 ):
     sheet = get_sheet_by_id(conn, sheet_id)
     if not sheet:
-        # Fallback for role tests without fixture
-        return {"id": sheet_id}
+        raise AppError("not_found", "Không tìm thấy biểu mẫu", 404)
 
     if user.get("role") == "admin":
         create_event(
@@ -470,7 +470,7 @@ def _perform_pickup(
 ) -> dict:
     sheet = get_sheet_by_id(conn, sheet_id)
     if not sheet:
-        return {"status": "in_review", "picked_up_by": user["id"]}
+        raise AppError("not_found", "Không tìm thấy biểu mẫu", 404)
 
     if sheet["picked_up_by"] and sheet["picked_up_by"] != user["id"]:
         if not takeover:
@@ -521,7 +521,14 @@ def _perform_confirm(
 ) -> dict:
     sheet = get_sheet_by_id(conn, sheet_id)
     if not sheet:
-        return {"version": version, "status": "reviewed"}
+        raise AppError("not_found", "Không tìm thấy biểu mẫu", 404)
+
+    if sheet["status"] not in ("needs_review", "in_review"):
+        raise AppError(
+            code="not_reviewable",
+            message="Chỉ xác nhận được bảng đang chờ hoặc đang kiểm tra",
+            status_code=409,
+        )
 
     if version != sheet["version"]:
         raise AppError(
@@ -568,10 +575,7 @@ def sheet_excel_download(
 ):
     sheet = get_sheet_by_id(conn, sheet_id)
     if not sheet:
-        return Response(
-            content=b"",
-            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
+        raise AppError("not_found", "Không tìm thấy biểu mẫu", 404)
 
     prod_date = sheet["production_date"]
     if isinstance(prod_date, str):

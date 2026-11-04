@@ -166,6 +166,12 @@ class CarryDownAndRules(WorkerTest):
         self.assertEqual(third["customer"]["flag"], "unreadable")
         self.assertEqual(third["width_mm"]["value"], "600")
 
+    def test_carry_down_takes_the_new_customer_after_a_change(self):
+        self.queue()
+        self.drain(result(row(roll_code="1", customer="AB", net_kg=13.2), row(roll_code="2", net_kg=13),
+                          row(roll_code="3", customer="CD", net_kg=12), row(roll_code="4", net_kg=11)))
+        self.assertEqual([c["customer"]["value"] for c in self.cells(1)], ["AB", "AB", "CD", "CD"])
+
     def test_rule_failures_flag_cells_and_change_no_number(self):
         sheet_id, _ = self.queue()
         bad = row(roll_code="1", gross_kg=17.6, core_kg=0.8, net_kg=16.6, thickness_avg=61,

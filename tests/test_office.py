@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta, timezone
+import re
 import io
 from pathlib import Path
 import tempfile
@@ -492,6 +493,36 @@ class TestOfficeScreens(unittest.TestCase):
 
         sheet = get_sheet_by_id(conn, s1)
         self.assertEqual(sheet["status"], "reviewed")
+
+    def _sheet(self, status, machine="T1"):
+        return create_sheet(self._get_conn(), form="BMMT01-2022/HASC", machine=machine, production_date="2026-10-19",
+                            shift=1, page_no=1, status=status, version=1,
+                            status_since=datetime.now(timezone.utc).isoformat())
+
+    def test_live_refresh_url_from_the_page_works_with_empty_filters(self):
+        self._sheet("needs_review")
+        self._sheet("reviewed", machine="T3")
+        emp = self.clients["employee"]
+        url = re.search(r'hx-get="([^"]+)"', emp.get("/office").text).group(1).replace("&amp;", "&")
+        res = emp.get(url)
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("T1", res.text)
+        self.assertNotIn("T3", res.text)  # a reviewed sheet is not in the default list
+
+    def test_confirm_is_refused_unless_the_sheet_is_waiting_for_review(self):
+        for status in ("received", "reading", "failed", "reviewed"):
+            s1 = self._sheet(status, machine={"received": "T1", "reading": "T3", "failed": "T6", "reviewed": "T2"}[status])
+            res = self.clients["employee"].post(f"/api/sheets/{s1}/confirm", json={"version": 1})
+            self.assertEqual(res.status_code, 409, status)
+            self.assertEqual(res.json()["error"]["code"], "not_reviewable")
+            self.assertEqual(get_sheet_by_id(self._get_conn(), s1)["status"], status)
+
+    def test_missing_sheet_is_not_found(self):
+        emp = self.clients["employee"]
+        for res in (emp.get("/api/sheets/999"), emp.post("/api/sheets/999/pickup", json={}),
+                    emp.post("/api/sheets/999/confirm", json={"version": 1}), emp.get("/api/sheets/999/excel")):
+            self.assertEqual(res.status_code, 404)
+            self.assertEqual(res.json()["error"]["code"], "not_found")
 
     def test_role_enforcement(self):
         """Roles are enforced:

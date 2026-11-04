@@ -4,7 +4,7 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from hasc.db import create_user, get_connection
+from hasc.db import create_sheet, create_user, get_connection
 from hasc.web.app import create_app
 from hasc.web.security import hash_password
 
@@ -23,6 +23,8 @@ class TestSection4RoleTable(unittest.TestCase):
             "boss": create_user(conn, "boss_user", hash_password("pass"), role="boss", active=1),
             "admin": create_user(conn, "admin_user", hash_password("pass"), role="admin", active=1),
         }
+        create_sheet(conn, form="BMMT01-2022/HASC", machine="T1", production_date="2026-10-19", shift=1,
+                     page_no=1, status="needs_review", version=1)
 
         self.clients = {}
         for role, username in [
@@ -42,6 +44,10 @@ class TestSection4RoleTable(unittest.TestCase):
     def _assert_allowed(self, role: str, res, msg: str = ""):
         self.assertNotEqual(res.status_code, 403, f"Role {role} should be allowed: {msg} (got 403)")
         self.assertIn(res.status_code, (200, 201, 202, 204), f"Role {role} expected success status, got {res.status_code}: {msg}")
+
+    def _assert_allowed_unbuilt(self, role: str, res, msg: str = ""):
+        """Not built in S1: the role check passes and the endpoint answers 501."""
+        self.assertEqual(res.status_code, 501, f"Role {role} should pass the role check: {msg} (got {res.status_code})")
 
     def _assert_forbidden(self, role: str, res, msg: str = ""):
         self.assertEqual(res.status_code, 403, f"Role {role} should be forbidden (403): {msg} (got {res.status_code})")
@@ -83,7 +89,7 @@ class TestSection4RoleTable(unittest.TestCase):
         """Action 4: Pick up, download, correct, re-upload, confirm, retry, hand-enter: Office=Yes, Operator=No, Admin=No"""
         for role in ["operator", "employee", "boss", "admin"]:
             client = self.clients[role]
-            res = client.post("/api/sheets/1/pickup", json={"takeover": False})
+            res = client.post("/api/sheets/1/pickup", json={"takeover": True})  # the employee picks it up first
             if role in ["employee", "boss"]:
                 self._assert_allowed(role, res, "POST /api/sheets/1/pickup")
             else:
@@ -95,7 +101,7 @@ class TestSection4RoleTable(unittest.TestCase):
             client = self.clients[role]
             res = client.post("/api/photos/1/invalid", json={"reason": "Blurry"})
             if role in ["employee", "boss"]:
-                self._assert_allowed(role, res, "POST /api/photos/1/invalid")
+                self._assert_allowed_unbuilt(role, res, "POST /api/photos/1/invalid")
             else:
                 self._assert_forbidden(role, res, "POST /api/photos/1/invalid")
 
@@ -108,7 +114,7 @@ class TestSection4RoleTable(unittest.TestCase):
                 json={"machine": "T1", "production_date": "2026-10-19", "shift": 1, "reason": "Bảo trì"},
             )
             if role in ["operator", "employee", "boss"]:
-                self._assert_allowed(role, res, "POST /api/not-running")
+                self._assert_allowed_unbuilt(role, res, "POST /api/not-running")
             else:
                 self._assert_forbidden(role, res, "POST /api/not-running")
 
@@ -128,7 +134,7 @@ class TestSection4RoleTable(unittest.TestCase):
             client = self.clients[role]
             res = client.get("/api/history")
             if role in ["employee", "boss", "admin"]:
-                self._assert_allowed(role, res, "GET /api/history")
+                self._assert_allowed_unbuilt(role, res, "GET /api/history")
             else:
                 self._assert_forbidden(role, res, "GET /api/history")
 
@@ -148,7 +154,7 @@ class TestSection4RoleTable(unittest.TestCase):
             client = self.clients[role]
             res = client.get("/api/admin/stats")
             if role in ["boss", "admin"]:
-                self._assert_allowed(role, res, "GET /api/admin/stats")
+                self._assert_allowed_unbuilt(role, res, "GET /api/admin/stats")
             else:
                 self._assert_forbidden(role, res, "GET /api/admin/stats")
 
