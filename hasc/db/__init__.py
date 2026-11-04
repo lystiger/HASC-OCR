@@ -1,4 +1,4 @@
-from hasc.db.connection import get_connection, init_db
+from hasc.db.connection import get_connection, get_default_db_path, init_db
 from hasc.db.migrations import get_applied_migrations, get_migrations_dir, migrate
 from hasc.db.queries import (
     clean_expired_sessions,
@@ -44,6 +44,7 @@ from hasc.db.queries import (
 
 __all__ = [
     "get_connection",
+    "get_default_db_path",
     "init_db",
     "migrate",
     "get_applied_migrations",
