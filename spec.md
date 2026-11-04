@@ -51,7 +51,7 @@ A new form goes live after form A has met the P64 targets for 4 weeks, and 20 la
 | Action | Operator (2) | Employee | Boss | Admin (Lystiger) |
 |---|---|---|---|---|
 | Upload a photo, see the printed limits | Yes | No | No | No |
-| See the status of own uploads | Yes | n/a | n/a | n/a |
+| See the status of own uploads, and which rolls failed a check (roll and problem only, P112) | Yes | n/a | n/a | n/a |
 | See the status of all sheets, and photos | No | Yes | Yes | Yes |
 | Pick up, download, correct, re-upload, confirm, retry, hand-enter | No | Yes | Yes | No |
 | Mark an upload invalid | No | Yes | Yes | No |
@@ -216,6 +216,7 @@ Automated criteria use a fake reader that returns set values, unless they name t
 53. Every reader request carries `data_collection: deny`, and the API key appears in no file in the repository, no log line and no error message.
 54. Confirming a sheet at its current version makes it Reviewed and records who confirmed it. Confirming an older version is refused with `409 stale_version` and changes nothing.
 
+55. After a reading, the operator's upload status lists each roll that failed a rule or was unreadable, as a roll code and a problem type (`weight`, `thickness` or `unreadable`) with a Vietnamese label. The response holds no other values, and AI doubt alone is not listed.
 **Trial and statistics**
 44. Expected-sheet counts are correct for a shift with a sheet, one without, and one marked not running. A not-running mark without a reason is refused.
 45. A sheet shows as overdue exactly 24 hours after entering Needs review or In review, including across a weekend.
@@ -309,7 +310,7 @@ read(image_path: str) -> ReadResult
 | `POST /api/login` | Anyone | `{username, password}` | `{role, must_change_password}` |
 | `POST /api/password` | Self | `{old, new}` | `204` |
 | `POST /api/photos` | Operator | Multipart: `file`, `machine`, `production_date`, `shift`, `page_no`, `opened_at` | `201 {photo_id, sheet_id, status, warnings: []}` |
-| `GET /api/uploads/mine` | Operator | | `[{sheet_id, machine, production_date, shift, page_no, status, uploaded_at}]` |
+| `GET /api/uploads/mine` | Operator | | `[{sheet_id, machine, production_date, shift, page_no, status, uploaded_at, problems: [{roll_code, problem}]}]` |
 | `GET /api/limits` | Operator | | `{thickness_max_mic: 8, diameter_max_mm: 3}` |
 | `GET /api/sheets?machine=&date=&shift=&status=&overdue=` | Office, admin | | `[{id, machine, production_date, shift, page_no, status, version, picked_up_by, overdue}]` |
 | `GET /api/shifts/excel?machine=&date=&shift=` | Office | | Read-only joined `.xlsx` file |

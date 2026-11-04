@@ -23,7 +23,7 @@ Each build step is one Hermes goal job (`POST localhost:8000/jobs/goal`). It is 
 | B1 | Skeleton: the `hasc/` package with one folder per part (ADR 3), the existing reader moved into `hasc/reader`, the import-boundary check, and CI running the tests on every PR | Import check | ADR 6 |
 | B2 | Database schema and migrations, accounts, login, sessions and roles | 1–10 | B1 |
 | B3 | Upload: photos, quality check, sheets and pages | 11–15, 47, 49 | B2 |
-| B4 | Worker: queue, retries, the reader behind its contract, carry-down, repeat photos, rules | 16–28, 50–52, 53 | B3 |
+| B4 | Worker: queue, retries, the reader behind its contract, carry-down, repeat photos, rules | 16–28, 50–53, 55 | B3 |
 | B5 | Excel: build files, parse re-uploads, confirm button, version check, hand-entry template, joined shift file | 29–36, 48, 54 | B4 |
 | B6 | Office screens: lookup, pick-up, history, not-running marks, overdue list, statistics | 44–46 | B5 |
 | B7 | Operations: deploy script (ADR 4), backups (ADR 5), alerts, heartbeat | 42, 43 | B6 |
