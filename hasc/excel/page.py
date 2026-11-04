@@ -58,6 +58,26 @@ COLUMNS = (
 )
 
 
+NUMERIC_FIELDS = {
+    "thickness_mic",
+    "width_mm",
+    "length_mm",
+    "gross_kg",
+    "core_kg",
+    "cover_kg",
+    "net_kg",
+    "thickness_1",
+    "thickness_2",
+    "thickness_3",
+    "thickness_4",
+    "thickness_5",
+    "thickness_6",
+    "thickness_avg",
+    "diameter_a",
+    "diameter_b",
+}
+
+
 def page_filename(machine: str, production_date: date, shift: int, page_no: int) -> str:
     return f"HASC_{machine}_{production_date.isoformat()}_Ca{shift}_Trang{page_no}.xlsx"
 
@@ -66,15 +86,24 @@ def _fill(hex_color: str) -> PatternFill:
     return PatternFill(fill_type="solid", start_color=hex_color, end_color=hex_color)
 
 
-def _write_value(cell, value) -> None:
+def _write_value(cell, value, field=None) -> None:
     if value is None:
         return
     if isinstance(value, int | float) and not isinstance(value, bool):
         cell.value = value
         return
+    if isinstance(value, str):
+        if value.startswith("="):
+            cell.value = value
+            cell.data_type = "s"  # reader or hand text is never stored as a formula
+            return
+        if field in NUMERIC_FIELDS:
+            try:
+                cell.value = float(value) if "." in value else int(value)
+                return
+            except ValueError:
+                pass
     cell.value = value
-    if isinstance(value, str) and value.startswith("="):
-        cell.data_type = "s"  # reader or hand text is never stored as a formula
 
 
 def _write_header(ws, sheet: dict) -> None:
@@ -128,7 +157,7 @@ def _write_rows(ws, rows: list[dict]) -> None:
             if cell_data is None or cell_data.get("inherited"):
                 continue
             cell = ws.cell(row=number, column=index)
-            _write_value(cell, cell_data.get("value"))
+            _write_value(cell, cell_data.get("value"), field=field)
             color = FLAG_FILLS.get(cell_data.get("flag"))
             if color:
                 cell.fill = _fill(color)
