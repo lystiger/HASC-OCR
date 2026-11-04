@@ -79,7 +79,7 @@ Employees and bosses together are the 6 office members. Nobody can delete sheets
 **Reading (P26, P27, P40, P53, P58, P77)**
 - The AI reads every printed field on form A or the back layout, one photo at a time, in a queue. It works out the layout from the columns, not the title. On a back side, `Tổng KL` is gross, `Lõi` is core and `KL đã trừ` is net.
 - Reads are stored as intended values: a ditto mark becomes the value above, a crossed-out value becomes the final one, and 13,6 becomes 13.6.
-- Empty cells stay empty, except for carry-down: customer, film type, pellet formula, mixing shift/date, thickness, width and length carry from a run's first row to the rows below. Weights do not.
+- Empty cells stay empty, except for carry-down: customer, film type, pellet formula, mixing shift/date, thickness, width and length carry down from the row above, also across a customer change (P115). Weights do not.
 - The system retries automatically within 15 minutes, then marks the reading Failed. An office member can press retry or hand-enter using a blank template.
 - Each photo is turned upright before reading (P107). **Undecided:** how back pages, which aren't always photographed the same way, are turned.
 - The reader is replaceable. A replacement must pass the same labelled test before going live.
@@ -181,7 +181,7 @@ Automated criteria use a fake reader that returns set values, unless they name t
 
 **Reading and repeat photos**
 16. A ditto mark, a crossed-out value and `13,6` are stored as the value above, the final value and `13.6`, given the reader's matching output.
-17. Blank carry-down columns take the first row's values in the database, and weights do not.
+17. Blank carry-down columns take the value of the row above in the database, also across a customer change (P115), and weights do not.
 18. A blank that isn't a carry-down column stays empty, and is never filled by guessing.
 19. A new row is added, and an identical reading changes nothing and doesn't raise the version.
 20. A differing reading keeps the current number, including a human correction, and flags the row.
