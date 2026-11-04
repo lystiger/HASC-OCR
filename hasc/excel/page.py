@@ -26,9 +26,9 @@ FLAG_FILLS = {
 }
 
 LEGEND = (
-    ("FFFF00", "yellow = AI chưa chắc"),
-    ("FF0000", "red = sai quy tắc"),
-    ("BFBFBF", "grey = không đọc được"),
+    ("FFFF00", "vàng = AI chưa chắc"),
+    ("FF0000", "đỏ = sai quy tắc"),
+    ("BFBFBF", "xám = không đọc được"),
 )
 
 # (group heading or None, sub heading, field). Without a group the heading spans rows 5-6.

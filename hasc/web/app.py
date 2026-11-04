@@ -85,7 +85,13 @@ def create_app(
         yield
         # Shutdown logic if needed
 
-    app = FastAPI(title="HASC Production Records", lifespan=lifespan)
+    app = FastAPI(
+        title="HASC Production Records",
+        lifespan=lifespan,
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+    )
     app.state.db_path = db_path
     app.state.photos_dir = (
         Path(photos_dir)
@@ -114,6 +120,27 @@ def create_app(
     async def app_error_handler(request: Request, exc: AppError):
         return exc.to_response()
 
+    DEFAULT_HTTP_ERRORS = {
+        400: ("bad_request", "Yêu cầu không hợp lệ"),
+        401: ("unauthorized", "Chưa đăng nhập"),
+        403: ("forbidden", "Không có quyền truy cập"),
+        404: ("not_found", "Không tìm thấy"),
+        405: ("method_not_allowed", "Phương thức không được hỗ trợ"),
+        409: ("conflict", "Xung đột dữ liệu"),
+        422: ("validation_error", "Dữ liệu không hợp lệ"),
+        500: ("internal_error", "Lỗi máy chủ nội bộ"),
+    }
+    ENGLISH_HTTP_DEFAULTS = {
+        "Not Found",
+        "Unauthorized",
+        "Forbidden",
+        "Method Not Allowed",
+        "Internal Server Error",
+        "Bad Request",
+        "Conflict",
+        "Unprocessable Entity",
+    }
+
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         # For browser navigation without API prefix, redirect 401 to /login
@@ -121,15 +148,16 @@ def create_app(
             if exc.status_code == 401:
                 return RedirectResponse(url="/login", status_code=303)
 
-        code = "http_error"
-        if exc.status_code == 401:
-            code = "unauthorized"
-        elif exc.status_code == 403:
-            code = "forbidden"
-        elif exc.status_code == 404:
-            code = "not_found"
+        default_code, default_msg = DEFAULT_HTTP_ERRORS.get(
+            exc.status_code, ("http_error", "Lỗi hệ thống")
+        )
+        code = default_code
+        detail = exc.detail
+        if not detail or str(detail) in ENGLISH_HTTP_DEFAULTS:
+            message = default_msg
+        else:
+            message = str(detail)
 
-        message = str(exc.detail) if exc.detail else "Lỗi hệ thống"
         return JSONResponse(
             status_code=exc.status_code,
             content={"error": {"code": code, "message": message}},
