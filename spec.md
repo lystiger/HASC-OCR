@@ -213,8 +213,8 @@ Automated criteria use a fake reader that returns set values, unless they name t
 41. Nine logged-in users working at once get no errors while a reading runs.
 42. A backup restored onto a clean machine gives the same sheets, numbers, history and smaller photos, and a copy in cloud storage can't be read without the key.
 43. Stopping the Dell raises the heartbeat alert, and forcing a failed backup, stuck queue, repeated AI failure, nearly full disk and low OpenRouter credit each emails Lystiger.
-54. Confirming a sheet at its current version makes it Reviewed and records who confirmed it. Confirming an older version is refused with `409 stale_version` and changes nothing.
 53. Every reader request carries `data_collection: deny`, and the API key appears in no file in the repository, no log line and no error message.
+54. Confirming a sheet at its current version makes it Reviewed and records who confirmed it. Confirming an older version is refused with `409 stale_version` and changes nothing.
 
 **Trial and statistics**
 44. Expected-sheet counts are correct for a shift with a sheet, one without, and one marked not running. A not-running mark without a reason is refused.
