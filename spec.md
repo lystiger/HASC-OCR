@@ -73,7 +73,7 @@ Employees and bosses together are the 6 office members. Nobody can delete sheets
 - The shift leader uploads once, at shift end (P113). Retakes and extra pages are uploaded too. A first upload creates the sheet; later uploads add to it.
 - They can use the upload button or the camera, from a phone or a laptop (P109). The system accepts JPEG and HEIC.
 - They choose the machine, date and shift (P83). The screen pre-selects the shift from the clock and the machine this account chose last, and between midnight and 7am the date defaults to yesterday (P110). The upload button shows what it will send, like `Gửi: T1 · Ca 2 · 19/10 · Trang 1`. They also choose a page number, defaulting to page 1 (P92). Each paper has form A on one side and a back layout on the other, and a side with data is a page in either layout (P98, P99). The leader chooses the machine for each side (P101). The back has no printed date or shift, so the leader's choice is the only source. Machine, date, shift and page identify the sheet.
-- The system always saves the photo before anything else, and always keeps the original. It stores the photo's camera time, when the file has one, next to the upload time. An identical photo (same `sha256`) is saved but not read again (P113).
+- The system always saves the photo before anything else, and always keeps the original. It stores the photo's camera time, when the file has one, next to the upload time. An identical photo (same `sha256`) for the same sheet is saved but not read again (P113); uploaded for a different sheet, it is read for that sheet (P116).
 - A quick check tests that the file is an image under 20 MB and above a minimum resolution, plus blur, darkness and whether a form-like table fills the frame. It warns and suggests a retake, and never blocks. After reading, a photo with no rows shows the leader a warning to check the other side (P99).
 
 **Reading (P26, P27, P40, P53, P58, P77)**
@@ -217,7 +217,7 @@ Automated criteria use a fake reader that returns set values, unless they name t
 53. Every reader request carries `data_collection: deny`, and the API key appears in no file in the repository, no log line and no error message.
 54. Confirming a sheet at its current version makes it Reviewed and records who confirmed it. Confirming an older version is refused with `409 stale_version` and changes nothing.
 55. After a reading, the operator's upload status lists each roll that failed a rule or was unreadable, as a roll code and a problem type (`weight`, `thickness` or `unreadable`) with a Vietnamese label. The response holds no other values, and AI doubt alone is not listed.
-56. A second upload with the same `sha256` is saved and recorded but starts no reading, and the photo's camera time is stored when present.
+56. A second upload with the same `sha256` for the same sheet is saved and recorded but starts no reading; for a different sheet it starts a reading for that sheet. The photo's camera time is stored when present.
 
 **Trial and statistics**
 44. Expected-sheet counts are correct for a shift with a sheet, one without, and one marked not running. A not-running mark without a reason is refused.

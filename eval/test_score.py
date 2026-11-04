@@ -109,6 +109,10 @@ class CarryDown(unittest.TestCase):
         self.assertEqual(rows[1].get("width_mm"), "480")
         self.assertIsNone(rows[3].get("net_kg"))
 
+    def test_pellet_formula_and_mixing_shift_date_fill_down(self):
+        rows = score.carry_down([{"pellet_formula": "F2", "mixing_shift_date": "Ca 1 18/10"}, {}])
+        self.assertEqual((rows[1].get("pellet_formula"), rows[1].get("mixing_shift_date")), ("F2", "Ca 1 18/10"))
+
     def test_copied_product_details_are_not_invented_values(self):
         labels = score.carry_down([{"customer": "HD", "net_kg": "68"}, {"net_kg": "67"}])
         preds = score.carry_down([{"customer": "HD", "net_kg": "68"}, {"customer": "HD", "net_kg": "67"}])

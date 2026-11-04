@@ -360,6 +360,19 @@ class TestOperatorUpload(unittest.TestCase):
         cursor = conn.execute("SELECT COUNT(*) as cnt FROM read_jobs WHERE photo_id = ?", (photo2_id,))
         self.assertEqual(cursor.fetchone()["cnt"], 0)
 
+    def test_identical_photo_for_a_different_sheet_is_read_again(self):
+        """A photo already read for one sheet and uploaded for another page starts a reading for that page."""
+        raw_jpeg = make_test_table_jpeg()
+        form = {"machine": "T1", "production_date": "2026-10-19", "shift": "1"}
+        first = self.client_op1.post("/api/photos", data={**form, "page_no": "1"},
+                                     files={"file": ("a.jpg", raw_jpeg, "image/jpeg")}).json()
+        second = self.client_op1.post("/api/photos", data={**form, "page_no": "2"},
+                                      files={"file": ("b.jpg", raw_jpeg, "image/jpeg")}).json()
+        self.assertNotEqual(first["sheet_id"], second["sheet_id"])
+        conn = get_connection(self.db_path)
+        count = conn.execute("SELECT COUNT(*) FROM read_jobs WHERE photo_id = ?", (second["photo_id"],)).fetchone()[0]
+        self.assertEqual(count, 1)
+
     def test_upload_error_shapes_on_failure(self):
         """Returns the spec error shape on failure: {"error": {"code": "...", "message": "..."}}."""
         # 1. Non-image file (criterion 14)
