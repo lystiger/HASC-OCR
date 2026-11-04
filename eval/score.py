@@ -7,6 +7,7 @@ OUTPUT_DIR holds one <tab>.out per sheet: one row per line, either
 Product fields are copied down a run on both sides before scoring (P103).
 """
 import argparse
+import json
 import re
 import sys
 import unicodedata
@@ -102,6 +103,17 @@ def carry_down(rows):
     return filled
 
 
+def standardise(rows, names):
+    """Replace written customer and film_type shorthand with its standard name (P105)."""
+    aliases = {}
+    for group, field in (("customers", "customer"), ("products", "film_type")):
+        for standard, variants in names[group].items():
+            for written in (standard, *variants):
+                aliases[(field, _text(written))] = standard
+    return [{k: aliases.get((k, _text(v)), v) if k in ("customer", "film_type") else v
+             for k, v in row.items()} for row in rows]
+
+
 def _agreement(label, pred):
     return sum(1 for k, v in label.items()
                if not _blank(v) and v != "?" and not _blank(pred.get(k)) and same(v, pred[k]))
@@ -164,8 +176,9 @@ def load_labels(path, split):
     return labels
 
 
-def run(labels_path, output_dir, split):
+def run(labels_path, output_dir, split, names=None):
     labels = load_labels(labels_path, split)
+    same_name = (lambda rows: standardise(rows, names)) if names else (lambda rows: rows)
     result = {"unlabelled": [], "missing_output": [], "malformed": 0, "sheets": {}, "fields": {}}
     for name, rows in labels.items():
         if not rows:
@@ -177,7 +190,7 @@ def run(labels_path, output_dir, split):
             continue
         preds, malformed = parse_output(out.read_text(encoding="utf-8"))
         result["malformed"] += malformed
-        tally = score_sheet(carry_down(rows), carry_down(preds))
+        tally = score_sheet(carry_down(same_name(rows)), carry_down(same_name(preds)))
         result["sheets"][name] = tally
         for key, (right, total) in tally.items():
             entry = result["fields"].setdefault(key, [0, 0])
@@ -197,8 +210,11 @@ def main():
     parser.add_argument("labels")
     parser.add_argument("output_dir")
     parser.add_argument("--split", choices=["tuning", "hidden"], default="tuning")
+    parser.add_argument("--names", default=Path.home() / "Documents/HASC/labels/known_names.json",
+                        help="known-names list; shorthand on either side scores as its standard name")
     args = parser.parse_args()
-    r = run(args.labels, args.output_dir, args.split)
+    names = json.loads(Path(args.names).read_text(encoding="utf-8")) if Path(args.names).exists() else None
+    r = run(args.labels, args.output_dir, args.split, names)
 
     print(f"{'field':<16}{'right':>7}{'total':>7}{'%':>8}  counts toward score")
     for key, (right, total) in sorted(r["fields"].items()):

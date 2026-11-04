@@ -1,6 +1,6 @@
 # HASC Production Records (Hồ sơ sản xuất HASC) — first version
 
-**Decisions:** Lystiger · **Written by:** Claude · **Status:** Accepted 2026-11-02 · **Source:** `brief.md` P1–P102, `decisions.md` ADR 1–5
+**Decisions:** Lystiger · **Written by:** Claude · **Status:** Accepted 2026-11-02, revised 2026-11-04 for the cloud reader · **Source:** `brief.md` P1–P108, `decisions.md` ADR 1–5
 
 ## 1. Context and problem
 After each product run, a shift leader photographs a handwritten machine report (form `BMMT01-2022/HASC`, "form A") and sends it to the office on Zalo. Office members read the photo and judge it. Sending takes about a minute, but Zalo cannot edit, archive or fact-check. Tracing what happened at a past time means finding a paper sheet, and nothing records who is responsible for a number (P20).
@@ -38,7 +38,7 @@ Out of the first version (P12, P59, P74):
 - Showing product targets to operators.
 - Storing formulas in the settings file.
 
-The first version spends no money and sends no sheet photos to a cloud AI (P52, P80). A cloud model such as Gemini belongs to a second version, only if the Dell can't do the work.
+The first version reads sheets with a pay-as-you-go cloud model, Gemini 3.8 Flash through OpenRouter, because local models on the Dell scored far below 95% (P104, P108). Reading is the only paid part, at about $0.004 per sheet; everything else stays free (P52). No real sheet goes to the reader in the running system until Lystiger finishes the Q32 check.
 
 A new form goes live after form A has met the P64 targets for 4 weeks, and 20 labelled sheets of that form (8 tuning, 12 hidden test) reach 95%. Trained AI needs about 500 sheets confirmed as good runs, plus suitable hardware. Lystiger can move earlier, on record (P75).
 
@@ -51,9 +51,9 @@ A new form goes live after form A has met the P64 targets for 4 weeks, and 20 la
 | Action | Operator (2) | Employee | Boss | Admin (Lystiger) |
 |---|---|---|---|---|
 | Upload a photo, see the printed limits | Yes | No | No | No |
-| See the status of own uploads | Yes | n/a | n/a | n/a |
+| See the status of own uploads, and which rolls failed a check (roll and problem only, P112) | Yes | n/a | n/a | n/a |
 | See the status of all sheets, and photos | No | Yes | Yes | Yes |
-| Pick up, download, correct, re-upload, retry, hand-enter | No | Yes | Yes | No |
+| Pick up, download, correct, re-upload, confirm, retry, hand-enter | No | Yes | Yes | No |
 | Mark an upload invalid | No | Yes | Yes | No |
 | Mark a machine or shift not running, with a reason | Yes | Yes | Yes | No |
 | See sheet numbers | No | Yes | Yes | Yes, each opening logged |
@@ -70,10 +70,10 @@ Employees and bosses together are the 6 office members. Nobody can delete sheets
 - The website is in Vietnamese only (P37).
 
 **Upload (P18, P22, P25, P33, P36, P71)**
-- The shift leader uploads after each product run, plus a final photo at shift end. A first upload creates the sheet; later uploads add to it.
-- They can use the upload button or the camera. The system accepts JPEG and HEIC, on any phone.
-- They choose the machine, date and shift by hand, with the date defaulting to today (P83). They also choose a page number, defaulting to page 1 (P92). Each paper has form A on one side and a back layout on the other, and a side with data is a page in either layout (P98, P99). The leader chooses the machine for each side (P101). The back has no printed date or shift, so the leader's choice is the only source. Machine, date, shift and page identify the sheet.
-- The system always saves the photo before anything else, and always keeps the original.
+- The shift leader uploads once, at shift end (P113). Retakes and extra pages are uploaded too. A first upload creates the sheet; later uploads add to it.
+- They can use the upload button or the camera, from a phone or a laptop (P109). The system accepts JPEG and HEIC.
+- They choose the machine, date and shift (P83). The screen pre-selects the shift from the clock and the machine this account chose last, and between midnight and 7am the date defaults to yesterday (P110). The upload button shows what it will send, like `Gửi: T1 · Ca 2 · 19/10 · Trang 1`. They also choose a page number, defaulting to page 1 (P92). Each paper has form A on one side and a back layout on the other, and a side with data is a page in either layout (P98, P99). The leader chooses the machine for each side (P101). The back has no printed date or shift, so the leader's choice is the only source. Machine, date, shift and page identify the sheet.
+- The system always saves the photo before anything else, and always keeps the original. It stores the photo's camera time, when the file has one, next to the upload time. An identical photo (same `sha256`) is saved but not read again (P113).
 - A quick check tests that the file is an image under 20 MB and above a minimum resolution, plus blur, darkness and whether a form-like table fills the frame. It warns and suggests a retake, and never blocks. After reading, a photo with no rows shows the leader a warning to check the other side (P99).
 
 **Reading (P26, P27, P40, P53, P58, P77)**
@@ -81,6 +81,7 @@ Employees and bosses together are the 6 office members. Nobody can delete sheets
 - Reads are stored as intended values: a ditto mark becomes the value above, a crossed-out value becomes the final one, and 13,6 becomes 13.6.
 - Empty cells stay empty, except for carry-down: customer, film type, pellet formula, mixing shift/date, thickness, width and length carry from a run's first row to the rows below. Weights do not.
 - The system retries automatically within 15 minutes, then marks the reading Failed. An office member can press retry or hand-enter using a blank template.
+- Each photo is turned upright before reading (P107). **Undecided:** how back pages, which aren't always photographed the same way, are turned.
 - The reader is replaceable. A replacement must pass the same labelled test before going live.
 
 **Repeat photos (P22, P68)**
@@ -104,15 +105,17 @@ If this adds rows or flags to a Reviewed sheet, the sheet returns to Needs revie
 - There is one correctable Excel file per page, named like `HASC_T1_2026-10-19_Ca2_Trang1.xlsx`. See the layout in section 6.
 - Pages are reviewed separately. A read-only file named like `HASC_T1_2026-10-19_Ca2.xlsx` joins all of a shift's pages in page order (P92).
 - Correcting means editing that file and re-uploading it. The system compares it with the current data and records each changed value.
+- If the file needs no change, the office member presses `Đúng, xác nhận` on the sheet's detail page instead (P111). It confirms the version they downloaded, and is refused like an out-of-date file if the data changed since.
 - The system rejects a re-upload made from an out-of-date version, and asks the person to download the latest.
 - A sheet is overdue 24 hours after entering Needs review or In review, weekends included. Overdue sheets top the office list, and the count shows on boss and admin screens.
 
 **Lookup (P21, P39)**
+- The office sheet list opens on Needs review, In review and Failed sheets, overdue first. Each row shows machine, date, shift, page, status, the uploading shift leader and how long it has waited, and clicking it opens the sheet's detail page (P111).
 - Office members find a sheet by machine, date and shift, see all of that shift's pages, and see each page's photos, status and current file.
 - A photo is visible to the office as soon as it's saved.
 
 **History and statistics (P13, P48)**
-- The system appends an event for each upload, re-upload, value change, pick-up, takeover, retry, invalid mark, not-running mark, admin sheet opening and account change. There is no way to edit or remove an event through the website.
+- The system appends an event for each upload, re-upload, confirm, value change, pick-up, takeover, retry, invalid mark, not-running mark, admin sheet opening and account change. There is no way to edit or remove an event through the website.
 - The admin's main screen shows sheets per day by status; expected sheets not yet received; failed readings and retries; upload and AI reading times; and values flagged and corrected.
 
 **Sheet statuses (P41)**
@@ -123,28 +126,30 @@ If this adds rows or flags to a Reviewed sheet, the sheet returns to Needs revie
 | Reading | `reading` | Đang đọc | AI working |
 | Needs review | `needs_review` | Cần kiểm tra | Excel file ready, nobody has it |
 | In review | `in_review` | Đang kiểm tra | An office member picked it up |
-| Reviewed | `reviewed` | Đã kiểm tra | Corrected file uploaded, all current rows checked |
+| Reviewed | `reviewed` | Đã kiểm tra | Corrected file uploaded or confirmed, all current rows checked |
 | Failed | `failed` | Lỗi | Needs manual retry or hand entry |
 
 ### Non-functional
 
 **Hosting (P50, P52, P55, P56, P58)**
-- Website, database, photos and local AI run on the Dell Inspiron 5521 (i5-3337U, 8 GB RAM, 600 GB disk, onboard GPU, Ubuntu).
+- Website, database, photos and the reading worker run on the Dell Inspiron 5521 (i5-3337U, 8 GB RAM, 600 GB disk, onboard GPU, Ubuntu). The worker sends each photo to the cloud reader (P104).
 - Phones and computers reach it over company Wi-Fi only.
-- If the Dell misses 95% or 15 minutes, a second version moves daily reading to a cloud model such as Gemini (P80). That version needs the Q32 check, terms that bar training on the data, its own cost decision, and internet access for the reader. It must pass the same labelled test.
+- The reader needs internet. Every request asks OpenRouter for providers that neither store nor train on the data (`data_collection: deny`). The API key lives only on the Dell, outside the repository and logs. A fallback model on the same terms takes over when the main one fails (P104).
+- Without internet, photos still save and jobs wait, then end Failed after 15 minutes like any other reader failure. **Undecided:** whether an outage should hold jobs longer instead of failing them.
 - All 9 people can use the website at the same time.
 
 **Data (P44, P46, P47, P54, P60, P72)**
 - Photos, numbers and history are kept with no automatic deletion. Lystiger reviews this yearly.
-- No real sheet photo goes to a cloud AI until Lystiger finishes the Q32 check.
+- No real sheet photo goes to the cloud reader in the running system until Lystiger finishes the Q32 check. Labelled October sheets were sent for the stage 1 test only.
 - Backups are encrypted and go to a dedicated free cloud storage account. They hold the database, history and a smaller copy of each photo. Original photos stay only on the Dell.
 - The encryption key is kept away from the laptop. A backup counts only after a restore is tested.
 - Accepted risk: the Dell's disk is not encrypted (P60).
 
 **Running it (P57, P58)**
 - Lystiger operates the system and is the only person with direct server access.
-- The Dell emails Lystiger about failed backups, stuck queues, repeated AI failures or a nearly full disk.
-- A heartbeat carrying no sheet data alerts Lystiger if the laptop stops.
+- Healthchecks.io's free tier emails Lystiger about failed backups, stuck queues, repeated AI failures, a nearly full disk or low OpenRouter credit. Alert text never carries sheet data (P113).
+- A heartbeat to the same service alerts Lystiger if the laptop stops.
+- The OpenRouter key has a $5 spending limit. Low credit means fewer than 14 days left at the last 7 days' rate, or under $1.
 
 **Trial (P23, P30, P65, P66, P70)**
 - Zalo and the system run side by side for 1 week.
@@ -202,13 +207,17 @@ Automated criteria use a fake reader that returns set values, unless they name t
 36. A file with changed structure or a missing metadata tab is refused with a clear message. Cell formulas in re-uploaded files are not executed or stored as formulas.
 
 **Measured on real data or the Dell**
-37. **Stage 1 gate:** on the 12-sheet hidden test set, the chosen reader reaches at least 95% of values, excluding values labelled unreadable, and fields with fewer than 100 labelled non-empty values are reported separately (see section 8).
-38. On the Dell, every one of those 12 sheets is read in under 15 minutes.
+37. **Stage 1 gate:** on a fresh 12-sheet hidden test set (the first one became tuning data, P106), the chosen reader reaches at least 95% of values, excluding values labelled unreadable, and fields with fewer than 100 labelled non-empty values are reported separately (see section 8).
+38. On the Dell, every one of those 12 sheets is read through the cloud reader in under 15 minutes, and the run's cost is recorded.
 39. A timed upload by each shift leader takes at most 2 minutes, from opening the website to confirmation.
 40. A person finds a named past sheet by machine, date and shift in under 1 minute.
 41. Nine logged-in users working at once get no errors while a reading runs.
 42. A backup restored onto a clean machine gives the same sheets, numbers, history and smaller photos, and a copy in cloud storage can't be read without the key.
-43. Stopping the Dell raises the heartbeat alert, and forcing a failed backup, stuck queue, repeated AI failure and nearly full disk each emails Lystiger.
+43. Stopping the Dell raises the heartbeat alert, and forcing a failed backup, stuck queue, repeated AI failure, nearly full disk and low OpenRouter credit each emails Lystiger.
+53. Every reader request carries `data_collection: deny`, and the API key appears in no file in the repository, no log line and no error message.
+54. Confirming a sheet at its current version makes it Reviewed and records who confirmed it. Confirming an older version is refused with `409 stale_version` and changes nothing.
+55. After a reading, the operator's upload status lists each roll that failed a rule or was unreadable, as a roll code and a problem type (`weight`, `thickness` or `unreadable`) with a Vietnamese label. The response holds no other values, and AI doubt alone is not listed.
+56. A second upload with the same `sha256` is saved and recorded but starts no reading, and the photo's camera time is stored when present.
 
 **Trial and statistics**
 44. Expected-sheet counts are correct for a shift with a sheet, one without, and one marked not running. A not-running mark without a reason is refused.
@@ -249,7 +258,7 @@ users(id, username, password_hash, role[operator|employee|boss|admin],
 sheets(id, form, machine, production_date, shift, page_no, status, version,
        picked_up_by, status_since,
        UNIQUE(form, machine, production_date, shift, page_no))
-photos(id, sheet_id, path, small_copy_path, sha256, uploaded_by, uploaded_at,
+photos(id, sheet_id, path, small_copy_path, sha256, uploaded_by, uploaded_at, taken_at,
        upload_ms, quality_warnings, invalid, invalid_by)
 read_jobs(id, photo_id, status, attempts, last_error, reader_name,
           queued_at, started_at, finished_at)
@@ -303,7 +312,7 @@ read(image_path: str) -> ReadResult
 | `POST /api/login` | Anyone | `{username, password}` | `{role, must_change_password}` |
 | `POST /api/password` | Self | `{old, new}` | `204` |
 | `POST /api/photos` | Operator | Multipart: `file`, `machine`, `production_date`, `shift`, `page_no`, `opened_at` | `201 {photo_id, sheet_id, status, warnings: []}` |
-| `GET /api/uploads/mine` | Operator | | `[{sheet_id, machine, production_date, shift, page_no, status, uploaded_at}]` |
+| `GET /api/uploads/mine` | Operator | | `[{sheet_id, machine, production_date, shift, page_no, status, uploaded_at, problems: [{roll_code, problem}]}]` |
 | `GET /api/limits` | Operator | | `{thickness_max_mic: 8, diameter_max_mm: 3}` |
 | `GET /api/sheets?machine=&date=&shift=&status=&overdue=` | Office, admin | | `[{id, machine, production_date, shift, page_no, status, version, picked_up_by, overdue}]` |
 | `GET /api/shifts/excel?machine=&date=&shift=` | Office | | Read-only joined `.xlsx` file |
@@ -311,6 +320,7 @@ read(image_path: str) -> ReadResult
 | `POST /api/sheets/{id}/pickup` | Office | `{takeover: bool}` | `{status, picked_up_by}`, or `409 already_picked_up` |
 | `GET /api/sheets/{id}/excel` | Office | | The `.xlsx` file |
 | `POST /api/sheets/{id}/excel` | Office | Multipart: `file` | `{version, status, changed: n}`, or `409 stale_version`, or `422 bad_layout` |
+| `POST /api/sheets/{id}/confirm` | Office | `{version}` | `{version, status}`, or `409 stale_version` |
 | `GET /api/sheets/{id}/template` | Office | | Blank `.xlsx` for hand entry |
 | `POST /api/photos/{id}/retry` | Office | | `202 {job_status}` |
 | `POST /api/photos/{id}/invalid` | Office | `{reason}` | `{sheet_id, version}` |
@@ -335,7 +345,7 @@ read(image_path: str) -> ReadResult
 | `failed` | Manual retry | `reading` |
 | `failed` | Hand-entered template uploaded | `reviewed` |
 | `needs_review` | Pick-up | `in_review` |
-| `in_review` | Valid re-upload | `reviewed` |
+| `in_review` | Valid re-upload or confirm | `reviewed` |
 | `reviewed` | New photo adds rows or flags | `needs_review` |
 
 A new photo during `needs_review` or `in_review` keeps that status. If it changes data, the version goes up, so an older file gets rejected.
@@ -363,13 +373,16 @@ Tab "_meta"     Hidden: sheet_id, version, row keys and a layout version.
 
 **Rule comparison.** Weights are compared at the precision written, usually one decimal. A written average passes if it's within half of the last written digit of the calculated one.
 
-**Operations.** A daily job at 5am backs up, encrypts and uploads with `restic` through `rclone`, taking turns with the reader (ADR 5). Prune and an integrity check run on Sunday. Reading alerts: a job queued over 15 minutes, 3 failures in a row, or a disk over 80% full. The heartbeat is sent every 5 minutes, and the outside service alerts after 15 minutes without one.
+**Reader.** `hasc/reader` calls Gemini 3.8 Flash through OpenRouter, asks for plain `key=value` lines, re-reads once with more thinking where a row fails a rule, and falls back to a second model after 3 failed tries (P104). The prompt lists the standard names from `known_names.json`, which stays on the Dell (P105).
+
+**Operations.** A daily job at 5am backs up, encrypts and uploads with `restic` through `rclone`, taking turns with the reader (ADR 5). Prune and an integrity check run on Sunday. Reading alerts: a job queued over 15 minutes, 3 failures in a row, a disk over 80% full, or low OpenRouter credit as defined in section 4 (P113). The heartbeat is sent every 5 minutes, and the outside service alerts after 15 minutes without one.
 
 ## 7. Alternatives considered
 | Alternative | Why rejected |
 |---|---|
-| Cloud AI in the first version | Everything stays local at first (P51, P52, P80); a cloud model is the second-version path |
-| Moving the AI to the Ryzen workstation | Replaced by the second-version cloud path (P80) |
+| A local model on the Dell | Scored far below 95% in 4 test runs, mostly by putting values under the wrong columns (P104) |
+| Moving the AI to the Ryzen workstation | Replaced by the cloud reader (P80, P104) |
+| Gemini through Antigravity on a personal account | Its terms don't rule out training on personal-account data, and it's a coding agent with quotas, not a reader (P108) |
 | A paid or separate cloud server | No money in the first version (P52) |
 | Website review screen | Larger build; trial evidence can justify it later (P32) |
 | Dashboards in the first version | Charts on unmeasured data look reliable while being wrong, and form A lacks some inputs (P10) |
@@ -382,8 +395,11 @@ Tab "_meta"     Hidden: sheet_id, version, row keys and a layout version.
 ## 8. Risks
 | Risk | Handling |
 |---|---|
-| The Dell can't run a suitable model, or runs it too slowly | Likely. Stage 1 tests this before anything is built, then the second-version cloud path applies (P80) |
 | A cloud model's terms, cost or data rules don't fit | Check Q32 and the provider's current terms before any real photo is sent. Free plans must not be assumed to bar training on the data |
+| The model's score varies between runs (92.7–98.2% on the same 12 sheets, P107) | Reading twice and flagging disagreements is the next reader step. Full checks in the trial measure what slips through |
+| The model is retired, changes or rises in price | The fallback model keeps reading. A replacement must pass the labelled test |
+| Spending runs away through retries or a bug | The OpenRouter key has a spending limit, and a low-credit alert emails Lystiger |
+| Internet outage | Photos still save; jobs fail after 15 minutes and are retried by hand |
 | 20 labelled sheets give weak evidence, with 12 in the test set | Treat a pass as encouraging, not proof. The trial's corrections provide more evidence |
 | Measured thickness and diameter are left blank (P84) | The average and printed-limit rules rarely or never fire, and the records hold little measured quality data, which limits the QA/QC goal until the factory fills them in |
 | AI doubt misses wrong values | Full checks during the trial measure this before moving to flagged-only (P65) |
@@ -405,8 +421,8 @@ Tab "_meta"     Hidden: sheet_id, version, row keys and a layout version.
 | # | Item | Owner | Blocks |
 |---|---|---|---|
 | Q36 | Product values, what the limits mean, and when a difference flags | Lystiger, from the factory | Limit and goal rules only |
-| Q32 | Contracts and data-protection rules | Lystiger | The second-version cloud model; should also cover backups |
-| Q10 | Which model | Stage 1 test | Stage 2 |
+| Q32 | Contracts and data-protection rules | Lystiger | Sending real sheets to the cloud reader in the running system; should also cover backups |
+| Q10 | Which model | Closed 2026-11-04: Gemini 3.8 Flash through OpenRouter, pending criterion 37 on a fresh hidden set | Go-live, not the build |
 ## 9. Test plan
 | Layer | How | Criteria |
 |---|---|---|
@@ -420,10 +436,10 @@ Tab "_meta"     Hidden: sheet_id, version, row keys and a layout version.
 | Real use | Timed sessions on the Dell with real phones and office computers | 39–41 |
 | Operations | Restore test on a clean machine, and alert tests with forced failures | 42, 43 |
 
-Labelled sheets stay local and are never committed to a repository, and the 12 test sheets are not used for tuning. Tests must not use real sheet data unless they run locally.
+Labelled sheets stay local and are never committed to a repository, and the 12 test sheets are not used for tuning. The first 12 became tuning data after their errors were studied (P106), so a fresh 12 are labelled for the gate. Tests must not use real sheet data unless they run locally.
 
 ## 10. Rollout
-1. **Model test (P55, P73):** capture all of October's sheets and keep them local. Lystiger labels 20 per sheet type, spread across machines, shifts and weeks, with 8 for tuning and 12 hidden for testing. Run candidate local models on the Dell. Only form A's result decides criteria 37–38; the other 2 types report their results for later. **If criteria 37–38 fail**, stop the local path and plan the second version with a cloud model (P80). Lystiger confirms how stages 2–5 proceed, based on the results.
+1. **Model test (P55, P73, P104, P106):** local models failed, and Gemini 3.8 Flash through OpenRouter scores about 95% on 20 labelled form A sheets with upright photos. Still to do: a fresh 12-sheet hidden test, then criteria 37–38. The build runs alongside it; going live waits for it and for Q32. The other 2 sheet types report their results later.
 2. **End-to-end slice:** login, upload, AI read, Excel, download.
 3. **Review:** re-upload, version check, history, rules, not-running marks, overdue list.
 4. **Operations:** backups with a restore test, alerts, heartbeat, statistics.
