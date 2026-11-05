@@ -166,7 +166,7 @@ class TestOperatorUpload(unittest.TestCase):
         self.assertIn('<option value="T6"', html)
 
         # Page defaulting to 1
-        self.assertIn('name="page_no"', html)
+        self.assertIn('name="paper_no"', html)
         self.assertIn('value="1"', html)
 
         # File input accepting phone camera
@@ -175,7 +175,10 @@ class TestOperatorUpload(unittest.TestCase):
 
         # Submit button labelled like 'Gửi: T1 · Ca ...'
         self.assertIn("Gửi: T1 · Ca", html)
-        self.assertIn("Trang 1", html)
+        self.assertIn("Tờ 1", html)
+        self.assertIn("Ảnh 1 · mặt trước", html)
+        self.assertIn("Ảnh 2 · mặt sau", html)
+        self.assertIn("Chọn ảnh", html)
 
         # Also accessible via /operator
         res_op = self.client_op1.get("/operator")
@@ -200,8 +203,41 @@ class TestOperatorUpload(unittest.TestCase):
         self.assertEqual(vn_time("2026-11-04T22:30:50"), "04/11/2026 22:30")
         self.assertEqual(vn_date("2026-10-30"), "30/10/2026")
 
+    def send_paper(self, paper_no="1", back=True, back_bytes=None, back_machine="T3"):
+        files = {"file_front": ("front.jpg", make_test_table_jpeg(), "image/jpeg")}
+        if back:
+            files["file_back"] = ("back.jpg", back_bytes or make_test_table_jpeg(), "image/jpeg")
+        return self.client_op1.post("/operator/upload", files=files, data={
+            "machine": "T6", "back_machine": back_machine, "production_date": "2026-11-04",
+            "shift": "1", "paper_no": paper_no})
+
+    def pages(self):
+        conn = get_connection(self.db_path)
+        rows = conn.execute("SELECT machine, page_no FROM sheets ORDER BY page_no").fetchall()
+        conn.close()
+        return [(r["machine"], r["page_no"]) for r in rows]
+
+    def test_front_and_back_are_sent_together_as_two_pages(self):
+        """P121: one Gửi sends the paper's front (Trang 1) and back (Trang 2); the back has its own machine."""
+        res = self.send_paper()
+        self.assertIn("Ảnh 1 (mặt trước) T6 · Ảnh 2 (mặt sau) T3", res.text)
+        self.assertEqual(self.pages(), [("T6", 1), ("T3", 2)])
+
+    def test_second_paper_is_pages_three_and_four(self):
+        self.send_paper(paper_no="2", back_machine="T6")
+        self.assertEqual(self.pages(), [("T6", 3), ("T6", 4)])
+
+    def test_back_photo_is_optional(self):
+        self.send_paper(back=False)
+        self.assertEqual(self.pages(), [("T6", 1)])
+
+    def test_a_bad_back_photo_sends_nothing(self):
+        res = self.send_paper(back_bytes=b"not an image")
+        self.assertIn("Ảnh 2 (mặt sau): Tập tin không phải là hình ảnh hợp lệ", res.text)
+        self.assertEqual(self.pages(), [])
+
     def test_button_label_with_midnight_to_7am_clock(self):
-        """Button labelled like 'Gửi: T1 · Ca 2 · 19/10 · Trang 1' when between midnight and 7am."""
+        """Button labelled like 'Gửi: T1 · Ca 2 · 19/10 · Tờ 1' when between midnight and 7am."""
         from starlette.requests import Request as StarletteRequest
 
         conn = get_connection(self.db_path)
@@ -215,7 +251,7 @@ class TestOperatorUpload(unittest.TestCase):
             conn=conn,
             override_now=clock_dt,
         )
-        self.assertIn("Gửi: T1 · Ca 2 · 19/10 · Trang 1", response.body.decode("utf-8"))
+        self.assertIn("Gửi: T1 · Ca 2 · 19/10 · Tờ 1", response.body.decode("utf-8"))
 
     def test_machine_select_remembered_per_account(self):
         """The machine select (T1, T3, T6) is remembered per account."""
@@ -590,12 +626,12 @@ class TestOperatorUpload(unittest.TestCase):
                 "machine": "T3",
                 "production_date": "2026-10-19",
                 "shift": "2",
-                "page_no": "1",
+                "paper_no": "1",
             },
-            files={"file": ("plain.jpg", jpeg_bytes, "image/jpeg")},
+            files={"file_front": ("plain.jpg", jpeg_bytes, "image/jpeg")},
         )
         self.assertEqual(res_plain.status_code, 200)
-        self.assertIn("Đã gửi thành công: T3 · Ca 2", res_plain.text)
+        self.assertIn("Đã gửi thành công: Ảnh 1 (mặt trước) T3 · Ca 2", res_plain.text)
         self.assertIn("T3", res_plain.text)
 
         # Check that the uploaded item appears in the HTMX partial now

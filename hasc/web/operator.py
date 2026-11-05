@@ -548,8 +548,8 @@ def render_operator_screen(
 ) -> HTMLResponse:
     default_shift, default_date, default_date_display = get_shift_and_date(override_now)
     default_machine = get_remembered_machine(conn, user["id"], request)
-    default_page = 1
-    button_label = f"Gửi: {default_machine} · Ca {default_shift} · {default_date_display} · Trang {default_page}"
+    default_paper = 1
+    button_label = f"Gửi: {default_machine} · Ca {default_shift} · {default_date_display} · Tờ {default_paper}"
 
     uploads = get_operator_uploads(conn, user["id"])
     templates = request.app.state.templates
@@ -563,7 +563,7 @@ def render_operator_screen(
             "default_shift": default_shift,
             "default_date": default_date,
             "default_date_display": default_date_display,
-            "default_page": default_page,
+            "default_paper": default_paper,
             "button_label": button_label,
             "uploads": uploads,
             "error": error,
@@ -599,41 +599,68 @@ def operator_uploads_partial(
     )
 
 
+def paper_pages(paper_no: int) -> tuple[int, int]:
+    """Paper n is two pages: its front is Trang 2n-1 and its back Trang 2n (P121)."""
+    return 2 * paper_no - 1, 2 * paper_no
+
+
 @router.post("/operator/upload", response_class=HTMLResponse)
 def operator_upload_submit(
     request: Request,
-    file: UploadFile = File(...),
+    file_front: UploadFile = File(...),
+    file_back: Optional[UploadFile] = File(None),
     machine: str = Form(...),
+    back_machine: Optional[str] = Form(None),
     production_date: str = Form(...),
     shift: int = Form(...),
-    page_no: int = Form(1),
+    paper_no: int = Form(1),
     opened_at: Optional[str] = Form(None),
     user: dict = Depends(require_role("upload_photo")),
     conn: sqlite3.Connection = Depends(get_db),
 ):
+    """One paper: Ảnh 1 is its front, Ảnh 2 (optional) its back, which may be another machine (P101)."""
     photos_dir = getattr(request.app.state, "photos_dir", None)
     if not photos_dir:
         photos_dir = get_default_photos_dir(db_path=getattr(request.app.state, "db_path", None))
     photos_dir = Path(photos_dir).resolve()
 
-    file_bytes = file.file.read()
-    try:
-        photo_id, sheet_id, status, warnings = process_photo_upload(
-            conn=conn,
-            photos_dir=photos_dir,
-            user_id=user["id"],
-            file_bytes=file_bytes,
-            filename=file.filename,
-            machine=machine,
-            production_date=production_date,
-            shift=shift,
-            page_no=page_no,
-            opened_at=opened_at,
-        )
-    except AppError as e:
-        return render_operator_screen(request, user, conn, error=e.message)
+    if paper_no < 1:
+        return render_operator_screen(request, user, conn, error="Tờ số phải từ 1 trở lên")
+    front_page, back_page = paper_pages(paper_no)
+    sides = [("Ảnh 1 (mặt trước)", file_front, machine, front_page)]
+    back_bytes = file_back.file.read() if file_back is not None and file_back.filename else b""
+    if back_bytes:
+        sides.append(("Ảnh 2 (mặt sau)", file_back, back_machine or machine, back_page))
 
-    success_msg = f"Đã gửi thành công: {machine} · Ca {shift} · {production_date} · Trang {page_no}"
+    # Check every photo before saving any, so a bad back photo does not leave the front sent alone.
+    contents = [file_front.file.read()] + ([back_bytes] if back_bytes else [])
+    for (label, *_), file_bytes in zip(sides, contents):
+        if len(file_bytes) > MAX_FILE_SIZE or not is_valid_image(file_bytes)[0]:
+            reason = "Tập tin vượt quá dung lượng tối đa 20 MB" if len(file_bytes) > MAX_FILE_SIZE else "Tập tin không phải là hình ảnh hợp lệ"
+            return render_operator_screen(request, user, conn, error=f"{label}: {reason}")
+
+    sent, warnings = [], []
+    for (label, upload, side_machine, page_no), file_bytes in zip(sides, contents):
+        try:
+            _, _, _, side_warnings = process_photo_upload(
+                conn=conn,
+                photos_dir=photos_dir,
+                user_id=user["id"],
+                file_bytes=file_bytes,
+                filename=upload.filename,
+                machine=side_machine,
+                production_date=production_date,
+                shift=shift,
+                page_no=page_no,
+                opened_at=opened_at,
+            )
+        except AppError as e:
+            done = f"Đã gửi {', '.join(sent)}. " if sent else ""
+            return render_operator_screen(request, user, conn, error=f"{done}{label}: {e.message}")
+        sent.append(f"{label} {side_machine}")
+        warnings += [f"{label}: {w}" for w in side_warnings]
+
+    success_msg = f"Đã gửi thành công: {' · '.join(sent)} · Ca {shift} · {production_date} · Tờ {paper_no}"
     response = render_operator_screen(
         request, user, conn, success_message=success_msg, warnings=warnings
     )
