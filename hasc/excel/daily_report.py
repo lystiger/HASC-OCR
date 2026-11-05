@@ -33,6 +33,7 @@ COLUMN_WIDTHS = (10, 24, 22, 34, 16, 18, 10, 18, 18, 18)
 PENDING_NOTE = "Chưa xác nhận"
 NET_COLUMN = 5
 ROLLS_COLUMN = 7
+CARRIED_FIELDS = ("customer", "film_type", "thickness_mic", "width_mm", "length_mm")
 
 
 def daily_report_filename(production_date: date) -> str:
@@ -45,7 +46,7 @@ def _text(cells: dict, field: str) -> str:
 
 
 def _from_valid_photos(cells: dict, valid_photo_ids: set[int]) -> bool:
-    sources = {cell["source_photo_id"] for cell in cells.values() if cell["source_photo_id"] is not None}
+    sources = {cell.get("source_photo_id") for cell in cells.values() if cell.get("source_photo_id") is not None}
     return sources <= valid_photo_ids
 
 
@@ -54,6 +55,7 @@ def _collect(conn, production_date: str):
     leaders maps each shift to the ids of the users who uploaded its valid photos, first upload first."""
     lines = defaultdict(dict)
     leaders = defaultdict(list)
+    carried_by_section = {}
     for sheet in list_sheets(conn, production_date=production_date):
         if sheet["machine"] not in MACHINES:
             continue
@@ -64,10 +66,17 @@ def _collect(conn, production_date: str):
                 leaders[sheet["shift"]].append(photo["uploaded_by"])
         layout = sheet["layout"] or "form_a"
         section = lines[(sheet["shift"], sheet["machine"])]
+        carried = carried_by_section.setdefault((sheet["shift"], sheet["machine"], layout), {})
         for row in get_sheet_data(conn, sheet["id"]):
             cells = row["cells"]
             if not _from_valid_photos(cells, valid_photo_ids):
                 continue
+            for field in CARRIED_FIELDS:
+                val = cells.get(field, {}).get("value")
+                if val is not None and str(val).strip():
+                    carried[field] = str(val).strip()
+                elif field in carried:
+                    cells[field] = {"value": carried[field]}
             thickness, width = _text(cells, "thickness_mic"), _text(cells, "width_mm")
             if layout == "back":
                 code = f"{thickness}mic x R{width}"
