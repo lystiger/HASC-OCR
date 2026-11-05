@@ -11,19 +11,19 @@
   </div>
 
   {% if confirmed %}
-  <div class="alert alert--success" role="status">
+  <div class="alert alert--success" role="status" data-toast="success">
     Đã xác nhận biểu mẫu thành công (Trạng thái: Đã kiểm tra).
   </div>
   {% endif %}
 
   {% if pickup_success %}
-  <div class="alert alert--success" role="status">
+  <div class="alert alert--success" role="status" data-toast="success">
     Đã nhận kiểm tra biểu mẫu thành công.
   </div>
   {% endif %}
 
   {% if error %}
-  <div class="alert alert--error" role="alert">
+  <div class="alert alert--error" role="alert" data-toast="error">
     {{ error }}
   </div>
   {% endif %}
@@ -90,14 +90,14 @@
       <!-- Pick-up action -->
       {% if sheet.status != 'reviewed' %}
         {% if not sheet.picked_up_by %}
-          <form method="post" action="/office/sheets/{{ sheet.id }}/pickup" style="margin: 0;">
+          <form method="post" action="/office/sheets/{{ sheet.id }}/pickup" style="margin: 0;" data-loading="Đang nhận kiểm tra...">
             <input type="hidden" name="takeover" value="false" />
             <button type="submit" class="btn" style="min-height: 40px;">
               Nhận kiểm tra
             </button>
           </form>
         {% elif sheet.picked_up_by != user.id %}
-          <form method="post" action="/office/sheets/{{ sheet.id }}/pickup" style="margin: 0;">
+          <form method="post" action="/office/sheets/{{ sheet.id }}/pickup" style="margin: 0;" data-loading="Đang nhận kiểm tra...">
             <input type="hidden" name="takeover" value="true" />
             <button type="submit" class="btn btn--secondary" style="min-height: 40px; border-color: #D97706; color: #B45309;" title="Đang được kiểm tra bởi {{ picked_up_by_username }}">
               Tiếp quản kiểm tra
@@ -112,7 +112,7 @@
       </a>
 
       <!-- 'Đúng, xác nhận' button -->
-      <form method="post" action="/office/sheets/{{ sheet.id }}/confirm" style="margin: 0;">
+      <form method="post" action="/office/sheets/{{ sheet.id }}/confirm" style="margin: 0;" data-loading="Đang xác nhận...">
         <input type="hidden" name="version" value="{{ sheet.version }}" />
         <button type="submit" class="btn" style="min-height: 40px; background: #15803D; border-color: #15803D; color: #FFFFFF;" {% if sheet.status == 'reviewed' %}title="Biểu mẫu đã được kiểm tra"{% endif %}>
           Đúng, xác nhận

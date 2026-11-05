@@ -12,7 +12,7 @@
   </div>
 
   <div class="card" style="margin-bottom: 1rem; padding: 1rem 1.25rem;">
-    <form method="get" action="/office/report" class="inline-form">
+    <form method="get" action="/office/report" class="inline-form" data-no-loading>
       <div class="form-field" style="margin-bottom: 0;">
         <label for="daily-report-date" style="font-size: 0.85rem;">Báo cáo sản xuất ngày</label>
         <input type="date" id="daily-report-date" name="date" value="{{ yesterday }}" required />
@@ -23,7 +23,7 @@
 
   <!-- Filter Form (Works as plain GET form) -->
   <div class="card" style="margin-bottom: 1.5rem; padding: 1rem 1.25rem;">
-    <form method="get" action="/office" class="filter-form">
+    <form method="get" action="/office" class="filter-form" data-loading="Đang lọc...">
       <div class="form-field" style="margin-bottom: 0;">
         <label for="machine-select" style="font-size: 0.85rem;">Máy</label>
         <select id="machine-select" name="machine">

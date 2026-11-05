@@ -198,12 +198,23 @@ class TestOperatorUpload(unittest.TestCase):
         self.assertIn('href="/logout"', html)
         self.assertNotIn("operator1", html)  # no username next to Đăng xuất
         import hashlib
-        css = Path(__file__).resolve().parents[1] / "hasc" / "web" / "static" / "css" / "app.css"
-        self.assertIn(f'href="/static/css/app.css?v={hashlib.sha256(css.read_bytes()).hexdigest()[:10]}"', html)
+        static = Path(__file__).resolve().parents[1] / "hasc" / "web" / "static"
+        version = hashlib.sha256((static / "css/app.css").read_bytes() + (static / "js/ui.js").read_bytes()).hexdigest()[:10]
+        self.assertIn(f'href="/static/css/app.css?v={version}"', html)
         office = TestClient(self.app)
         office.post("/api/login", json={"username": "employee1", "password": "pass"})
         for page in ("/office", "/change-password"):
             self.assertIn('href="/logout"', office.get(page).text, page)
+
+    def test_pages_use_the_sites_own_messages_not_browser_dialogs(self):
+        html = self.client_op1.get("/operator").text
+        self.assertRegex(html, r'src="/static/js/ui\.js\?v=[0-9a-f]{10}"')
+        self.assertNotIn("alert(", html)
+        self.assertIn('data-loading="Đang gửi ảnh, vui lòng chờ..."', html)
+        js = (Path(__file__).resolve().parents[1] / "hasc/web/static/js/ui.js").read_text(encoding="utf-8")
+        for call in ("alert(", "confirm(", "prompt("):
+            self.assertNotIn("window." + call, js)
+        self.assertIn('setAttribute("novalidate"', js)
 
     def test_upload_times_show_in_vietnam_time(self):
         from hasc.web.app import vn_date, vn_time

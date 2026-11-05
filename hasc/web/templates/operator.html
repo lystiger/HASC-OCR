@@ -16,19 +16,19 @@
     </div>
 
     {% if error %}
-    <div class="alert alert--error" role="alert">
+    <div class="alert alert--error" role="alert" data-toast="error">
       {{ error }}
     </div>
     {% endif %}
 
     {% if success_message %}
-    <div class="alert alert--success" role="status">
+    <div class="alert alert--success" role="status" data-toast="success">
       {{ success_message }}
     </div>
     {% endif %}
 
     {% if warnings %}
-    <div class="alert" style="background: #FEFCE8; color: #854D0E; border-color: #FEF08A;" role="alert">
+    <div class="alert" style="background: #FEFCE8; color: #854D0E; border-color: #FEF08A;" role="alert" data-toast="warning">
       <strong>Lưu ý chất lượng ảnh:</strong>
       <ul style="margin: 0.25rem 0 0; padding-left: 1.2rem;">
         {% for w in warnings %}
@@ -38,7 +38,7 @@
     </div>
     {% endif %}
 
-    <form id="upload-form" method="post" action="/operator/upload" enctype="multipart/form-data">
+    <form id="upload-form" method="post" action="/operator/upload" enctype="multipart/form-data" data-loading="Đang gửi ảnh, vui lòng chờ...">
       <input type="hidden" id="opened-at-input" name="opened_at" value="" />
 
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem;">
@@ -197,16 +197,14 @@
       });
     });
 
-    // Ảnh 1 is needed: stop the send here rather than after the upload.
+    // Ảnh 1 is needed: ui.js runs this check before sending and shows its own message.
     const uploadForm = document.getElementById("upload-form");
     if (uploadForm) {
-      uploadForm.addEventListener("submit", function (event) {
+      uploadForm.hascCheck = function () {
         const front = uploadForm.querySelectorAll("input[name^=file_front]");
-        if (![...front].some(function (input) { return input.files.length; })) {
-          event.preventDefault();
-          alert("Chưa chọn Ảnh 1 (mặt trước)");
-        }
-      });
+        if ([...front].some(function (input) { return input.files.length; })) return null;
+        return [front[0].closest(".file-pick"), "Chưa chọn Ảnh 1 (mặt trước)"];
+      };
     }
 
     const form = document.getElementById("upload-form");
