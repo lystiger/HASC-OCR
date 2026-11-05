@@ -71,30 +71,45 @@
         </div>
 
         <div class="form-field">
-          <label for="page-input">Trang</label>
+          <label for="paper-input">Tờ số</label>
           <input
             type="number"
-            id="page-input"
-            name="page_no"
-            value="{{ default_page }}"
+            id="paper-input"
+            name="paper_no"
+            value="{{ default_paper }}"
             min="1"
             required
           />
         </div>
       </div>
+      <small style="color: var(--color-muted);">Mỗi tờ giấy có hai mặt. Tờ thứ hai trong ca thì chọn Tờ số 2.</small>
 
-      <div class="form-field" style="margin-top: 0.5rem;">
-        <label for="file-input">Ảnh chụp biểu mẫu</label>
-        <input
-          type="file"
-          id="file-input"
-          name="file"
-          accept="image/*,.heic,.heif"
-          capture="environment"
-          required
-        />
-        <small style="color: var(--color-muted); margin-top: 0.25rem;">Chấp nhận ảnh chụp trực tiếp từ máy ảnh hoặc tệp JPEG, HEIC (dưới 20 MB).</small>
+      {% set machines = ['T1', 'T3', 'T6'] %}
+      <div class="photo-pick">
+        <label class="photo-pick__title" for="front-input">Ảnh 1 · mặt trước</label>
+        <label class="file-pick">
+          <input type="file" id="front-input" name="file_front" aria-label="Ảnh 1, mặt trước" accept="image/*,.heic,.heif" capture="environment" required />
+          <span class="btn btn--secondary btn--small file-pick__button">Chọn ảnh</span>
+          <span class="file-pick__name" data-empty="Chưa chọn ảnh" aria-live="polite">Chưa chọn ảnh</span>
+        </label>
       </div>
+
+      <div class="photo-pick">
+        <label class="photo-pick__title" for="back-input">Ảnh 2 · mặt sau <span class="photo-pick__hint">(bỏ trống nếu mặt sau không có số liệu)</span></label>
+        <label class="file-pick">
+          <input type="file" id="back-input" name="file_back" aria-label="Ảnh 2, mặt sau" accept="image/*,.heic,.heif" capture="environment" />
+          <span class="btn btn--secondary btn--small file-pick__button">Chọn ảnh</span>
+          <span class="file-pick__name" data-empty="Chưa chọn ảnh" aria-live="polite">Chưa chọn ảnh</span>
+        </label>
+        <div class="form-field" style="margin: 0.75rem 0 0;">
+          <label for="back-machine-select">Máy của mặt sau</label>
+          <select id="back-machine-select" name="back_machine">
+            <option value="" selected>Giống mặt trước</option>
+            {% for m in machines %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <small style="color: var(--color-muted);">Chụp trực tiếp bằng máy ảnh hoặc chọn tệp JPEG, HEIC (dưới 20 MB).</small>
 
       <div style="margin-top: 1.25rem;">
         <button type="submit" id="submit-btn" class="btn" style="width: 100%; font-size: 1.05rem;">
@@ -133,7 +148,7 @@
       const machineSelect = document.getElementById("machine-select");
       const shiftSelect = document.getElementById("shift-select");
       const dateInput = document.getElementById("date-input");
-      const pageInput = document.getElementById("page-input");
+      const pageInput = document.getElementById("paper-input");
       const btn = document.getElementById("submit-btn");
 
       if (!btn || !machineSelect || !shiftSelect || !dateInput || !pageInput) return;
@@ -148,8 +163,16 @@
         }
       }
       const page = pageInput.value || "1";
-      btn.textContent = "Gửi: " + machine + " · Ca " + shift + " · " + dateText + " · Trang " + page;
+      btn.textContent = "Gửi: " + machine + " · Ca " + shift + " · " + dateText + " · Tờ " + page;
     }
+
+    // Show the chosen photo's name in Vietnamese, in place of the browser's own file box.
+    document.querySelectorAll(".file-pick input[type=file]").forEach(function (input) {
+      input.addEventListener("change", function () {
+        const name = input.parentElement.querySelector(".file-pick__name");
+        name.textContent = input.files.length ? "Đã chọn: " + input.files[0].name : name.dataset.empty;
+      });
+    });
 
     const form = document.getElementById("upload-form");
     if (form) {

@@ -13,7 +13,7 @@
       {% for u in uploads %}
       <tr>
         <td data-label="Biểu mẫu">
-          <strong>{{ u.machine }}</strong> · Ca {{ u.shift }} · <span class="num">{{ u.production_date|vndate }}</span> · Trang {{ u.page_no }}
+          <strong>{{ u.machine }}</strong> · Ca {{ u.shift }} · <span class="num">{{ u.production_date|vndate }}</span> · Tờ {{ (u.page_no + 1) // 2 }} · {{ 'mặt trước' if u.page_no % 2 else 'mặt sau' }}
         </td>
         <td class="num" data-label="Thời gian gửi">
           {{ u.uploaded_at|vntime }}
