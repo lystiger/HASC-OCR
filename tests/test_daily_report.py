@@ -16,7 +16,7 @@ from hasc.db import (
     upsert_cell,
 )
 from hasc.excel import build_daily_report, daily_report_filename
-from hasc.excel.daily_report import HEADINGS, MACHINES, PENDING_NOTE
+from hasc.excel.daily_report import HEADINGS, MACHINES, PENDING_NOTE, UNREAD_NOTE
 
 DAY = date(2026, 12, 1)
 FORM = "BMMT01-2022/HASC"
@@ -76,6 +76,14 @@ class DailyReport(unittest.TestCase):
         t6, t6_photo = self.sheet("T6", 2, self.binh)
         self.roll(t6, t6_photo, 100, "Alpha", "GT", 40, 500, 1500)
         self.roll(t6, t6_photo, 25, "Alpha", "GT", 40, 500, 1500)
+
+    def test_unreadable_net_weight_is_left_out_and_noted(self):
+        t1, photo = self.sheet("T1", 1, self.an)
+        self.roll(t1, photo, 86.4, "Alpha", "GT", 40, 500, 1500)
+        self.roll(t1, photo, "8?6", "Alpha", "GT", 40, 500, 1500)
+        line = next(r for r in self.block(self.build(), 1) if r[1] == "Alpha")
+        self.assertEqual(line[4], 86.4)
+        self.assertEqual(line[8], UNREAD_NOTE)
 
     def test_title_date_and_shift_blocks(self):
         self.seed()

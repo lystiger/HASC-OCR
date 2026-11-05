@@ -3,6 +3,7 @@ import unittest
 
 from PIL import Image
 
+from hasc import images
 from hasc.reader import photo
 
 
@@ -28,3 +29,9 @@ class Upright(unittest.TestCase):
     def test_landscape_photo_is_sent_unchanged(self):
         data = jpeg(200, 100)
         self.assertEqual(photo.upright(data), data)
+
+
+class DisplayCopy(unittest.TestCase):
+    def test_portrait_phone_photo_becomes_a_small_landscape_copy(self):
+        image = opened(images.display_copy(jpeg(3000, 4000)))
+        self.assertEqual(image.size, (1600, 1200))

@@ -20,7 +20,7 @@ from hasc.db import (
     get_connection,
     get_default_photos_dir,
 )
-from hasc.reader.photo import upright
+from hasc.images import display_copy
 from hasc.web.auth import get_active_user, get_authenticated_user, get_db
 from hasc.web.errors import AppError
 from hasc.web.roles import require_role
@@ -389,8 +389,8 @@ def process_photo_upload(
     # 1b. Create upright display copy
     small_copy_path = None
     try:
-        upright_bytes = upright(file_bytes)
-        upright_file = (photos_dir / f"{sha256}_upright.jpg").resolve()
+        upright_bytes = display_copy(file_bytes)
+        upright_file = (photos_dir / f"{sha256}_display.jpg").resolve()
         upright_file.write_bytes(upright_bytes)
         small_copy_path = str(upright_file)
     except Exception:

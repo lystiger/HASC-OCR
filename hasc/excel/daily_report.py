@@ -24,13 +24,14 @@ HEADINGS = (
     "Mã hàng (Khổ x Dày x Gh x dài)",
     "Khối lượng (kg)",
     "Hàng chờ xử lý (kg)",
-    "Số cuộn",
+    "Số cuộn sản xuất",
     "Phế phát sinh (kg)",
     "Ghi chú",
     "Ký xác nhận",
 )
 COLUMN_WIDTHS = (10, 24, 22, 34, 16, 18, 10, 18, 18, 18)
 PENDING_NOTE = "Chưa xác nhận"
+UNREAD_NOTE = "Có khối lượng chưa đọc được, chưa cộng"
 NET_COLUMN = 5
 ROLLS_COLUMN = 7
 CARRIED_FIELDS = ("customer", "film_type", "thickness_mic", "width_mm", "length_mm")
@@ -43,6 +44,13 @@ def daily_report_filename(production_date: date) -> str:
 def _text(cells: dict, field: str) -> str:
     value = cells.get(field, {}).get("value")
     return "" if value is None else str(value)
+
+
+def _number(text: str) -> float | None:
+    try:
+        return float(text.replace(",", ".")) if text else None
+    except ValueError:
+        return None
 
 
 def _from_valid_photos(cells: dict, valid_photo_ids: set[int]) -> bool:
@@ -83,8 +91,10 @@ def _collect(conn, production_date: str):
             else:
                 code = f"{thickness}x{width}x{_text(cells, 'length_mm')}"
             key = (layout, _text(cells, "customer"), _text(cells, "film_type"), code)
-            line = section.setdefault(key, {"net": 0.0, "rolls": 0, "unconfirmed": False})
-            line["net"] += float(_text(cells, "net_kg") or 0)
+            line = section.setdefault(key, {"net": 0.0, "rolls": 0, "unconfirmed": False, "unread": False})
+            net = _number(_text(cells, "net_kg"))
+            line["net"] += net or 0
+            line["unread"] = line["unread"] or (net is None and bool(_text(cells, "net_kg")))
             line["rolls"] += 1
             line["unconfirmed"] = line["unconfirmed"] or sheet["status"] != "reviewed"
     return lines, leaders
@@ -125,7 +135,8 @@ def build_daily_report(conn, production_date: date) -> Workbook:
                 continue
             for key in sorted(section, key=lambda k: (k[0] != "form_a", k[1], k[2], k[3])):
                 line = section[key]
-                note = PENDING_NOTE if line["unconfirmed"] else None
+                notes = [PENDING_NOTE] * line["unconfirmed"] + [UNREAD_NOTE] * line["unread"]
+                note = "; ".join(notes) or None
                 values = [machine, key[1], key[2], key[3], round(line["net"], 3), None, line["rolls"], None, note]
                 _write_values(ws, row, values)
                 row += 1

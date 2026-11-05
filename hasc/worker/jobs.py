@@ -131,8 +131,6 @@ def fill_roll_codes(rows):
             row["cells"]["roll_code"] = {"value": str(index), "inherited": True, "doubt": False}
 
 
-fill_roll_code = fill_roll_codes
-
 
 def _record_failure(conn, job, error, not_retryable=False):
     photo = get_photo_by_id(conn, job["photo_id"])

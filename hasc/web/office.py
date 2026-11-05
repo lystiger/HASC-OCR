@@ -21,7 +21,7 @@ from hasc.db import (
     update_sheet_status,
 )
 from hasc.excel import build_page_workbook, page_filename
-from hasc.reader.photo import upright
+from hasc.images import display_copy
 from hasc.web.auth import get_active_user, get_db
 from hasc.web.errors import AppError
 from hasc.web.roles import require_role
@@ -678,7 +678,7 @@ def ensure_display_copy(
 
     try:
         raw_bytes = orig_file.read_bytes()
-        upright_bytes = upright(raw_bytes)
+        upright_bytes = display_copy(raw_bytes)
     except Exception:
         return orig_file
 
@@ -689,7 +689,7 @@ def ensure_display_copy(
     if not sha:
         sha = hashlib.sha256(raw_bytes).hexdigest()
 
-    upright_file = (target_dir / f"{sha}_upright.jpg").resolve()
+    upright_file = (target_dir / f"{sha}_display.jpg").resolve()
     upright_file.write_bytes(upright_bytes)
 
     photo_id = photo.get("id") if isinstance(photo, dict) else photo["id"]
