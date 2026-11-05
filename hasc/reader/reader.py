@@ -22,6 +22,7 @@ PAGE = ["day", "month", "year", "shift", "names"]
 TRIES = 3
 KEY = re.compile(r"\s+(?=[a-z_0-9]+=)")
 SUBTOTAL_FACTOR = 2  # a thickness_avg above this many times the row's thickest reading is a run subtotal
+SUBTOTAL_FLOOR = 150  # mic; with no thickness on the row, an "average" above the thickest film made (110 mic) is a subtotal
 
 PROMPT = """This photo shows a handwritten Vietnamese production sheet. Write it as plain text lines and nothing else.
 First line: layout=form_a for "Báo cáo chi tiết máy thổi" (columns Cả bì, Lõi, Bìa, Sau trừ bì), layout=back for the "Màng ống" side (columns Tổng KL, Lõi, KL đã trừ), layout=other for anything else. On the same line add day= month= year= shift= names= from Ngày, Tháng, Năm, Ca and the staff names in the "Tên Nhân Viên" box, as written; leave out any that is blank.
@@ -172,9 +173,9 @@ def _move_stray_average(cells):
     average = cells.get("thickness_avg")
     if not average or not isinstance(average["value"], float):
         return
-    measured = [cells[f"thickness_{i}"]["value"] for i in range(1, 7) if f"thickness_{i}" in cells]
-    readings = [v for v in [cells.get("thickness_mic", {}).get("value"), *measured] if isinstance(v, float)]
-    # An average needs measured thicknesses to average; without any, the number is a run subtotal.
-    if not measured or (readings and average["value"] > SUBTOTAL_FACTOR * max(readings)):
+    readings = [cells.get(f, {}).get("value") for f in ("thickness_mic", *(f"thickness_{i}" for i in range(1, 7)))]
+    readings = [v for v in readings if isinstance(v, float)]
+    limit = SUBTOTAL_FACTOR * max(readings) if readings else SUBTOTAL_FLOOR
+    if average["value"] > limit:
         average["doubt"] = True
         cells["subtotal_note"] = cells.pop("thickness_avg")

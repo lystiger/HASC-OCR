@@ -537,7 +537,7 @@ def create_app(
     def api_photo_download(
         photo_id: int,
         request: Request,
-        user: dict = Depends(require_role("view_all_sheets")),
+        user: dict = Depends(require_role("review_sheet")),  # role table row 4: download is office only
         conn: sqlite3.Connection = Depends(get_db),
     ):
         photo = get_photo_by_id(conn, photo_id)

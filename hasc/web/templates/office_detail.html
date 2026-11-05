@@ -150,7 +150,7 @@
             <div>Chụp lúc: <span class="num">{{ photo.taken_at }}</span></div>
             {% endif %}
             <div style="margin-top: 0.35rem;">
-              <a href="/api/photos/{{ photo.id }}/download" download style="text-decoration: underline;">Tải ảnh gốc</a>
+              {% if user.role in ("employee", "boss") %}<a href="/api/photos/{{ photo.id }}/download" download style="text-decoration: underline;">Tải ảnh gốc</a>{% endif %}
             </div>
             {% if photo.quality_warnings %}
             <div class="alert" style="background: #FEFCE8; color: #854D0E; border: 1px solid #FEF08A; padding: 0.35rem 0.5rem; margin-top: 0.35rem; font-size: 0.8rem;">
