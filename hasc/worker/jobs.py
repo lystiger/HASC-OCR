@@ -77,6 +77,7 @@ def process_job(conn, job, reader, scratch_dir):
         return _record_failure(conn, job, str(error), not_retryable=not_a_sheet)
 
     carry_down(result["rows"])
+    fill_roll_codes(result["rows"])
     _write_result(conn, photo, result)
     with conn:
         conn.execute("UPDATE read_jobs SET reader_name = ? WHERE id = ?", (result["reader_name"], job["id"]))
@@ -92,6 +93,22 @@ def carry_down(rows):
             cell = above["cells"].get(field)
             if field not in row["cells"] and cell and cell["value"] is not None:
                 row["cells"][field] = {**cell, "inherited": True}
+
+
+def fill_roll_codes(rows):
+    """Fill a blank roll_code with the row's 1-based position on the page (brief P118, P119; criterion 55).
+
+    A roll code written on the paper always wins and is never renumbered.
+    The filled roll code is marked as an inherited value so page Excel greys it,
+    the operator problem list names the roll, and the rows table row_key matches.
+    """
+    for index, row in enumerate(rows, start=1):
+        cell = row["cells"].get("roll_code")
+        if not cell or (not cell.get("unreadable") and (cell.get("value") is None or str(cell.get("value")).strip() == "")):
+            row["cells"]["roll_code"] = {"value": str(index), "inherited": True, "doubt": False}
+
+
+fill_roll_code = fill_roll_codes
 
 
 def _record_failure(conn, job, error, not_retryable=False):
