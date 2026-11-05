@@ -27,9 +27,31 @@ FLAG_FILLS = {
 
 LEGEND = (
     ("FFFF00", "vàng = AI chưa chắc"),
-    ("FF0000", "đỏ = sai quy tắc"),
+    ("FF0000", "đỏ = sai quy tắc/công thức/tiêu chuẩn"),
     ("BFBFBF", "xám = không đọc được"),
 )
+
+GREY_FONT_COLOR = "808080"
+BLACK_FONT_COLOR = "000000"
+
+INHERITED_FONT = Font(color=GREY_FONT_COLOR)
+PAPER_FONT = Font(color=BLACK_FONT_COLOR)
+
+CARRIED_FIELDS = (
+    "customer",
+    "film_type",
+    "pellet_formula",
+    "mixing_shift_date",
+    "thickness_mic",
+    "width_mm",
+    "length_mm",
+)
+
+COLUMN_WIDTHS = {
+    "customer": 22,
+    "film_type": 36,
+    "roll_code": 22,
+}
 
 # (group heading or None, sub heading, field). Without a group the heading spans rows 5-6.
 COLUMNS = (
@@ -116,7 +138,7 @@ def _write_header(ws, sheet: dict) -> None:
         f"Máy: {sheet['machine']}   Trang: {sheet['page_no']}"
     )
     ws["A3"] = f"Tên nhân viên trong ca: {sheet.get('crew', '')}"
-    ws["A4"] = "Khóa cột:"
+    ws["A4"] = "Kí hiệu:"
     for index, (color, text) in enumerate(LEGEND):
         cell = ws.cell(row=4, column=2 + index, value=text)
         cell.fill = _fill(color)
@@ -147,33 +169,59 @@ def _write_headings(ws) -> None:
             cell.alignment = centre
 
 
+def _prepare_rows(rows: list[dict]) -> list[dict]:
+    last_carried = {}
+    prepared = []
+    for row in rows:
+        cells = dict(row.get("cells", {}))
+        for field in CARRIED_FIELDS:
+            cell_data = cells.get(field)
+            if cell_data is not None and cell_data.get("value") not in (None, ""):
+                last_carried[field] = cell_data
+            elif field in last_carried:
+                inherited_cell = dict(last_carried[field])
+                inherited_cell["inherited"] = True
+                cells[field] = inherited_cell
+        prepared.append({**row, "cells": cells})
+    return prepared
+
+
 def _write_rows(ws, rows: list[dict]) -> None:
     check_column = len(COLUMNS) + 1
     for offset, row in enumerate(rows):
         number = FIRST_DATA_ROW + offset
-        cells = row["cells"]
+        cells = row.get("cells", {})
         for index, (_, _, field) in enumerate(COLUMNS, start=1):
             cell_data = cells.get(field)
-            if cell_data is None or cell_data.get("inherited"):
+            if cell_data is None:
                 continue
             cell = ws.cell(row=number, column=index)
-            _write_value(cell, cell_data.get("value"), field=field)
+            value = cell_data.get("value")
+            if value is not None:
+                _write_value(cell, value, field=field)
+                if cell_data.get("inherited"):
+                    cell.font = INHERITED_FONT
+                else:
+                    cell.font = PAPER_FONT
             color = FLAG_FILLS.get(cell_data.get("flag"))
             if color:
                 cell.fill = _fill(color)
         if row.get("check"):
-            ws.cell(row=number, column=check_column, value=row["check"])
+            check_cell = ws.cell(row=number, column=check_column, value=row["check"])
+            check_cell.font = PAPER_FONT
 
 
 def _set_widths(ws, rows: list[dict]) -> None:
     headings = [sub for _, sub, _ in COLUMNS] + [CHECK_HEADING]
     for index, heading in enumerate(headings, start=1):
+        field = COLUMNS[index - 1][2] if index <= len(COLUMNS) else None
+        base = COLUMN_WIDTHS.get(field, 10)
         width = max(len(heading), 10)
         for row in rows:
-            cell_data = row["cells"].get(COLUMNS[index - 1][2]) if index <= len(COLUMNS) else None
+            cell_data = row.get("cells", {}).get(field) if field else None
             if cell_data and cell_data.get("value") is not None:
                 width = max(width, len(str(cell_data["value"])))
-        ws.column_dimensions[get_column_letter(index)].width = min(width + 2, 40)
+        ws.column_dimensions[get_column_letter(index)].width = max(base, min(width + 2, 40))
     ws.column_dimensions[get_column_letter(len(COLUMNS) + 1)].width = 30
 
 
@@ -193,10 +241,11 @@ def build_page_workbook(sheet: dict, rows: list[dict]) -> Workbook:
     wb = Workbook()
     ws = wb.active
     ws.title = "Báo cáo"
+    prepared_rows = _prepare_rows(rows)
     _write_header(ws, sheet)
     _write_headings(ws)
-    _write_rows(ws, rows)
-    _set_widths(ws, rows)
+    _write_rows(ws, prepared_rows)
+    _set_widths(ws, prepared_rows)
     ws.freeze_panes = FREEZE_CELL
     _write_meta(wb, sheet, rows)
     return wb
