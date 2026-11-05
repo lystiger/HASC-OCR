@@ -291,6 +291,16 @@ def mark_photo_invalid(conn: sqlite3.Connection, photo_id: int, invalid_by: int)
         )
 
 
+def update_photo_small_copy_path(
+    conn: sqlite3.Connection, photo_id: int, small_copy_path: str
+) -> None:
+    with conn:
+        conn.execute(
+            "UPDATE photos SET small_copy_path = ? WHERE id = ?",
+            (small_copy_path, photo_id),
+        )
+
+
 # -----------------------------------------------------------------------------
 # Read jobs
 # -----------------------------------------------------------------------------
