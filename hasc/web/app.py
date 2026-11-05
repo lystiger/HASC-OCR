@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
+import hashlib
 import io
 import os
 from pathlib import Path
@@ -139,6 +140,9 @@ def create_app(
     templates_dir = Path(__file__).resolve().parent / "templates"
     templates = Jinja2Templates(directory=str(templates_dir))
     templates.env.filters["vntime"] = vn_time
+    # Phones keep the stylesheet cached; a new version in its URL makes them fetch a changed one.
+    css = static_dir / "css" / "app.css"
+    templates.env.globals["css_version"] = hashlib.sha256(css.read_bytes()).hexdigest()[:10] if css.is_file() else "0"
     templates.env.filters["vndate"] = vn_date
     app.state.templates = templates
 
