@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+import io
 import os
 from pathlib import Path
 import sqlite3
@@ -27,6 +28,7 @@ from hasc.db import (
     set_user_active,
     update_user_password,
 )
+from hasc.excel import build_daily_report, daily_report_filename
 from hasc.web.auth import (
     clear_session_cookie,
     get_active_user,
@@ -546,5 +548,36 @@ def create_app(
         user: dict = Depends(require_role("view_stats")),
     ):
         raise AppError(code="not_implemented", message="Chức năng này chưa có trong bản S1", status_code=501)
+
+    @app.get("/api/days/{production_date}/report")
+    def api_daily_report(
+        production_date: str,
+        user: dict = Depends(require_role("employee", "boss", "admin")),
+        conn: sqlite3.Connection = Depends(get_db),
+    ):
+        try:
+            if len(production_date) != 10:
+                raise ValueError
+            parsed_date = datetime.strptime(production_date, "%Y-%m-%d").date()
+        except ValueError:
+            raise AppError(
+                code="invalid_date",
+                message="Ngày sản xuất không hợp lệ (định dạng YYYY-MM-DD)",
+                status_code=422,
+            )
+
+        wb = build_daily_report(conn, parsed_date)
+        buf = io.BytesIO()
+        wb.save(buf)
+        excel_bytes = buf.getvalue()
+        filename = daily_report_filename(parsed_date)
+
+        return Response(
+            content=excel_bytes,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+            },
+        )
 
     return app
