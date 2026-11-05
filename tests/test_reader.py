@@ -75,6 +75,30 @@ class Parsing(unittest.TestCase):
         self.assertEqual(caught.exception.kind, "not_form_a")
 
 
+THICK = {f"thickness_{i}": "45" for i in range(1, 7)}
+
+
+class Subtotals(unittest.TestCase):
+    def test_average_far_above_thicknesses_is_moved_to_subtotal_note(self):
+        cells = make(reply([{**THICK, "thickness_mic": "45", "thickness_avg": "363,2"}])).read(b"jpg")["rows"][0]["cells"]
+        self.assertNotIn("thickness_avg", cells)
+        self.assertEqual(cells["subtotal_note"], {"value": 363.2, "doubt": True})
+
+    def test_normal_average_is_untouched(self):
+        cells = make(reply([{**THICK, "thickness_mic": "45", "thickness_avg": "45,2"}])).read(b"jpg")["rows"][0]["cells"]
+        self.assertEqual(cells["thickness_avg"], {"value": 45.2, "doubt": False})
+        self.assertNotIn("subtotal_note", cells)
+
+    def test_model_written_subtotal_note_is_kept(self):
+        cells = make(reply([{**THICK, "thickness_mic": "45", "subtotal_note": "363,2"}])).read(b"jpg")["rows"][0]["cells"]
+        self.assertEqual(cells["subtotal_note"], {"value": 363.2, "doubt": False})
+        self.assertNotIn("thickness_avg", cells)
+
+    def test_average_without_thickness_to_compare_is_untouched(self):
+        cells = make(reply([{"thickness_avg": "363,2"}])).read(b"jpg")["rows"][0]["cells"]
+        self.assertEqual(cells["thickness_avg"], {"value": 363.2, "doubt": False})
+
+
 class Retry(unittest.TestCase):
     def test_retries_network_error_then_succeeds(self):
         result = make(reader.TransportError("boom"), reply([ROW])).read(b"jpg")
