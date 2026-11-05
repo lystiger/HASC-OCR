@@ -20,6 +20,7 @@ from hasc.db import (
     get_connection,
     get_default_photos_dir,
 )
+from hasc.reader.photo import upright
 from hasc.web.auth import get_active_user, get_authenticated_user, get_db
 from hasc.web.errors import AppError
 from hasc.web.roles import require_role
@@ -385,6 +386,16 @@ def process_photo_upload(
     sha256 = hashlib.sha256(file_bytes).hexdigest()
     saved_path = save_photo_file(photos_dir, file_bytes, filename, sha256)
 
+    # 1b. Create upright display copy
+    small_copy_path = None
+    try:
+        upright_bytes = upright(file_bytes)
+        upright_file = (photos_dir / f"{sha256}_upright.jpg").resolve()
+        upright_file.write_bytes(upright_bytes)
+        small_copy_path = str(upright_file)
+    except Exception:
+        pass
+
     # 2. Extract EXIF camera time
     taken_at = extract_exif_camera_time(file_bytes)
 
@@ -425,6 +436,7 @@ def process_photo_upload(
         conn,
         sheet_id=sheet_id,
         path=str(saved_path),
+        small_copy_path=small_copy_path,
         sha256=sha256,
         uploaded_by=user_id,
         taken_at=taken_at,

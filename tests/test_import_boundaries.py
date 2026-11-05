@@ -57,7 +57,13 @@ def find_web_violations(path):
     violations = []
     code = Path(path).read_text(encoding="utf-8")
     for imp in extract_imports(code, path):
-        if imp == "hasc.reader" or imp.startswith("hasc.reader.") or imp == "reader" or imp.startswith("reader."):
+        # hasc.reader.photo is allowed for upright display copy (t5)
+        if (
+            imp == "hasc.reader"
+            or imp.startswith("hasc.reader.")
+            or imp == "reader"
+            or imp.startswith("reader.")
+        ) and not (imp == "hasc.reader.photo" or imp.startswith("hasc.reader.photo.")):
             violations.append((path, imp))
     return violations
 
