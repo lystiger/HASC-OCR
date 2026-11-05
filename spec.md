@@ -363,7 +363,7 @@ Row 5-6 Headings (frozen):
         Dày/mic | Khổ rộng/mm | Dài/mm | Khối lượng Kg: Cả bì, Lõi, Bìa, Sau trừ bì |
         Độ dày đo được: 1..6, Trung bình | Đường kính cuộn: Đầu thu 1(A), Đầu thu 2(B) |
         Cần kiểm tra
-Row 7+  One row per roll. Inherited product details stay blank below a run's first row.
+Row 7+  One row per roll. Inherited product details are shown on every row, in grey (P118).
 
 Tab "Ảnh"       The sheet's valid photos, newest first.
 Tab "_meta"     Hidden: sheet_id, version, row keys and a layout version.
