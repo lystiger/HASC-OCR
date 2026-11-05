@@ -178,6 +178,28 @@ class DailyReport(unittest.TestCase):
         self.assertEqual(line[4], 345)
         self.assertEqual(line[6], 4)
 
+    def test_continuation_rows_carry_product_details_and_sum_weights(self):
+        sheet_id, photo_id = self.sheet("T1", 1, self.an)
+        self.roll(sheet_id, photo_id, 10, "Alpha", "GT", 40, 500, 1500)
+        self.roll(sheet_id, photo_id, 20, None, None, None, None, None)
+        ws = self.build()
+        lines = [line for line in self.block(ws, 1)[2:] if line[0] == "T1" and line[1] is not None]
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(lines[0][:4], ["T1", "Alpha", "GT", "40x500x1500"])
+        self.assertEqual(lines[0][4], 30)
+        self.assertEqual(lines[0][6], 2)
+
+    def test_continuation_rows_on_back_layout(self):
+        sheet_id, photo_id = self.sheet("T3", 1, self.an, layout="back")
+        self.roll(sheet_id, photo_id, 15, "Gamma", "TX", 30, 400)
+        self.roll(sheet_id, photo_id, 25, None, None, None, None)
+        ws = self.build()
+        lines = [line for line in self.block(ws, 1)[2:] if line[0] == "T3" and line[1] is not None]
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(lines[0][:4], ["T3", "Gamma", "TX", "30mic x R400"])
+        self.assertEqual(lines[0][4], 40)
+        self.assertEqual(lines[0][6], 2)
+
     def test_filename(self):
         self.assertEqual(daily_report_filename(DAY), "HASC_BaoCaoNgay_2026-12-01.xlsx")
 
