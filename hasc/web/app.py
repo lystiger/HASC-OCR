@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+import os
 from pathlib import Path
 import sqlite3
 from typing import Optional
@@ -19,6 +20,7 @@ from hasc.db import (
     delete_session,
     delete_user_sessions,
     get_connection,
+    get_default_photos_dir,
     get_user_by_id,
     get_user_by_username,
     init_db,
@@ -92,12 +94,9 @@ def create_app(
         redoc_url=None,
         openapi_url=None,
     )
-    app.state.db_path = db_path
-    app.state.photos_dir = (
-        Path(photos_dir)
-        if photos_dir
-        else (Path(db_path).parent / "photos" if db_path else Path("data/photos"))
-    )
+    effective_db_path = db_path if db_path is not None else os.environ.get("HASC_DB_PATH")
+    app.state.db_path = effective_db_path
+    app.state.photos_dir = get_default_photos_dir(photos_dir=photos_dir, db_path=effective_db_path)
     app.state.secure_cookies = secure_cookies
     app.state.enforce_https = enforce_https
 

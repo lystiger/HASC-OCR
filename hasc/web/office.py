@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from hasc.db import (
     create_event,
+    get_default_photos_dir,
     get_photo_by_id,
     get_photos_for_sheet,
     get_sheet_by_id,
@@ -637,6 +638,8 @@ def view_photo(
     file_path = Path(photo["path"])
     if not file_path.is_file():
         photos_dir = getattr(request.app.state, "photos_dir", None)
+        if not photos_dir:
+            photos_dir = get_default_photos_dir(db_path=getattr(request.app.state, "db_path", None))
         if photos_dir:
             candidate = Path(photos_dir) / file_path.name
             if candidate.is_file():
