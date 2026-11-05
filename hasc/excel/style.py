@@ -1,7 +1,7 @@
 """Shared look of the .xlsx files: one font, framed tables, a shaded heading, A4 landscape on one page wide.
 
-Styling never changes a value or a flag colour: cell fills stay reserved for flags (spec section 6), so the
-tables are framed with borders and only the headings are shaded.
+Styling never changes a value or a flag colour. Data cells are only ever filled for a flag (spec section 6);
+headings get a light blue tint, kept clear of the flag yellow, red and grey.
 """
 
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -10,7 +10,7 @@ from openpyxl.worksheet.page import PageMargins
 FONT_NAME = "Arial"
 FONT_SIZE = 10
 ACCENT = "516572"  # the website's slate accent
-HEADING_FILL = PatternFill(fill_type="solid", start_color="E4E9EC", end_color="E4E9EC")
+HEADING_FILL = PatternFill(fill_type="solid", start_color="DDEBF7", end_color="DDEBF7")
 BAND_FILL = PatternFill(fill_type="solid", start_color=ACCENT, end_color=ACCENT)
 THIN = Side(style="thin", color="A6A6A6")
 MEDIUM = Side(style="medium", color=ACCENT)

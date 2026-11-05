@@ -186,6 +186,10 @@ class TestOperatorUpload(unittest.TestCase):
         html = self.client_op1.get("/operator").text
         self.assertIn('href="/logout"', html)
         self.assertIn("operator1 · Trưởng ca", html)
+        office = TestClient(self.app)
+        office.post("/api/login", json={"username": "employee1", "password": "pass"})
+        for page in ("/office", "/change-password"):
+            self.assertIn('href="/logout"', office.get(page).text, page)
 
     def test_upload_times_show_in_vietnam_time(self):
         from hasc.web.app import vn_date, vn_time

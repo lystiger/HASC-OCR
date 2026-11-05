@@ -35,6 +35,7 @@ PENDING_NOTE = "Chưa xác nhận"
 UNREAD_NOTE = "Có khối lượng chưa đọc được, chưa cộng"
 NET_COLUMN = 5
 ROLLS_COLUMN = 7
+NOTE_COLUMN = 9
 CARRIED_FIELDS = ("customer", "film_type", "thickness_mic", "width_mm", "length_mm")
 
 
@@ -184,7 +185,9 @@ def _band(ws, row: int, last_column: int) -> None:
 def _frame_lines(ws, first: int, last: int, last_column: int) -> None:
     style.frame(ws, first, last, last_column)
     for row in ws.iter_rows(min_row=first, max_row=last, max_col=last_column):
-        ws.row_dimensions[row[0].row].height = style.ROW_HEIGHT
+        note = str(row[NOTE_COLUMN - 1].value or "")
+        lines = max(1, -(-len(note) // (COLUMN_WIDTHS[NOTE_COLUMN - 1] - 2)))  # the note wraps; show it whole
+        ws.row_dimensions[row[0].row].height = style.ROW_HEIGHT * lines
         for cell in row:
             cell.font = style.font(cell, bold=cell.column == 1)
             cell.alignment = style.CENTRE if cell.column in (1, NET_COLUMN, ROLLS_COLUMN) else style.MIDDLE
