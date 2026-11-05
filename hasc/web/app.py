@@ -140,9 +140,10 @@ def create_app(
     templates_dir = Path(__file__).resolve().parent / "templates"
     templates = Jinja2Templates(directory=str(templates_dir))
     templates.env.filters["vntime"] = vn_time
-    # Phones keep the stylesheet cached; a new version in its URL makes them fetch a changed one.
-    css = static_dir / "css" / "app.css"
-    templates.env.globals["css_version"] = hashlib.sha256(css.read_bytes()).hexdigest()[:10] if css.is_file() else "0"
+    # Phones keep the stylesheet and script cached; a new version in their URL makes them fetch changed ones.
+    assets = [static_dir / "css" / "app.css", static_dir / "js" / "ui.js"]
+    digest = hashlib.sha256(b"".join(a.read_bytes() for a in assets if a.is_file()))
+    templates.env.globals["css_version"] = digest.hexdigest()[:10]
     templates.env.filters["vndate"] = vn_date
     app.state.templates = templates
 

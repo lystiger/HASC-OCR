@@ -35,6 +35,8 @@
     setTimeout(function () { item.remove(); }, kind === "error" ? 8000 : 5000);
   }
 
+  var loadingTimer = null;
+
   function showLoading(text) {
     var overlay = document.querySelector(".loading-overlay");
     if (!overlay) {
@@ -46,9 +48,16 @@
     }
     overlay.querySelector(".loading-text").textContent = text || "Đang xử lý...";
     overlay.hidden = false;
+    // A hung network must not lock the page for good.
+    clearTimeout(loadingTimer);
+    loadingTimer = setTimeout(function () {
+      hideLoading();
+      toast("Mạng chậm hoặc mất kết nối. Xem danh sách đã gửi trước khi gửi lại.", "warning");
+    }, 90000);
   }
 
   function hideLoading() {
+    clearTimeout(loadingTimer);
     var overlay = document.querySelector(".loading-overlay");
     if (overlay) overlay.hidden = true;
   }
@@ -70,6 +79,7 @@
   function clearError(field) {
     field.classList.remove("is-invalid");
     field.removeAttribute("aria-invalid");
+    field.removeAttribute("aria-describedby");
     var note = field.parentElement.querySelector(".field-error");
     if (note) note.remove();
   }
@@ -81,9 +91,11 @@
     if (!note) {
       note = document.createElement("div");
       note.className = "field-error";
+      note.id = "field-error-" + Math.random().toString(36).slice(2, 8);
       target.insertAdjacentElement("afterend", note);
     }
     note.textContent = text;
+    target.setAttribute("aria-describedby", note.id);
   }
 
   // A form may add its own check: form.hascCheck = function () { return [element, message] or null }.
@@ -123,7 +135,9 @@
         if (bad) {
           event.preventDefault();
           toast(bad[1], "warning");
-          if (bad[0].focus) bad[0].focus();
+          // A group (the photo buttons) cannot take focus itself: focus its first control.
+          var focusable = bad[0].matches("input, select, textarea, button") ? bad[0] : bad[0].querySelector("input, select, textarea, button");
+          if (focusable) focusable.focus();
           return;
         }
         // A form that navigates gets the loading screen; a download (data-no-loading) does not.

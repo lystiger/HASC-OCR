@@ -198,8 +198,9 @@ class TestOperatorUpload(unittest.TestCase):
         self.assertIn('href="/logout"', html)
         self.assertNotIn("operator1", html)  # no username next to Đăng xuất
         import hashlib
-        css = Path(__file__).resolve().parents[1] / "hasc" / "web" / "static" / "css" / "app.css"
-        self.assertIn(f'href="/static/css/app.css?v={hashlib.sha256(css.read_bytes()).hexdigest()[:10]}"', html)
+        static = Path(__file__).resolve().parents[1] / "hasc" / "web" / "static"
+        version = hashlib.sha256((static / "css/app.css").read_bytes() + (static / "js/ui.js").read_bytes()).hexdigest()[:10]
+        self.assertIn(f'href="/static/css/app.css?v={version}"', html)
         office = TestClient(self.app)
         office.post("/api/login", json={"username": "employee1", "password": "pass"})
         for page in ("/office", "/change-password"):
