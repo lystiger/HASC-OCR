@@ -276,13 +276,120 @@ th {
   display: inline;
 }
 
-@media (max-width: 600px) {
-  .site-header__inner {
-    flex-direction: column;
-    align-items: flex-start;
+.site-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+}
+
+.site-nav__user {
+  font-size: 0.9rem;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.action-row .btn {
+  justify-content: center;
+}
+
+.btn--small {
+  min-height: 36px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.9rem;
+}
+
+/* Fields side by side, the button on the same line as the inputs. */
+.inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.inline-form .form-field {
+  flex: 1 1 180px;
+  max-width: 260px;
+}
+
+.filter-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.filter-form__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+@media (max-width: 800px) {
+  .filter-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .filter-form__actions {
+    grid-column: 1 / -1;
+  }
+
+  .filter-form__actions .btn {
+    flex: 1;
+  }
+}
+
+@media (max-width: 600px) {
   .btn {
     width: 100%;
+  }
+
+  .btn--small,
+  .filter-form__actions .btn {
+    width: auto;
+  }
+
+  .inline-form .form-field {
+    max-width: none;
+  }
+
+  .action-row > * {
+    flex: 1 1 100%;
+  }
+
+  /* A table of uploads reads as one card per upload on a phone. */
+  .table-stack thead {
+    display: none;
+  }
+
+  .table-stack tr {
+    display: block;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .table-stack td {
+    display: block;
+    position: relative;
+    padding: 0.2rem 0 0.2rem 8rem;
+    border: 0;
+  }
+
+  .table-stack td::before {
+    content: attr(data-label);
+    position: absolute;
+    left: 0;
+    width: 7.5rem;
+    color: var(--color-muted);
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
   }
 }

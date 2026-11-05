@@ -1,6 +1,6 @@
 {% if uploads %}
 <div class="table-wrap">
-  <table>
+  <table class="table-stack">
     <thead>
       <tr>
         <th>Biểu mẫu</th>
@@ -12,18 +12,18 @@
     <tbody>
       {% for u in uploads %}
       <tr>
-        <td>
-          <strong>{{ u.machine }}</strong> · Ca {{ u.shift }} · <span class="num">{{ u.production_date }}</span> · Trang {{ u.page_no }}
+        <td data-label="Biểu mẫu">
+          <strong>{{ u.machine }}</strong> · Ca {{ u.shift }} · <span class="num">{{ u.production_date|vndate }}</span> · Trang {{ u.page_no }}
         </td>
-        <td class="num">
-          {{ u.uploaded_at[:16].replace('T', ' ') }}
+        <td class="num" data-label="Thời gian gửi">
+          {{ u.uploaded_at|vntime }}
         </td>
-        <td>
+        <td data-label="Trạng thái">
           <span class="status-badge status-badge--{{ u.status }}">
             {{ u.status_vi }}
           </span>
         </td>
-        <td>
+        <td data-label="Kết quả kiểm tra">
           {% if u.problems %}
           <ul class="problem-list" style="margin: 0; padding-left: 1.2rem; color: var(--color-error);">
             {% for p in u.problems %}

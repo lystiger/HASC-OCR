@@ -2,39 +2,28 @@
 
 {% block title %}Danh sách biểu mẫu cần kiểm tra – HASC VN{% endblock %}
 
-{% block nav %}
-<span style="font-size: 0.9rem; color: var(--color-muted); margin-right: 0.75rem;">
-  {{ user.username }} ({{ user.role }})
-</span>
-<a href="/logout">Đăng xuất</a>
-{% endblock %}
-
 {% block content %}
 <div style="max-width: 960px; margin: 1.5rem auto;">
-  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.5rem;">
-    <div>
-      <h1 style="margin: 0; font-size: 1.5rem;">Quản lý biểu mẫu sản xuất</h1>
-      <p style="margin: 0.25rem 0 0; font-size: 0.9rem; color: var(--color-muted);">
-        Biểu mẫu Cần kiểm tra, Đang kiểm tra và Lỗi (ưu tiên quá hạn lên đầu)
-      </p>
-    </div>
-    <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
-      <form method="get" action="/office/report" style="display: flex; align-items: center; gap: 0.4rem; margin: 0;">
-        <label for="daily-report-date" style="font-size: 0.85rem; color: var(--color-muted);">Báo cáo ngày:</label>
-        <input type="date" id="daily-report-date" name="date" value="{{ yesterday }}" required style="font-size: 0.85rem; padding: 0.35rem 0.5rem;" />
-        <button type="submit" class="btn btn--secondary" style="font-size: 0.9rem; padding: 0.4rem 0.8rem; min-height: unset;">
-          Báo cáo ngày
-        </button>
-      </form>
-      <a href="/office" class="btn btn--secondary" style="font-size: 0.9rem; padding: 0.4rem 0.8rem; min-height: unset;">
-        Làm mới
-      </a>
-    </div>
+  <div style="margin-bottom: 1.25rem;">
+    <h1 style="margin: 0; font-size: 1.5rem;">Quản lý biểu mẫu sản xuất</h1>
+    <p style="margin: 0.25rem 0 0; font-size: 0.9rem; color: var(--color-muted);">
+      Biểu mẫu Cần kiểm tra, Đang kiểm tra và Lỗi (ưu tiên quá hạn lên đầu)
+    </p>
+  </div>
+
+  <div class="card" style="margin-bottom: 1rem; padding: 1rem 1.25rem;">
+    <form method="get" action="/office/report" class="inline-form">
+      <div class="form-field" style="margin-bottom: 0;">
+        <label for="daily-report-date" style="font-size: 0.85rem;">Báo cáo sản xuất ngày</label>
+        <input type="date" id="daily-report-date" name="date" value="{{ yesterday }}" required />
+      </div>
+      <button type="submit" class="btn">Tải báo cáo ngày</button>
+    </form>
   </div>
 
   <!-- Filter Form (Works as plain GET form) -->
   <div class="card" style="margin-bottom: 1.5rem; padding: 1rem 1.25rem;">
-    <form method="get" action="/office" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; align-items: end;">
+    <form method="get" action="/office" class="filter-form">
       <div class="form-field" style="margin-bottom: 0;">
         <label for="machine-select" style="font-size: 0.85rem;">Máy</label>
         <select id="machine-select" name="machine">
@@ -62,7 +51,7 @@
       <div class="form-field" style="margin-bottom: 0;">
         <label for="status-select" style="font-size: 0.85rem;">Trạng thái</label>
         <select id="status-select" name="status">
-          <option value="" {% if not filters.status %}selected{% endif %}>Cần xử lý (Mặc định)</option>
+          <option value="" {% if not filters.status %}selected{% endif %}>Cần xử lý</option>
           <option value="needs_review" {% if filters.status == 'needs_review' %}selected{% endif %}>Cần kiểm tra</option>
           <option value="in_review" {% if filters.status == 'in_review' %}selected{% endif %}>Đang kiểm tra</option>
           <option value="failed" {% if filters.status == 'failed' %}selected{% endif %}>Lỗi</option>
@@ -71,10 +60,9 @@
         </select>
       </div>
 
-      <div>
-        <button type="submit" class="btn" style="width: 100%; min-height: 42px; font-size: 0.9rem;">
-          Lọc
-        </button>
+      <div class="filter-form__actions">
+        <button type="submit" class="btn btn--secondary">Lọc</button>
+        <a href="/office" class="btn btn--secondary">Làm mới</a>
       </div>
     </form>
   </div>

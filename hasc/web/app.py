@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 import io
 import os
 from pathlib import Path
@@ -71,6 +71,30 @@ class PatchUserRequest(BaseModel):
     reset_password: Optional[bool] = None
 
 
+VN_TZ = timezone(timedelta(hours=7))  # Vietnam has no daylight saving
+
+
+def vn_time(value) -> str:
+    """Stored UTC time as the factory reads it: 04/11/2026 22:31. A time without a zone is already local."""
+    if not value:
+        return ""
+    try:
+        moment = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return str(value)
+    if moment.tzinfo:
+        moment = moment.astimezone(VN_TZ)
+    return moment.strftime("%d/%m/%Y %H:%M")
+
+
+def vn_date(value) -> str:
+    """2026-10-30 as 30/10/2026."""
+    try:
+        return date.fromisoformat(str(value)).strftime("%d/%m/%Y")
+    except ValueError:
+        return str(value or "")
+
+
 def create_app(
     db_path: str | Path | None = None,
     enforce_https: bool = False,
@@ -114,6 +138,8 @@ def create_app(
     # Mount templates
     templates_dir = Path(__file__).resolve().parent / "templates"
     templates = Jinja2Templates(directory=str(templates_dir))
+    templates.env.filters["vntime"] = vn_time
+    templates.env.filters["vndate"] = vn_date
     app.state.templates = templates
 
     # Exception handlers conforming to spec error shape:

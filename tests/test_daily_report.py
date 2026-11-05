@@ -94,6 +94,13 @@ class DailyReport(unittest.TestCase):
         line = next(r for r in self.block(self.build(), 1) if r[1] == "Alpha")
         self.assertEqual((line[4], line[8]), (86.4, UNREAD_NOTE))
 
+    def test_a_long_note_gets_a_taller_row(self):
+        t1, photo = self.sheet("T1", 1, self.an, status="needs_review")
+        self.roll(t1, photo, "8?6", "Alpha", "GT", 40, 500, 1500)
+        ws = self.build()
+        row = next(r for r in range(1, ws.max_row + 1) if ws.cell(r, 2).value == "Alpha")
+        self.assertGreater(ws.row_dimensions[row].height, 18)
+
     def test_title_date_and_shift_blocks(self):
         self.seed()
         ws = self.build()

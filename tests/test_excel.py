@@ -88,6 +88,13 @@ class PageWorkbook(unittest.TestCase):
         self.assertEqual(self.ws["D4"].value, "xám = không đọc được")
         self.assertEqual(self.ws["D4"].fill.start_color.rgb, "00BFBFBF")
 
+    def test_prints_on_a4_landscape_one_page_wide_with_repeated_headings(self):
+        setup = self.ws.page_setup
+        self.assertEqual((setup.orientation, setup.fitToWidth, setup.fitToHeight), ("landscape", 1, 0))
+        self.assertEqual(self.ws.print_title_rows, "$5:$6")
+        self.assertEqual(self.ws["A5"].font.name, "Arial")
+        self.assertEqual(self.data_cell(0, 13).border.left.style, "thin")
+
     def test_column_widths(self):
         self.assertEqual(self.ws.column_dimensions["B"].width, 22)
         self.assertEqual(self.ws.column_dimensions["C"].width, 36)
