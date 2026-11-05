@@ -8,18 +8,18 @@
     <h2 style="margin-bottom: 1.5rem; text-align: center;">Đăng nhập hệ thống</h2>
 
     {% if error %}
-    <div class="alert alert--error" role="alert">
+    <div class="alert alert--error" role="alert" data-toast="error">
       {{ error }}
     </div>
     {% endif %}
 
     {% if message %}
-    <div class="alert alert--success" role="status">
+    <div class="alert alert--success" role="status" data-toast="success">
       {{ message }}
     </div>
     {% endif %}
 
-    <form method="post" action="/login">
+    <form method="post" action="/login" data-loading="Đang đăng nhập...">
       <div class="form-field">
         <label for="username">Tên đăng nhập</label>
         <input type="text" id="username" name="username" required autofocus autocomplete="username" value="{{ username or '' }}" />

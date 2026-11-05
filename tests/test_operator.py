@@ -205,6 +205,16 @@ class TestOperatorUpload(unittest.TestCase):
         for page in ("/office", "/change-password"):
             self.assertIn('href="/logout"', office.get(page).text, page)
 
+    def test_pages_use_the_sites_own_messages_not_browser_dialogs(self):
+        html = self.client_op1.get("/operator").text
+        self.assertRegex(html, r'src="/static/js/ui\.js\?v=[0-9a-f]{10}"')
+        self.assertNotIn("alert(", html)
+        self.assertIn('data-loading="Đang gửi ảnh, vui lòng chờ..."', html)
+        js = (Path(__file__).resolve().parents[1] / "hasc/web/static/js/ui.js").read_text(encoding="utf-8")
+        for call in ("alert(", "confirm(", "prompt("):
+            self.assertNotIn("window." + call, js)
+        self.assertIn('setAttribute("novalidate"', js)
+
     def test_upload_times_show_in_vietnam_time(self):
         from hasc.web.app import vn_date, vn_time
         self.assertEqual(vn_time("2026-11-04T15:31:02.604008+00:00"), "04/11/2026 22:31")
