@@ -126,6 +126,8 @@ def _write_result(conn, photo, result):
             flag, note = flags[field]
             upsert_cell(conn, row_id, field, _text(cell["value"]), inherited=int(bool(cell.get("inherited"))),
                         source="ai", source_photo_id=photo_id, flag=flag, note=note)
+    with conn:
+        conn.execute("UPDATE sheets SET layout = ? WHERE id = ?", (layout, sheet_id))
     if result["rows"]:
         increment_sheet_version(conn, sheet_id)
     create_event(conn, None, "read_done", sheet_id=sheet_id,

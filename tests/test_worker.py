@@ -215,9 +215,10 @@ class CarryDownAndRules(WorkerTest):
         self.assertEqual(self.cells(1)[0]["gross_kg"]["flag"], "none")
 
     def test_back_side_skips_the_weight_rule(self):
-        self.queue()
+        sheet_id, _ = self.queue()
         self.drain(result(row(roll_code="1", gross_kg=17.6, core_kg=0.8, net_kg=1.0), layout="back"))
-        self.assertEqual(self.cells(1)[0]["net_kg"]["flag"], "none")
+        self.assertEqual(self.cells(sheet_id)[0]["net_kg"]["flag"], "none")
+        self.assertEqual(get_sheet_by_id(self.conn, sheet_id)["layout"], "back")
 
 
 class Recovery(WorkerTest):
