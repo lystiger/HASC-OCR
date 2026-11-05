@@ -335,12 +335,6 @@ th {
   gap: 0.25rem 0.75rem;
 }
 
-.site-nav__user {
-  font-size: 0.9rem;
-  color: var(--color-muted);
-  white-space: nowrap;
-}
-
 .action-row {
   display: flex;
   flex-wrap: wrap;
@@ -434,9 +428,32 @@ th {
   align-items: end;
 }
 
+.filter-form select,
+.filter-form input[type="date"] {
+  height: 42px;
+  box-sizing: border-box;
+  margin: 0;
+}
+
+.filter-form .form-field label {
+  display: block;
+  margin: 0 0 0.35rem;
+  line-height: 1.2;
+}
+
 .filter-form__actions {
   display: flex;
   gap: 0.5rem;
+}
+
+.filter-form__actions .btn {
+  height: 42px;
+  min-height: 42px;
+  padding-top: 0;
+  padding-bottom: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 @media (max-width: 800px) {

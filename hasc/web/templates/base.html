@@ -18,7 +18,6 @@
         <nav class="site-nav" aria-label="Điều hướng chính">
           {% block nav %}
           {% if user %}
-          <span class="site-nav__user">{{ user.username }} · {{ {"operator": "Trưởng ca", "employee": "Văn phòng", "boss": "Giám đốc", "admin": "Quản trị"}.get(user.role, user.role) }}</span>
           <a href="/logout">Đăng xuất</a>
           {% endif %}
           {% endblock %}

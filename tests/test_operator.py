@@ -193,10 +193,9 @@ class TestOperatorUpload(unittest.TestCase):
         self.assertEqual(res_op.status_code, 200)
         self.assertIn("Tải lên biểu mẫu sản xuất", res_op.text)
 
-    def test_every_signed_in_page_shows_the_user_and_logout(self):
+    def test_every_signed_in_page_shows_logout(self):
         html = self.client_op1.get("/operator").text
         self.assertIn('href="/logout"', html)
-        self.assertIn("operator1 · Trưởng ca", html)
         import hashlib
         css = Path(__file__).resolve().parents[1] / "hasc" / "web" / "static" / "css" / "app.css"
         self.assertIn(f'href="/static/css/app.css?v={hashlib.sha256(css.read_bytes()).hexdigest()[:10]}"', html)
