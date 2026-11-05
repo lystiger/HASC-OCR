@@ -264,6 +264,14 @@ class RollCodeFill(WorkerTest):
         self.assertFalse(data[2]["cells"]["roll_code"]["inherited"])
         self.assertTrue(data[3]["cells"]["roll_code"]["inherited"])
 
+    def test_second_photo_of_a_sheet_continues_the_numbering(self):
+        sheet_id, _ = self.queue()
+        self.drain(result(row(net_kg=13.2), row(net_kg=12.0)))
+        photo_id = create_photo(self.conn, sheet_id=sheet_id, path=str(self.root / "photo1.jpg"), sha256="hash1b")
+        create_read_job(self.conn, photo_id=photo_id)
+        self.drain(result(row(net_kg=11.0)))
+        self.assertEqual([d["row_key"] for d in get_sheet_data(self.conn, sheet_id)], ["1", "2", "3"])
+
     def test_written_roll_code_is_never_renumbered_even_when_out_of_order(self):
         sheet_id, _ = self.queue()
         self.drain(result(

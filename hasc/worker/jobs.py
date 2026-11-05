@@ -100,7 +100,6 @@ def process_job(conn, job, reader, scratch_dir, photos_dir=None):
         return _record_failure(conn, job, str(error), not_retryable=not_a_sheet)
 
     carry_down(result["rows"])
-    fill_roll_codes(result["rows"])
     _write_result(conn, photo, result)
     with conn:
         conn.execute("UPDATE read_jobs SET reader_name = ? WHERE id = ?", (result["reader_name"], job["id"]))
@@ -118,14 +117,14 @@ def carry_down(rows):
                 row["cells"][field] = {**cell, "inherited": True}
 
 
-def fill_roll_codes(rows):
+def fill_roll_codes(rows, start=0):
     """Fill a blank roll_code with the row's 1-based position on the page (brief P118, P119; criterion 55).
 
     A roll code written on the paper always wins and is never renumbered.
     The filled roll code is marked as an inherited value so page Excel greys it,
     the operator problem list names the roll, and the rows table row_key matches.
     """
-    for index, row in enumerate(rows, start=1):
+    for index, row in enumerate(rows, start=start + 1):
         cell = row["cells"].get("roll_code")
         if not cell or (not cell.get("unreadable") and (cell.get("value") is None or str(cell.get("value")).strip() == "")):
             row["cells"]["roll_code"] = {"value": str(index), "inherited": True, "doubt": False}
@@ -153,6 +152,7 @@ def _write_result(conn, photo, result):
             upsert_page_value(conn, sheet_id, field, cell["value"], source_photo_id=photo_id,
                               flag="doubt" if cell["doubt"] else None)
     start = len(get_rows_for_sheet(conn, sheet_id, include_invalid=True))
+    fill_roll_codes(result["rows"], start)
     flagged = 0
     for offset, row in enumerate(result["rows"]):
         roll = row["cells"].get("roll_code", {}).get("value")

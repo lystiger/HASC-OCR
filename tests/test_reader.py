@@ -94,9 +94,10 @@ class Subtotals(unittest.TestCase):
         self.assertEqual(cells["subtotal_note"], {"value": 363.2, "doubt": False})
         self.assertNotIn("thickness_avg", cells)
 
-    def test_average_without_thickness_to_compare_is_untouched(self):
+    def test_average_without_measured_thicknesses_is_a_subtotal(self):
         cells = make(reply([{"thickness_avg": "363,2"}])).read(b"jpg")["rows"][0]["cells"]
-        self.assertEqual(cells["thickness_avg"], {"value": 363.2, "doubt": False})
+        self.assertEqual(cells["subtotal_note"], {"value": 363.2, "doubt": True})
+        self.assertNotIn("thickness_avg", cells)
 
 
 class Retry(unittest.TestCase):

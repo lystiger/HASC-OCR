@@ -170,10 +170,11 @@ class CloudReader:
 def _move_stray_average(cells):
     """A run subtotal read as thickness_avg sits far above the row's thicknesses: move it to subtotal_note."""
     average = cells.get("thickness_avg")
-    readings = [cells[f]["value"] for f in ("thickness_mic", *(f"thickness_{i}" for i in range(1, 7))) if f in cells]
-    readings = [v for v in readings if isinstance(v, float)]
-    if not average or not readings or not isinstance(average["value"], float):
+    if not average or not isinstance(average["value"], float):
         return
-    if average["value"] > SUBTOTAL_FACTOR * max(readings):
+    measured = [cells[f"thickness_{i}"]["value"] for i in range(1, 7) if f"thickness_{i}" in cells]
+    readings = [v for v in [cells.get("thickness_mic", {}).get("value"), *measured] if isinstance(v, float)]
+    # An average needs measured thicknesses to average; without any, the number is a run subtotal.
+    if not measured or (readings and average["value"] > SUBTOTAL_FACTOR * max(readings)):
         average["doubt"] = True
         cells["subtotal_note"] = cells.pop("thickness_avg")

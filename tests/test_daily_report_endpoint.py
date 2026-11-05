@@ -122,7 +122,9 @@ class TestDailyReportEndpoint(unittest.TestCase):
         self.assertIn('type="date"', html)
         self.assertIn(f'value="{yesterday}"', html)
 
-        # Link opening report and Vietnamese label
-        self.assertIn(f"/api/days/{yesterday}/report", html)
+        # A plain GET form, so it works without JavaScript (ADR 7)
+        self.assertIn('action="/office/report"', html)
+        res = client.get(f"/office/report?date={yesterday}", follow_redirects=False)
+        self.assertEqual(res.headers["location"], f"/api/days/{yesterday}/report")
         # Vietnamese link text / label
         self.assertTrue("Báo cáo ngày" in html or "Báo cáo sản xuất ngày" in html)

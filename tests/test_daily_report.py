@@ -85,6 +85,15 @@ class DailyReport(unittest.TestCase):
         self.assertEqual(line[4], 86.4)
         self.assertEqual(line[8], UNREAD_NOTE)
 
+    def test_net_weight_marked_unreadable_by_the_reader_is_noted(self):
+        t1, photo = self.sheet("T1", 1, self.an)
+        self.roll(t1, photo, 86.4, "Alpha", "GT", 40, 500, 1500)
+        self.roll(t1, photo, None, "Alpha", "GT", 40, 500, 1500)
+        row_id = get_rows_for_sheet(self.conn, t1)[-1]["id"]
+        upsert_cell(self.conn, row_id, "net_kg", None, source_photo_id=photo, flag="unreadable")
+        line = next(r for r in self.block(self.build(), 1) if r[1] == "Alpha")
+        self.assertEqual((line[4], line[8]), (86.4, UNREAD_NOTE))
+
     def test_title_date_and_shift_blocks(self):
         self.seed()
         ws = self.build()

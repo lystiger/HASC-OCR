@@ -281,6 +281,15 @@ def office_sheet_list_page(
     )
 
 
+@router.get("/office/report")
+def office_daily_report_form(
+    date: str,
+    user: dict = Depends(require_role("employee", "boss", "admin")),
+):
+    """The office screen's date form; works without JavaScript (ADR 7)."""
+    return RedirectResponse(url=f"/api/days/{date}/report", status_code=303)
+
+
 @router.get("/office/sheets/partial", response_class=HTMLResponse)
 @router.get("/office/sheets-partial", response_class=HTMLResponse)
 def office_sheets_partial(
@@ -680,7 +689,7 @@ def ensure_display_copy(
         raw_bytes = orig_file.read_bytes()
         upright_bytes = display_copy(raw_bytes)
     except Exception:
-        return orig_file
+        return None  # the page then shows no picture rather than the sideways original
 
     target_dir = Path(photos_dir).resolve() if photos_dir else orig_file.parent.resolve()
     target_dir.mkdir(parents=True, exist_ok=True)

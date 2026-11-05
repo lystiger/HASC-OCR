@@ -64,7 +64,7 @@ def _collect(conn, production_date: str):
     lines = defaultdict(dict)
     leaders = defaultdict(list)
     carried_by_section = {}
-    for sheet in list_sheets(conn, production_date=production_date):
+    for sheet in sorted(list_sheets(conn, production_date=production_date), key=lambda s: (s["shift"], s["machine"], s["page_no"])):
         if sheet["machine"] not in MACHINES:
             continue
         photos = [photo for photo in get_photos_for_sheet(conn, sheet["id"]) if not photo["invalid"]]
@@ -94,7 +94,8 @@ def _collect(conn, production_date: str):
             line = section.setdefault(key, {"net": 0.0, "rolls": 0, "unconfirmed": False, "unread": False})
             net = _number(_text(cells, "net_kg"))
             line["net"] += net or 0
-            line["unread"] = line["unread"] or (net is None and bool(_text(cells, "net_kg")))
+            unreadable = cells.get("net_kg", {}).get("flag") == "unreadable"
+            line["unread"] = line["unread"] or unreadable or (net is None and bool(_text(cells, "net_kg")))
             line["rolls"] += 1
             line["unconfirmed"] = line["unconfirmed"] or sheet["status"] != "reviewed"
     return lines, leaders
