@@ -231,6 +231,25 @@ class TestOperatorUpload(unittest.TestCase):
         self.send_paper(back=False)
         self.assertEqual(self.pages(), [("T6", 1)])
 
+    def test_empty_back_part_from_a_browser_is_no_back(self):
+        files = {"file_front": ("front.jpg", make_test_table_jpeg(), "image/jpeg"),
+                 "file_back": ("", b"", "application/octet-stream")}
+        res = self.client_op1.post("/operator/upload", files=files, data={
+            "machine": "T6", "back_machine": "", "production_date": "2026-11-04", "shift": "1", "paper_no": "1"})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(self.pages(), [("T6", 1)])
+        self.assertEqual(res.cookies.get(f"last_machine_{self.op1_id}"), "T6")
+
+    def test_back_same_as_front_by_default(self):
+        self.send_paper(back_machine="")
+        self.assertEqual(self.pages(), [("T6", 1), ("T6", 2)])
+
+    def test_bad_paper_number_or_back_machine_sends_nothing(self):
+        for paper, back_machine in (("0", "T3"), ("51", "T3"), ("1", "X9")):
+            res = self.send_paper(paper_no=paper, back_machine=back_machine)
+            self.assertEqual(res.status_code, 200)
+        self.assertEqual(self.pages(), [])
+
     def test_a_bad_back_photo_sends_nothing(self):
         res = self.send_paper(back_bytes=b"not an image")
         self.assertIn("Ảnh 2 (mặt sau): Tập tin không phải là hình ảnh hợp lệ", res.text)

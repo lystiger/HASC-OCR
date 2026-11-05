@@ -88,23 +88,24 @@
       <div class="photo-pick">
         <label class="photo-pick__title" for="front-input">Ảnh 1 · mặt trước</label>
         <label class="file-pick">
-          <input type="file" id="front-input" name="file_front" accept="image/*,.heic,.heif" capture="environment" required />
+          <input type="file" id="front-input" name="file_front" aria-label="Ảnh 1, mặt trước" accept="image/*,.heic,.heif" capture="environment" required />
           <span class="btn btn--secondary btn--small file-pick__button">Chọn ảnh</span>
-          <span class="file-pick__name" data-empty="Chưa chọn ảnh">Chưa chọn ảnh</span>
+          <span class="file-pick__name" data-empty="Chưa chọn ảnh" aria-live="polite">Chưa chọn ảnh</span>
         </label>
       </div>
 
       <div class="photo-pick">
         <label class="photo-pick__title" for="back-input">Ảnh 2 · mặt sau <span class="photo-pick__hint">(bỏ trống nếu mặt sau không có số liệu)</span></label>
         <label class="file-pick">
-          <input type="file" id="back-input" name="file_back" accept="image/*,.heic,.heif" capture="environment" />
+          <input type="file" id="back-input" name="file_back" aria-label="Ảnh 2, mặt sau" accept="image/*,.heic,.heif" capture="environment" />
           <span class="btn btn--secondary btn--small file-pick__button">Chọn ảnh</span>
-          <span class="file-pick__name" data-empty="Chưa chọn ảnh">Chưa chọn ảnh</span>
+          <span class="file-pick__name" data-empty="Chưa chọn ảnh" aria-live="polite">Chưa chọn ảnh</span>
         </label>
         <div class="form-field" style="margin: 0.75rem 0 0;">
           <label for="back-machine-select">Máy của mặt sau</label>
           <select id="back-machine-select" name="back_machine">
-            {% for m in machines %}<option value="{{ m }}" {% if default_machine == m %}selected{% endif %}>{{ m }}</option>{% endfor %}
+            <option value="" selected>Giống mặt trước</option>
+            {% for m in machines %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
           </select>
         </div>
       </div>
@@ -172,17 +173,6 @@
         name.textContent = input.files.length ? "Đã chọn: " + input.files[0].name : name.dataset.empty;
       });
     });
-
-    // The back usually belongs to the front's machine: follow it until changed by hand.
-    const frontMachine = document.getElementById("machine-select");
-    const backMachine = document.getElementById("back-machine-select");
-    let backChosen = false;
-    if (frontMachine && backMachine) {
-      backMachine.addEventListener("change", function () { backChosen = true; });
-      frontMachine.addEventListener("change", function () {
-        if (!backChosen) backMachine.value = frontMachine.value;
-      });
-    }
 
     const form = document.getElementById("upload-form");
     if (form) {

@@ -29,6 +29,7 @@ router = APIRouter()
 
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB per spec Functional / criterion 14
 ALLOWED_MACHINES = ("T1", "T3", "T6")
+MAX_PAPERS = 50  # far more papers than one machine fills in a shift
 
 
 def get_shift_and_date(now_dt: datetime | None = None) -> tuple[int, str, str]:
@@ -624,13 +625,16 @@ def operator_upload_submit(
         photos_dir = get_default_photos_dir(db_path=getattr(request.app.state, "db_path", None))
     photos_dir = Path(photos_dir).resolve()
 
-    if paper_no < 1:
-        return render_operator_screen(request, user, conn, error="Tờ số phải từ 1 trở lên")
+    if not 1 <= paper_no <= MAX_PAPERS:
+        return render_operator_screen(request, user, conn, error=f"Tờ số phải từ 1 đến {MAX_PAPERS}")
+    back_machine = back_machine or machine  # empty means "same as the front"
+    if machine not in ALLOWED_MACHINES or back_machine not in ALLOWED_MACHINES:
+        return render_operator_screen(request, user, conn, error="Máy không hợp lệ")
     front_page, back_page = paper_pages(paper_no)
     sides = [("Ảnh 1 (mặt trước)", file_front, machine, front_page)]
     back_bytes = file_back.file.read() if file_back is not None and file_back.filename else b""
     if back_bytes:
-        sides.append(("Ảnh 2 (mặt sau)", file_back, back_machine or machine, back_page))
+        sides.append(("Ảnh 2 (mặt sau)", file_back, back_machine, back_page))
 
     # Check every photo before saving any, so a bad back photo does not leave the front sent alone.
     contents = [file_front.file.read()] + ([back_bytes] if back_bytes else [])
