@@ -185,8 +185,14 @@
       const name = group.querySelector(".file-pick__name");
       inputs.forEach(function (input) {
         input.addEventListener("change", function () {
+          if (!input.files.length) {
+            // A cancelled picker keeps the photo chosen with the other button.
+            const kept = [...inputs].find(function (other) { return other.files.length; });
+            name.textContent = kept ? "Đã chọn: " + kept.files[0].name : name.dataset.empty;
+            return;
+          }
           inputs.forEach(function (other) { if (other !== input) other.value = ""; });
-          name.textContent = input.files.length ? "Đã chọn: " + input.files[0].name : name.dataset.empty;
+          name.textContent = "Đã chọn: " + input.files[0].name;
         });
       });
     });

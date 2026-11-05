@@ -177,7 +177,9 @@ class TestOperatorUpload(unittest.TestCase):
         self.assertIn("Chụp ảnh", html)
         self.assertIn("Chọn ảnh có sẵn", html)
         import re
-        for saved in re.findall(r'<input[^>]*name="file_(?:front|back)_saved"[^>]*>', html):
+        saved_inputs = re.findall(r'<input[^>]*name="file_(?:front|back)_saved"[^>]*>', html)
+        self.assertEqual(len(saved_inputs), 2)
+        for saved in saved_inputs:
             self.assertNotIn("capture", saved)
 
         # Submit button labelled like 'Gửi: T1 · Ca ...'
