@@ -18,6 +18,7 @@ from hasc.db import (
     create_sheet,
     find_sheet,
     get_connection,
+    get_default_photos_dir,
 )
 from hasc.web.auth import get_active_user, get_authenticated_user, get_db
 from hasc.web.errors import AppError
@@ -197,13 +198,14 @@ def check_image_quality(file_bytes: bytes) -> list[str]:
 def save_photo_file(
     photos_dir: Path, file_bytes: bytes, filename: str | None, sha256: str
 ) -> Path:
+    photos_dir = Path(photos_dir).resolve()
     photos_dir.mkdir(parents=True, exist_ok=True)
     ext = ".jpg"
     if filename:
         p_ext = Path(filename).suffix.lower()
         if p_ext in (".jpg", ".jpeg", ".png", ".heic", ".heif", ".webp"):
             ext = p_ext
-    saved_path = photos_dir / f"{sha256}{ext}"
+    saved_path = (photos_dir / f"{sha256}{ext}").resolve()
     saved_path.write_bytes(file_bytes)
     return saved_path
 
@@ -474,11 +476,8 @@ def api_upload_photo(
 ):
     photos_dir = getattr(request.app.state, "photos_dir", None)
     if not photos_dir:
-        if getattr(request.app.state, "db_path", None):
-            photos_dir = Path(request.app.state.db_path).parent / "photos"
-        else:
-            photos_dir = Path("data/photos")
-    photos_dir = Path(photos_dir)
+        photos_dir = get_default_photos_dir(db_path=getattr(request.app.state, "db_path", None))
+    photos_dir = Path(photos_dir).resolve()
 
     file_bytes = file.file.read()
     photo_id, sheet_id, status, warnings = process_photo_upload(
@@ -602,11 +601,8 @@ def operator_upload_submit(
 ):
     photos_dir = getattr(request.app.state, "photos_dir", None)
     if not photos_dir:
-        if getattr(request.app.state, "db_path", None):
-            photos_dir = Path(request.app.state.db_path).parent / "photos"
-        else:
-            photos_dir = Path("data/photos")
-    photos_dir = Path(photos_dir)
+        photos_dir = get_default_photos_dir(db_path=getattr(request.app.state, "db_path", None))
+    photos_dir = Path(photos_dir).resolve()
 
     file_bytes = file.file.read()
     try:
