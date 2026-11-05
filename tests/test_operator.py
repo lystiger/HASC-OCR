@@ -171,7 +171,9 @@ class TestOperatorUpload(unittest.TestCase):
 
         # File input accepting phone camera
         self.assertIn('accept="image/*,.heic,.heif"', html)
-        self.assertIn('capture="environment"', html)
+        # No `capture`: it makes Android open only the camera, with no way to pick a photo
+        # already taken (spec section 4, P25, P109).
+        self.assertNotIn("capture=", html)
 
         # Submit button labelled like 'Gửi: T1 · Ca ...'
         self.assertIn("Gửi: T1 · Ca", html)

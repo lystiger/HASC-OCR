@@ -88,7 +88,7 @@
       <div class="photo-pick">
         <label class="photo-pick__title" for="front-input">Ảnh 1 · mặt trước</label>
         <label class="file-pick">
-          <input type="file" id="front-input" name="file_front" aria-label="Ảnh 1, mặt trước" accept="image/*,.heic,.heif" capture="environment" required />
+          <input type="file" id="front-input" name="file_front" aria-label="Ảnh 1, mặt trước" accept="image/*,.heic,.heif" required />
           <span class="btn btn--secondary btn--small file-pick__button">Chọn ảnh</span>
           <span class="file-pick__name" data-empty="Chưa chọn ảnh" aria-live="polite">Chưa chọn ảnh</span>
         </label>
@@ -97,7 +97,7 @@
       <div class="photo-pick">
         <label class="photo-pick__title" for="back-input">Ảnh 2 · mặt sau <span class="photo-pick__hint">(bỏ trống nếu mặt sau không có số liệu)</span></label>
         <label class="file-pick">
-          <input type="file" id="back-input" name="file_back" aria-label="Ảnh 2, mặt sau" accept="image/*,.heic,.heif" capture="environment" />
+          <input type="file" id="back-input" name="file_back" aria-label="Ảnh 2, mặt sau" accept="image/*,.heic,.heif" />
           <span class="btn btn--secondary btn--small file-pick__button">Chọn ảnh</span>
           <span class="file-pick__name" data-empty="Chưa chọn ảnh" aria-live="polite">Chưa chọn ảnh</span>
         </label>
@@ -109,7 +109,7 @@
           </select>
         </div>
       </div>
-      <small style="color: var(--color-muted);">Chụp trực tiếp bằng máy ảnh hoặc chọn tệp JPEG, HEIC (dưới 20 MB).</small>
+      <small style="color: var(--color-muted);">Bấm "Chọn ảnh" để chụp bằng máy ảnh hoặc chọn ảnh có sẵn trong máy (JPEG, HEIC, dưới 20 MB).</small>
 
       <div style="margin-top: 1.25rem;">
         <button type="submit" id="submit-btn" class="btn" style="width: 100%; font-size: 1.05rem;">
