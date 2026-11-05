@@ -372,17 +372,22 @@ th {
   color: var(--color-muted);
 }
 
-/* The browser's own file box speaks the phone's language; this one is in Vietnamese.
-   The input stays in the page (not display: none) so `required` still stops an empty send. */
+/* The browser's own file box speaks the phone's language; these buttons are in Vietnamese.
+   Each input lies invisibly over its button, so a tap opens it without JavaScript. */
 .file-pick {
-  position: relative;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.5rem 0.75rem;
+}
+
+.file-pick__option {
+  position: relative;
+  overflow: hidden;
   cursor: pointer;
 }
 
-.file-pick input[type="file"] {
+.file-pick__option input[type="file"] {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -391,12 +396,13 @@ th {
 }
 
 .file-pick__name {
+  flex-basis: 100%;
   color: var(--color-muted);
   font-size: 0.9rem;
   overflow-wrap: anywhere;
 }
 
-.file-pick:focus-within .file-pick__button {
+.file-pick__option:focus-within {
   outline: 2px solid var(--color-action);
   outline-offset: 2px;
 }
