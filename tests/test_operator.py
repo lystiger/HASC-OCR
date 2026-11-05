@@ -196,6 +196,7 @@ class TestOperatorUpload(unittest.TestCase):
     def test_every_signed_in_page_shows_logout(self):
         html = self.client_op1.get("/operator").text
         self.assertIn('href="/logout"', html)
+        self.assertNotIn("operator1", html)  # no username next to Đăng xuất
         import hashlib
         css = Path(__file__).resolve().parents[1] / "hasc" / "web" / "static" / "css" / "app.css"
         self.assertIn(f'href="/static/css/app.css?v={hashlib.sha256(css.read_bytes()).hexdigest()[:10]}"', html)
