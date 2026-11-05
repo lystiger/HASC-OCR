@@ -10,6 +10,8 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
+from hasc.excel import style
+
 HEADING_ROW = 5
 FIRST_DATA_ROW = 7
 FREEZE_CELL = f"A{FIRST_DATA_ROW}"
@@ -215,14 +217,42 @@ def _set_widths(ws, rows: list[dict]) -> None:
     headings = [sub for _, sub, _ in COLUMNS] + [CHECK_HEADING]
     for index, heading in enumerate(headings, start=1):
         field = COLUMNS[index - 1][2] if index <= len(COLUMNS) else None
-        base = COLUMN_WIDTHS.get(field, 10)
-        width = max(len(heading), 10)
+        # Number columns stay narrow and their headings wrap, so the page prints readable on A4.
+        base = COLUMN_WIDTHS.get(field, 7 if field in NUMERIC_FIELDS else 10)
+        width = base if field in NUMERIC_FIELDS else max(len(heading), 10)
         for row in rows:
             cell_data = row.get("cells", {}).get(field) if field else None
             if cell_data and cell_data.get("value") is not None:
                 width = max(width, len(str(cell_data["value"])))
         ws.column_dimensions[get_column_letter(index)].width = max(base, min(width + 2, 40))
-    ws.column_dimensions[get_column_letter(len(COLUMNS) + 1)].width = 30
+    ws.column_dimensions[get_column_letter(len(COLUMNS) + 1)].width = 24
+
+
+def _style(ws, row_count: int) -> None:
+    last_column = len(COLUMNS) + 1
+    last_row = FIRST_DATA_ROW + max(row_count, 1) - 1
+    style.use_house_font(ws)
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=last_column)
+    ws["A1"].font = style.font(ws["A1"], size=14, bold=True, color=style.ACCENT)
+    ws["A1"].alignment = style.CENTRE
+    ws.row_dimensions[1].height = 26
+    ws["A4"].font = style.font(ws["A4"], bold=True)
+    for column in range(2, 2 + len(LEGEND)):
+        cell = ws.cell(row=4, column=column)
+        cell.alignment = style.CENTRE
+        cell.border = style.GRID
+    style.shade_heading(ws, HEADING_ROW, HEADING_ROW + 1, last_column)
+    ws.row_dimensions[HEADING_ROW].height = 22
+    ws.row_dimensions[HEADING_ROW + 1].height = 30
+    style.frame(ws, FIRST_DATA_ROW, last_row, last_column)
+    for row in ws.iter_rows(min_row=FIRST_DATA_ROW, max_row=last_row, max_col=last_column):
+        ws.row_dimensions[row[0].row].height = style.ROW_HEIGHT
+        for cell in row:
+            field = COLUMNS[cell.column - 1][2] if cell.column <= len(COLUMNS) else None
+            cell.alignment = style.CENTRE if field in NUMERIC_FIELDS or field in ("machine", "roll_code") else style.MIDDLE
+            if field and field.endswith("_kg"):
+                cell.number_format = style.KG_FORMAT
+    style.print_setup(ws, f"{HEADING_ROW}:{HEADING_ROW + 1}")
 
 
 def _write_meta(wb: Workbook, sheet: dict, rows: list[dict]) -> None:
@@ -246,6 +276,7 @@ def build_page_workbook(sheet: dict, rows: list[dict]) -> Workbook:
     _write_headings(ws)
     _write_rows(ws, prepared_rows)
     _set_widths(ws, prepared_rows)
+    _style(ws, len(prepared_rows))
     ws.freeze_panes = FREEZE_CELL
     _write_meta(wb, sheet, rows)
     return wb
