@@ -36,11 +36,15 @@ Optional arguments:
 
 The website is a FastAPI application rendered with server-side templates and htmx.
 
-1. Set the database path (optional, defaults to `./hasc.db`):
+1. Set the database path and optional photo directory:
 
 ```bash
 export HASC_DB_PATH="hasc.db"
+# Optional photo folder setting (defaults to photos/ beside the database, or ~/.local/share/hasc/photos):
+export HASC_PHOTOS_DIR="$HOME/.local/share/hasc/photos"
 ```
+
+The photo folder setting `HASC_PHOTOS_DIR` specifies where uploaded photos are saved. When unset, photos default to a `photos/` folder alongside `HASC_DB_PATH`, or `~/.local/share/hasc/photos`.
 
 2. Start the web server with Uvicorn:
 
@@ -59,14 +63,14 @@ The worker runs as a separate background process, reading photos from the queue 
 
 ### Worker Environment File (Kept Outside the Repository)
 
-To keep API keys and proprietary names outside git, configure worker settings in an env file stored outside the repository (for example at `~/.config/hasc/worker.env`):
+To keep API keys and proprietary names outside git, configure worker settings in an env file stored outside the repository (for example at `~/.config/hasc/worker.env`), setting `HASC_READER_MODEL=google/gemini-3.8-flash` and optionally `HASC_READER_FALLBACK=qwen/qwen3.8-27b`:
 
 ```ini
 OPENROUTER_API_KEY=your_openrouter_api_key_here
-HASC_READER_MODEL=google/gemini-2.5-flash
+HASC_READER_MODEL=google/gemini-3.8-flash
 HASC_KNOWN_NAMES=/absolute/path/outside/repo/known_names.json
 # Optional fallback model:
-# HASC_READER_FALLBACK=google/gemini-2.5-pro
+# HASC_READER_FALLBACK=qwen/qwen3.8-27b
 ```
 
 ### Starting the Worker
@@ -75,8 +79,9 @@ Set `HASC_WORKER_ENV` pointing to your external env file, then start the worker:
 
 ```bash
 export HASC_WORKER_ENV="$HOME/.config/hasc/worker.env"
-# Optional if database is not in the default location:
+# Optional if database or photo directory are not in default locations:
 # export HASC_DB_PATH="hasc.db"
+# export HASC_PHOTOS_DIR="$HOME/.local/share/hasc/photos"
 
 python3 -m hasc.worker
 ```
@@ -86,6 +91,16 @@ To run the worker once (process all currently queued jobs until empty, then exit
 ```bash
 python3 -m hasc.worker --once
 ```
+
+## Daily Report (Báo cáo sản xuất ngày)
+
+The daily report aggregates production sheets across Ca 1 and Ca 2 for a given date into an Excel spreadsheet (form `HASC281224`).
+
+- **Endpoint**: `GET /api/days/{production_date}/report` (date format `YYYY-MM-DD`, e.g. `/api/days/2026-11-04/report`).
+- **File Name**: Downloaded as `HASC_BaoCaoNgay_{YYYY-MM-DD}.xlsx` (e.g. `HASC_BaoCaoNgay_2026-11-04.xlsx`).
+- **Office Date Picker**: On the office review screen (`/office`), a date input labeled "Báo cáo ngày:" defaults to yesterday's date. Selecting a date updates the download link to fetch that day's report.
+- **Who Can View**: Restricted to `employee`, `boss`, and `admin` roles. The `operator` role is forbidden (HTTP 403). Unauthenticated requests return HTTP 401.
+- **Ghi chú `Chưa xác nhận`**: The report summarizes production lines by machine, customer, film type, and product code. If any sheet contributing to a summarized line has not yet been reviewed and confirmed by the office (`status != "reviewed"`), that line's Ghi chú column is marked `Chưa xác nhận`. When all contributing sheets are reviewed, the note remains blank. Waste, pending goods, and signature columns are left blank for manual office entry.
 
 ## Running Checks
 
