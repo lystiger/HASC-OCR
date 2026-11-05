@@ -86,21 +86,33 @@
 
       {% set machines = ['T1', 'T3', 'T6'] %}
       <div class="photo-pick">
-        <label class="photo-pick__title" for="front-input">Ảnh 1 · mặt trước</label>
-        <label class="file-pick">
-          <input type="file" id="front-input" name="file_front" aria-label="Ảnh 1, mặt trước" accept="image/*,.heic,.heif" required />
-          <span class="btn btn--secondary btn--small file-pick__button">Chọn ảnh</span>
+        <div class="photo-pick__title">Ảnh 1 · mặt trước</div>
+        <div class="file-pick" role="group" aria-label="Ảnh 1, mặt trước">
+          <label class="btn btn--secondary btn--small file-pick__option">
+            Chụp ảnh
+            <input type="file" name="file_front" aria-label="Ảnh 1, mặt trước: chụp ảnh" accept="image/*,.heic,.heif" capture="environment" />
+          </label>
+          <label class="btn btn--secondary btn--small file-pick__option">
+            Chọn ảnh có sẵn
+            <input type="file" name="file_front_saved" aria-label="Ảnh 1, mặt trước: chọn ảnh có sẵn" accept="image/*,.heic,.heif" />
+          </label>
           <span class="file-pick__name" data-empty="Chưa chọn ảnh" aria-live="polite">Chưa chọn ảnh</span>
-        </label>
+        </div>
       </div>
 
       <div class="photo-pick">
-        <label class="photo-pick__title" for="back-input">Ảnh 2 · mặt sau <span class="photo-pick__hint">(bỏ trống nếu mặt sau không có số liệu)</span></label>
-        <label class="file-pick">
-          <input type="file" id="back-input" name="file_back" aria-label="Ảnh 2, mặt sau" accept="image/*,.heic,.heif" />
-          <span class="btn btn--secondary btn--small file-pick__button">Chọn ảnh</span>
+        <div class="photo-pick__title">Ảnh 2 · mặt sau <span class="photo-pick__hint">(bỏ trống nếu mặt sau không có số liệu)</span></div>
+        <div class="file-pick" role="group" aria-label="Ảnh 2, mặt sau">
+          <label class="btn btn--secondary btn--small file-pick__option">
+            Chụp ảnh
+            <input type="file" name="file_back" aria-label="Ảnh 2, mặt sau: chụp ảnh" accept="image/*,.heic,.heif" capture="environment" />
+          </label>
+          <label class="btn btn--secondary btn--small file-pick__option">
+            Chọn ảnh có sẵn
+            <input type="file" name="file_back_saved" aria-label="Ảnh 2, mặt sau: chọn ảnh có sẵn" accept="image/*,.heic,.heif" />
+          </label>
           <span class="file-pick__name" data-empty="Chưa chọn ảnh" aria-live="polite">Chưa chọn ảnh</span>
-        </label>
+        </div>
         <div class="form-field" style="margin: 0.75rem 0 0;">
           <label for="back-machine-select">Máy của mặt sau</label>
           <select id="back-machine-select" name="back_machine">
@@ -109,7 +121,7 @@
           </select>
         </div>
       </div>
-      <small style="color: var(--color-muted);">Bấm "Chọn ảnh" để chụp bằng máy ảnh hoặc chọn ảnh có sẵn trong máy (JPEG, HEIC, dưới 20 MB).</small>
+      <small style="color: var(--color-muted);">"Chụp ảnh" mở máy ảnh; "Chọn ảnh có sẵn" lấy ảnh đã chụp trong máy (JPEG, HEIC, dưới 20 MB).</small>
 
       <div style="margin-top: 1.25rem;">
         <button type="submit" id="submit-btn" class="btn" style="width: 100%; font-size: 1.05rem;">
@@ -166,13 +178,36 @@
       btn.textContent = "Gửi: " + machine + " · Ca " + shift + " · " + dateText + " · Tờ " + page;
     }
 
-    // Show the chosen photo's name in Vietnamese, in place of the browser's own file box.
-    document.querySelectorAll(".file-pick input[type=file]").forEach(function (input) {
-      input.addEventListener("change", function () {
-        const name = input.parentElement.querySelector(".file-pick__name");
-        name.textContent = input.files.length ? "Đã chọn: " + input.files[0].name : name.dataset.empty;
+    // Show the chosen photo's name in Vietnamese. One side keeps one photo: choosing with one
+    // button clears the other, so the camera photo and a saved photo are never both sent.
+    document.querySelectorAll(".file-pick").forEach(function (group) {
+      const inputs = group.querySelectorAll("input[type=file]");
+      const name = group.querySelector(".file-pick__name");
+      inputs.forEach(function (input) {
+        input.addEventListener("change", function () {
+          if (!input.files.length) {
+            // A cancelled picker keeps the photo chosen with the other button.
+            const kept = [...inputs].find(function (other) { return other.files.length; });
+            name.textContent = kept ? "Đã chọn: " + kept.files[0].name : name.dataset.empty;
+            return;
+          }
+          inputs.forEach(function (other) { if (other !== input) other.value = ""; });
+          name.textContent = "Đã chọn: " + input.files[0].name;
+        });
       });
     });
+
+    // Ảnh 1 is needed: stop the send here rather than after the upload.
+    const uploadForm = document.getElementById("upload-form");
+    if (uploadForm) {
+      uploadForm.addEventListener("submit", function (event) {
+        const front = uploadForm.querySelectorAll("input[name^=file_front]");
+        if (![...front].some(function (input) { return input.files.length; })) {
+          event.preventDefault();
+          alert("Chưa chọn Ảnh 1 (mặt trước)");
+        }
+      });
+    }
 
     const form = document.getElementById("upload-form");
     if (form) {

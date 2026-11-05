@@ -171,16 +171,22 @@ class TestOperatorUpload(unittest.TestCase):
 
         # File input accepting phone camera
         self.assertIn('accept="image/*,.heic,.heif"', html)
-        # No `capture`: it makes Android open only the camera, with no way to pick a photo
-        # already taken (spec section 4, P25, P109).
-        self.assertNotIn("capture=", html)
+        # Each photo has two buttons (P122): the camera input has `capture`, the saved-photo
+        # input must not, or Android opens only the camera (spec section 4, P25, P109).
+        self.assertEqual(html.count('capture="environment"'), 2)
+        self.assertIn("Chụp ảnh", html)
+        self.assertIn("Chọn ảnh có sẵn", html)
+        import re
+        saved_inputs = re.findall(r'<input[^>]*name="file_(?:front|back)_saved"[^>]*>', html)
+        self.assertEqual(len(saved_inputs), 2)
+        for saved in saved_inputs:
+            self.assertNotIn("capture", saved)
 
         # Submit button labelled like 'Gửi: T1 · Ca ...'
         self.assertIn("Gửi: T1 · Ca", html)
         self.assertIn("Tờ 1", html)
         self.assertIn("Ảnh 1 · mặt trước", html)
         self.assertIn("Ảnh 2 · mặt sau", html)
-        self.assertIn("Chọn ảnh", html)
 
         # Also accessible via /operator
         res_op = self.client_op1.get("/operator")
@@ -250,6 +256,20 @@ class TestOperatorUpload(unittest.TestCase):
         for paper, back_machine in (("0", "T3"), ("51", "T3"), ("1", "X9")):
             res = self.send_paper(paper_no=paper, back_machine=back_machine)
             self.assertEqual(res.status_code, 200)
+        self.assertEqual(self.pages(), [])
+
+    def test_saved_photos_are_sent_like_camera_photos(self):
+        files = {"file_front": ("", b"", "application/octet-stream"),
+                 "file_front_saved": ("front.jpg", make_test_table_jpeg(), "image/jpeg"),
+                 "file_back_saved": ("back.jpg", make_test_table_jpeg(), "image/jpeg")}
+        self.client_op1.post("/operator/upload", files=files, data={
+            "machine": "T6", "back_machine": "T3", "production_date": "2026-11-04", "shift": "1", "paper_no": "1"})
+        self.assertEqual(self.pages(), [("T6", 1), ("T3", 2)])
+
+    def test_no_front_photo_sends_nothing(self):
+        res = self.client_op1.post("/operator/upload", files={"file_front": ("", b"", "application/octet-stream")},
+                                   data={"machine": "T6", "production_date": "2026-11-04", "shift": "1"})
+        self.assertIn("Ảnh 1 (mặt trước): chưa chọn ảnh", res.text)
         self.assertEqual(self.pages(), [])
 
     def test_a_bad_back_photo_sends_nothing(self):

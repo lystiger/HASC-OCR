@@ -600,6 +600,16 @@ def operator_uploads_partial(
     )
 
 
+def _chosen(*uploads: Optional[UploadFile]) -> tuple[Optional[UploadFile], bytes]:
+    """The first input that holds a photo; a browser sends an unused file input as an empty part."""
+    for upload in uploads:
+        if upload is not None and upload.filename:
+            content = upload.file.read()
+            if content:
+                return upload, content
+    return None, b""
+
+
 def paper_pages(paper_no: int) -> tuple[int, int]:
     """Paper n is two pages: its front is Trang 2n-1 and its back Trang 2n (P121)."""
     return 2 * paper_no - 1, 2 * paper_no
@@ -608,8 +618,10 @@ def paper_pages(paper_no: int) -> tuple[int, int]:
 @router.post("/operator/upload", response_class=HTMLResponse)
 def operator_upload_submit(
     request: Request,
-    file_front: UploadFile = File(...),
+    file_front: Optional[UploadFile] = File(None),
+    file_front_saved: Optional[UploadFile] = File(None),
     file_back: Optional[UploadFile] = File(None),
+    file_back_saved: Optional[UploadFile] = File(None),
     machine: str = Form(...),
     back_machine: Optional[str] = Form(None),
     production_date: str = Form(...),
@@ -619,7 +631,10 @@ def operator_upload_submit(
     user: dict = Depends(require_role("upload_photo")),
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    """One paper: Ảnh 1 is its front, Ảnh 2 (optional) its back, which may be another machine (P101)."""
+    """One paper: Ảnh 1 is its front, Ảnh 2 (optional) its back, which may be another machine (P101).
+
+    Each side has two inputs: `file_<side>` opens the camera, `file_<side>_saved` picks a saved photo (P122).
+    """
     photos_dir = getattr(request.app.state, "photos_dir", None)
     if not photos_dir:
         photos_dir = get_default_photos_dir(db_path=getattr(request.app.state, "db_path", None))
@@ -631,13 +646,16 @@ def operator_upload_submit(
     if machine not in ALLOWED_MACHINES or back_machine not in ALLOWED_MACHINES:
         return render_operator_screen(request, user, conn, error="Máy không hợp lệ")
     front_page, back_page = paper_pages(paper_no)
-    sides = [("Ảnh 1 (mặt trước)", file_front, machine, front_page)]
-    back_bytes = file_back.file.read() if file_back is not None and file_back.filename else b""
-    if back_bytes:
-        sides.append(("Ảnh 2 (mặt sau)", file_back, back_machine, back_page))
+    front, front_bytes = _chosen(file_front, file_front_saved)
+    back, back_bytes = _chosen(file_back, file_back_saved)
+    if front is None:
+        return render_operator_screen(request, user, conn, error="Ảnh 1 (mặt trước): chưa chọn ảnh")
+    sides = [("Ảnh 1 (mặt trước)", front, machine, front_page)]
+    if back is not None:
+        sides.append(("Ảnh 2 (mặt sau)", back, back_machine, back_page))
 
     # Check every photo before saving any, so a bad back photo does not leave the front sent alone.
-    contents = [file_front.file.read()] + ([back_bytes] if back_bytes else [])
+    contents = [front_bytes] + ([back_bytes] if back is not None else [])
     for (label, *_), file_bytes in zip(sides, contents):
         if len(file_bytes) > MAX_FILE_SIZE or not is_valid_image(file_bytes)[0]:
             reason = "Tập tin vượt quá dung lượng tối đa 20 MB" if len(file_bytes) > MAX_FILE_SIZE else "Tập tin không phải là hình ảnh hợp lệ"
