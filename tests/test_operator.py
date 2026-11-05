@@ -186,7 +186,9 @@ class TestOperatorUpload(unittest.TestCase):
         html = self.client_op1.get("/operator").text
         self.assertIn('href="/logout"', html)
         self.assertIn("operator1 · Trưởng ca", html)
-        self.assertRegex(html, r'href="/static/css/app\.css\?v=[0-9a-f]{10}"')
+        import hashlib
+        css = Path(__file__).resolve().parents[1] / "hasc" / "web" / "static" / "css" / "app.css"
+        self.assertIn(f'href="/static/css/app.css?v={hashlib.sha256(css.read_bytes()).hexdigest()[:10]}"', html)
         office = TestClient(self.app)
         office.post("/api/login", json={"username": "employee1", "password": "pass"})
         for page in ("/office", "/change-password"):
