@@ -182,6 +182,17 @@ class TestOperatorUpload(unittest.TestCase):
         self.assertEqual(res_op.status_code, 200)
         self.assertIn("Tải lên biểu mẫu sản xuất", res_op.text)
 
+    def test_every_signed_in_page_shows_the_user_and_logout(self):
+        html = self.client_op1.get("/operator").text
+        self.assertIn('href="/logout"', html)
+        self.assertIn("operator1 · Trưởng ca", html)
+
+    def test_upload_times_show_in_vietnam_time(self):
+        from hasc.web.app import vn_date, vn_time
+        self.assertEqual(vn_time("2026-11-04T15:31:02.604008+00:00"), "04/11/2026 22:31")
+        self.assertEqual(vn_time("2026-11-04T22:30:50"), "04/11/2026 22:30")
+        self.assertEqual(vn_date("2026-10-30"), "30/10/2026")
+
     def test_button_label_with_midnight_to_7am_clock(self):
         """Button labelled like 'Gửi: T1 · Ca 2 · 19/10 · Trang 1' when between midnight and 7am."""
         from starlette.requests import Request as StarletteRequest

@@ -2,13 +2,6 @@
 
 {% block title %}Chi tiết biểu mẫu #{{ sheet.id }} – HASC VN{% endblock %}
 
-{% block nav %}
-<span style="font-size: 0.9rem; color: var(--color-muted); margin-right: 0.75rem;">
-  {{ user.username }} ({{ user.role }})
-</span>
-<a href="/logout">Đăng xuất</a>
-{% endblock %}
-
 {% block content %}
 <div style="max-width: 960px; margin: 1.5rem auto;">
   <div style="margin-bottom: 1rem;">
@@ -40,7 +33,7 @@
     <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 0.75rem;">
       <div>
         <h1 style="margin: 0; font-size: 1.4rem;">
-          Biểu mẫu Máy {{ sheet.machine }} · {{ sheet.production_date }} · Ca {{ sheet.shift }} · Trang {{ sheet.page_no }}
+          Biểu mẫu Máy {{ sheet.machine }} · {{ sheet.production_date|vndate }} · Ca {{ sheet.shift }} · Trang {{ sheet.page_no }}
         </h1>
         <div style="font-size: 0.85rem; color: var(--color-muted); margin-top: 0.35rem;">
           Mã số mẫu: {{ sheet.form }} · Phiên bản: <strong class="num">{{ sheet.version }}</strong>
@@ -84,7 +77,7 @@
       </div>
       <div>
         <span style="color: var(--color-muted);">Cập nhật trạng thái:</span><br />
-        <span class="num" style="font-size: 0.85rem;">{{ sheet.status_since }}</span>
+        <span class="num" style="font-size: 0.85rem;">{{ sheet.status_since|vntime }}</span>
       </div>
     </div>
   </div>
@@ -92,7 +85,7 @@
   <!-- Actions Card (Pick-up, Excel Download, Đúng xác nhận) -->
   <div class="card" style="margin-bottom: 1.5rem;">
     <h2 style="font-size: 1.15rem; margin-bottom: 0.75rem;">Thao tác xử lý biểu mẫu</h2>
-    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
+    <div class="action-row">
 
       <!-- Pick-up action -->
       {% if sheet.status != 'reviewed' %}
@@ -145,9 +138,9 @@
             </a>
           </div>
           <div style="font-size: 0.85rem; color: var(--color-muted);">
-            <div>Ảnh #{{ photo.id }} · Tải lên lúc: <span class="num">{{ photo.uploaded_at }}</span></div>
+            <div>Ảnh #{{ photo.id }} · Tải lên lúc: <span class="num">{{ photo.uploaded_at|vntime }}</span></div>
             {% if photo.taken_at %}
-            <div>Chụp lúc: <span class="num">{{ photo.taken_at }}</span></div>
+            <div>Chụp lúc: <span class="num">{{ photo.taken_at|vntime }}</span></div>
             {% endif %}
             <div style="margin-top: 0.35rem;">
               {% if user.role in ("employee", "boss") %}<a href="/api/photos/{{ photo.id }}/download" download style="text-decoration: underline;">Tải ảnh gốc</a>{% endif %}
