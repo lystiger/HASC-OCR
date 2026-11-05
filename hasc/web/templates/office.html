@@ -18,7 +18,17 @@
         Biểu mẫu Cần kiểm tra, Đang kiểm tra và Lỗi (ưu tiên quá hạn lên đầu)
       </p>
     </div>
-    <div>
+    <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+      <div style="display: flex; align-items: center; gap: 0.4rem;">
+        <label for="daily-report-date" style="font-size: 0.85rem; color: var(--color-muted);">Báo cáo ngày:</label>
+        <input type="date" id="daily-report-date" name="daily_report_date" value="{{ yesterday }}" style="font-size: 0.85rem; padding: 0.35rem 0.5rem;"
+               onchange="document.getElementById('daily-report-link').href='/api/days/' + this.value + '/report'" />
+        <a id="daily-report-link" href="/api/days/{{ yesterday }}/report"
+           onclick="this.href='/api/days/' + (document.getElementById('daily-report-date').value || '{{ yesterday }}') + '/report'"
+           class="btn btn--secondary" style="font-size: 0.9rem; padding: 0.4rem 0.8rem; min-height: unset;">
+          Báo cáo ngày
+        </a>
+      </div>
       <a href="/office" class="btn btn--secondary" style="font-size: 0.9rem; padding: 0.4rem 0.8rem; min-height: unset;">
         Làm mới
       </a>

@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 import io
 from pathlib import Path
 import sqlite3
@@ -238,12 +238,14 @@ def render_office_screen(
         include_all_statuses=(status is not None),
     )
     templates = request.app.state.templates
+    yesterday = (datetime.now().date() - timedelta(days=1)).isoformat()
     return templates.TemplateResponse(
         request=request,
         name="office.html",
         context={
             "user": user,
             "sheets": sheets,
+            "yesterday": yesterday,
             "filters": {
                 "machine": machine or "",
                 "date": date or "",
