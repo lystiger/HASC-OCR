@@ -141,7 +141,7 @@
         <div style="border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 0.75rem; background: var(--color-page);">
           <div style="aspect-ratio: 4/3; overflow: hidden; border-radius: 4px; background: #000000; display: flex; align-items: center; justify-content: center; margin-bottom: 0.5rem;">
             <a href="/api/photos/{{ photo.id }}" target="_blank" title="Xem ảnh gốc cỡ lớn">
-              <img src="/api/photos/{{ photo.id }}" alt="Ảnh phiếu #{{ photo.id }}" style="max-width: 100%; max-height: 100%; object-fit: contain; display: block;" loading="lazy" />
+              <img src="/api/photos/{{ photo.id }}/display" alt="Ảnh phiếu #{{ photo.id }}" style="max-width: 100%; max-height: 100%; object-fit: contain; display: block;" loading="lazy" />
             </a>
           </div>
           <div style="font-size: 0.85rem; color: var(--color-muted);">
@@ -149,6 +149,9 @@
             {% if photo.taken_at %}
             <div>Chụp lúc: <span class="num">{{ photo.taken_at }}</span></div>
             {% endif %}
+            <div style="margin-top: 0.35rem;">
+              {% if user.role in ("employee", "boss") %}<a href="/api/photos/{{ photo.id }}/download" download style="text-decoration: underline;">Tải ảnh gốc</a>{% endif %}
+            </div>
             {% if photo.quality_warnings %}
             <div class="alert" style="background: #FEFCE8; color: #854D0E; border: 1px solid #FEF08A; padding: 0.35rem 0.5rem; margin-top: 0.35rem; font-size: 0.8rem;">
               <strong>Lưu ý:</strong> {{ photo.quality_warnings }}

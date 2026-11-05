@@ -18,7 +18,14 @@
         Biểu mẫu Cần kiểm tra, Đang kiểm tra và Lỗi (ưu tiên quá hạn lên đầu)
       </p>
     </div>
-    <div>
+    <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+      <form method="get" action="/office/report" style="display: flex; align-items: center; gap: 0.4rem; margin: 0;">
+        <label for="daily-report-date" style="font-size: 0.85rem; color: var(--color-muted);">Báo cáo ngày:</label>
+        <input type="date" id="daily-report-date" name="date" value="{{ yesterday }}" required style="font-size: 0.85rem; padding: 0.35rem 0.5rem;" />
+        <button type="submit" class="btn btn--secondary" style="font-size: 0.9rem; padding: 0.4rem 0.8rem; min-height: unset;">
+          Báo cáo ngày
+        </button>
+      </form>
       <a href="/office" class="btn btn--secondary" style="font-size: 0.9rem; padding: 0.4rem 0.8rem; min-height: unset;">
         Làm mới
       </a>

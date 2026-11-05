@@ -9,6 +9,7 @@ from pathlib import Path
 from hasc.db import (
     create_event,
     create_row,
+    get_default_photos_dir,
     get_page_values,
     get_photo_by_id,
     get_rows_for_sheet,
@@ -55,22 +56,44 @@ def recover_running_jobs(conn):
     return len(stuck)
 
 
-def run_pending(conn, reader, scratch_dir):
+def resolve_photo_path(photo_path_str: str | Path, photos_dir: Path | None = None) -> Path:
+    """Resolve photo file path, looking in photos_dir if relative or missing."""
+    p = Path(photo_path_str)
+    if photos_dir is not None:
+        photos_dir = Path(photos_dir)
+        if not p.is_absolute():
+            candidate = photos_dir / p
+            if candidate.is_file():
+                return candidate
+            candidate_name = photos_dir / p.name
+            if candidate_name.is_file():
+                return candidate_name
+        elif not p.is_file():
+            candidate_name = photos_dir / p.name
+            if candidate_name.is_file():
+                return candidate_name
+    return p
+
+
+def run_pending(conn, reader, scratch_dir, photos_dir=None):
     """Work the queue until no job is queued. Returns how many jobs were claimed."""
     count = 0
     while (job := claim_job(conn)) is not None:
-        process_job(conn, job, reader, scratch_dir)
+        process_job(conn, job, reader, scratch_dir, photos_dir=photos_dir)
         count += 1
     return count
 
 
-def process_job(conn, job, reader, scratch_dir):
+def process_job(conn, job, reader, scratch_dir, photos_dir=None):
     """Run one claimed job. Returns 'done', 'queued' (to retry) or 'failed'."""
     photo = get_photo_by_id(conn, job["photo_id"])
     update_sheet_status(conn, photo["sheet_id"], "reading")
+    if photos_dir is None:
+        photos_dir = get_default_photos_dir()
+    file_path = resolve_photo_path(photo["path"], photos_dir)
     try:
         upright_path = Path(scratch_dir) / f"job{job['id']}.jpg"
-        upright_path.write_bytes(upright(Path(photo["path"]).read_bytes()))
+        upright_path.write_bytes(upright(file_path.read_bytes()))
         result = reader.read(str(upright_path))
     except (ReaderError, OSError) as error:
         not_a_sheet = getattr(error, "kind", None) == "not_form_a"  # retrying the same photo cannot help
@@ -94,6 +117,20 @@ def carry_down(rows):
                 row["cells"][field] = {**cell, "inherited": True}
 
 
+def fill_roll_codes(rows, start=0):
+    """Fill a blank roll_code with the row's 1-based position on the page (brief P118, P119; criterion 55).
+
+    A roll code written on the paper always wins and is never renumbered.
+    The filled roll code is marked as an inherited value so page Excel greys it,
+    the operator problem list names the roll, and the rows table row_key matches.
+    """
+    for index, row in enumerate(rows, start=start + 1):
+        cell = row["cells"].get("roll_code")
+        if not cell or (not cell.get("unreadable") and (cell.get("value") is None or str(cell.get("value")).strip() == "")):
+            row["cells"]["roll_code"] = {"value": str(index), "inherited": True, "doubt": False}
+
+
+
 def _record_failure(conn, job, error, not_retryable=False):
     photo = get_photo_by_id(conn, job["photo_id"])
     sheet_id = photo["sheet_id"]
@@ -115,6 +152,7 @@ def _write_result(conn, photo, result):
             upsert_page_value(conn, sheet_id, field, cell["value"], source_photo_id=photo_id,
                               flag="doubt" if cell["doubt"] else None)
     start = len(get_rows_for_sheet(conn, sheet_id, include_invalid=True))
+    fill_roll_codes(result["rows"], start)
     flagged = 0
     for offset, row in enumerate(result["rows"]):
         roll = row["cells"].get("roll_code", {}).get("value")
@@ -126,6 +164,8 @@ def _write_result(conn, photo, result):
             flag, note = flags[field]
             upsert_cell(conn, row_id, field, _text(cell["value"]), inherited=int(bool(cell.get("inherited"))),
                         source="ai", source_photo_id=photo_id, flag=flag, note=note)
+    with conn:
+        conn.execute("UPDATE sheets SET layout = ? WHERE id = ?", (layout, sheet_id))
     if result["rows"]:
         increment_sheet_version(conn, sheet_id)
     create_event(conn, None, "read_done", sheet_id=sheet_id,

@@ -12,12 +12,15 @@ from hasc.db import (
     create_photo,
     create_read_job,
     create_sheet,
+    create_user,
     get_connection,
     get_read_job_by_id,
     get_sheet_by_id,
     get_sheet_data,
 )
 from hasc.reader.reader import CloudReader, ReaderError
+from hasc.web.operator import get_operator_uploads
+from hasc.web.security import hash_password
 from hasc.worker import config, jobs
 from hasc.worker.__main__ import main
 from tests.test_import_boundaries import REPO_ROOT, extract_imports
@@ -64,12 +67,13 @@ class WorkerTest(unittest.TestCase):
         self.scratch = self.root / "scratch"
         self.scratch.mkdir()
 
-    def queue(self, shift=1, width=200, height=100):
+    def queue(self, shift=1, width=200, height=100, uploaded_by=None):
         sheet_id = create_sheet(self.conn, form="BMMT01-2022/HASC", machine="T6",
                                 production_date="2026-10-21", shift=shift)
         path = self.root / f"photo{shift}.jpg"
         path.write_bytes(jpeg(width, height))
-        photo_id = create_photo(self.conn, sheet_id=sheet_id, path=str(path), sha256=f"hash{shift}")
+        photo_id = create_photo(self.conn, sheet_id=sheet_id, path=str(path), sha256=f"hash{shift}",
+                                uploaded_by=uploaded_by)
         job_id = create_read_job(self.conn, photo_id=photo_id)
         return sheet_id, job_id
 
@@ -215,9 +219,109 @@ class CarryDownAndRules(WorkerTest):
         self.assertEqual(self.cells(1)[0]["gross_kg"]["flag"], "none")
 
     def test_back_side_skips_the_weight_rule(self):
-        self.queue()
+        sheet_id, _ = self.queue()
         self.drain(result(row(roll_code="1", gross_kg=17.6, core_kg=0.8, net_kg=1.0), layout="back"))
-        self.assertEqual(self.cells(1)[0]["net_kg"]["flag"], "none")
+        self.assertEqual(self.cells(sheet_id)[0]["net_kg"]["flag"], "none")
+        self.assertEqual(get_sheet_by_id(self.conn, sheet_id)["layout"], "back")
+
+
+class RollCodeFill(WorkerTest):
+    def test_all_blank_roll_codes_filled_with_page_position_and_marked_inherited(self):
+        sheet_id, _ = self.queue()
+        self.drain(result(
+            row(customer="AB", film_type="GT", gross_kg=15.8, core_kg=2.2, cover_kg=0.4, net_kg=13.2),
+            row(gross_kg=10.0, core_kg=1.0, cover_kg=0.5, net_kg=8.5),
+            {"cells": {"roll_code": {"value": None, "doubt": False}, "net_kg": {"value": 9.0, "doubt": False}}},
+        ))
+        data = get_sheet_data(self.conn, sheet_id)
+        self.assertEqual(len(data), 3)
+
+        self.assertEqual(data[0]["row_key"], "1")
+        self.assertEqual(data[0]["cells"]["roll_code"]["value"], "1")
+        self.assertTrue(data[0]["cells"]["roll_code"]["inherited"])
+
+        self.assertEqual(data[1]["row_key"], "2")
+        self.assertEqual(data[1]["cells"]["roll_code"]["value"], "2")
+        self.assertTrue(data[1]["cells"]["roll_code"]["inherited"])
+
+        self.assertEqual(data[2]["row_key"], "3")
+        self.assertEqual(data[2]["cells"]["roll_code"]["value"], "3")
+        self.assertTrue(data[2]["cells"]["roll_code"]["inherited"])
+
+    def test_mixed_blank_and_written_roll_codes_preserve_written_codes(self):
+        sheet_id, _ = self.queue()
+        self.drain(result(
+            row(roll_code="10", customer="AB", net_kg=13.2),
+            row(net_kg=12.0),
+            row(roll_code="25", net_kg=11.0),
+            {"cells": {"roll_code": {"value": "", "doubt": False}, "net_kg": {"value": 10.0, "doubt": False}}},
+        ))
+        data = get_sheet_data(self.conn, sheet_id)
+        self.assertEqual([d["row_key"] for d in data], ["10", "2", "25", "4"])
+        self.assertEqual([d["cells"]["roll_code"]["value"] for d in data], ["10", "2", "25", "4"])
+        self.assertFalse(data[0]["cells"]["roll_code"]["inherited"])
+        self.assertTrue(data[1]["cells"]["roll_code"]["inherited"])
+        self.assertFalse(data[2]["cells"]["roll_code"]["inherited"])
+        self.assertTrue(data[3]["cells"]["roll_code"]["inherited"])
+
+    def test_second_photo_of_a_sheet_continues_the_numbering(self):
+        sheet_id, _ = self.queue()
+        self.drain(result(row(net_kg=13.2), row(net_kg=12.0)))
+        photo_id = create_photo(self.conn, sheet_id=sheet_id, path=str(self.root / "photo1.jpg"), sha256="hash1b")
+        create_read_job(self.conn, photo_id=photo_id)
+        self.drain(result(row(net_kg=11.0)))
+        self.assertEqual([d["row_key"] for d in get_sheet_data(self.conn, sheet_id)], ["1", "2", "3"])
+
+    def test_written_roll_code_is_never_renumbered_even_when_out_of_order(self):
+        sheet_id, _ = self.queue()
+        self.drain(result(
+            row(customer="AB", net_kg=13.2),
+            row(roll_code="1", net_kg=12.0),
+        ))
+        data = get_sheet_data(self.conn, sheet_id)
+        self.assertEqual([d["row_key"] for d in data], ["1", "1"])
+        self.assertTrue(data[0]["cells"]["roll_code"]["inherited"])
+        self.assertFalse(data[1]["cells"]["roll_code"]["inherited"])
+
+    def test_row_key_and_operator_problem_list_naming(self):
+        op_id = create_user(self.conn, "test_op", hash_password("pass"), role="operator", active=1)
+        sheet_id, _ = self.queue(uploaded_by=op_id)
+        bad_weight = row(gross_kg=17.6, core_kg=0.8, net_kg=12.0)  # blank roll_code, fails weight check
+        bad_thick = row(roll_code="88", gross_kg=10.0, core_kg=1.0, net_kg=9.0,
+                        thickness_avg=65, **{f"thickness_{i}": 60 for i in range(1, 7)})
+        unreadable_cell = row(gross_kg=10.0, core_kg=1.0, net_kg=9.0)
+        unreadable_cell["cells"]["customer"] = {"value": None, "doubt": True, "unreadable": True}
+        clean_row = row(gross_kg=10.0, core_kg=1.0, net_kg=9.0)
+
+        self.drain(result(bad_weight, bad_thick, unreadable_cell, clean_row))
+
+        data = get_sheet_data(self.conn, sheet_id)
+        self.assertEqual([d["row_key"] for d in data], ["1", "88", "3", "4"])
+        self.assertEqual([d["cells"]["roll_code"]["value"] for d in data], ["1", "88", "3", "4"])
+        self.assertTrue(data[0]["cells"]["roll_code"]["inherited"])
+        self.assertFalse(data[1]["cells"]["roll_code"]["inherited"])
+        self.assertTrue(data[2]["cells"]["roll_code"]["inherited"])
+        self.assertTrue(data[3]["cells"]["roll_code"]["inherited"])
+
+        uploads = get_operator_uploads(self.conn, op_id)
+        self.assertEqual(len(uploads), 1)
+        problems = uploads[0]["problems"]
+        self.assertEqual(len(problems), 3)
+
+        prob_by_roll = {p["roll_code"]: p for p in problems}
+        self.assertIn("1", prob_by_roll)
+        self.assertEqual(prob_by_roll["1"]["problem"], "weight")
+        self.assertIn("khối lượng", prob_by_roll["1"]["label"].lower())
+
+        self.assertIn("88", prob_by_roll)
+        self.assertEqual(prob_by_roll["88"]["problem"], "thickness")
+        self.assertIn("độ dày", prob_by_roll["88"]["label"].lower())
+
+        self.assertIn("3", prob_by_roll)
+        self.assertEqual(prob_by_roll["3"]["problem"], "unreadable")
+        self.assertIn("không đọc được", prob_by_roll["3"]["label"].lower())
+
+        self.assertNotIn("4", prob_by_roll)
 
 
 class Recovery(WorkerTest):

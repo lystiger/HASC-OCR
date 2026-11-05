@@ -1,4 +1,4 @@
-from hasc.db.connection import get_connection, get_default_db_path, init_db
+from hasc.db.connection import get_connection, get_default_db_path, get_default_photos_dir, init_db
 from hasc.db.migrations import get_applied_migrations, get_migrations_dir, migrate
 from hasc.db.queries import (
     clean_expired_sessions,
@@ -35,6 +35,7 @@ from hasc.db.queries import (
     mark_not_running,
     mark_photo_invalid,
     set_user_active,
+    update_photo_small_copy_path,
     update_read_job,
     update_sheet_status,
     update_user_password,
@@ -45,6 +46,7 @@ from hasc.db.queries import (
 __all__ = [
     "get_connection",
     "get_default_db_path",
+    "get_default_photos_dir",
     "init_db",
     "migrate",
     "get_applied_migrations",
@@ -71,6 +73,7 @@ __all__ = [
     "get_photos_for_sheet",
     "find_photo_by_sha256",
     "mark_photo_invalid",
+    "update_photo_small_copy_path",
     "create_read_job",
     "get_read_job_by_id",
     "get_next_queued_job",

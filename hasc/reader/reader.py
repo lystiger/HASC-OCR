@@ -15,11 +15,14 @@ import urllib.request
 FIELDS = ["machine", "customer", "film_type", "roll_code", "pellet_formula", "mixing_shift_date",
           "thickness_mic", "width_mm", "length_mm", "gross_kg", "core_kg", "cover_kg", "net_kg",
           *(f"thickness_{i}" for i in range(1, 7)), "thickness_avg", "diameter_a", "diameter_b",
-          "production_time", "grammage"]
-NUMBERS = {"gross_kg", "core_kg", "cover_kg", "net_kg", *(f"thickness_{i}" for i in range(1, 7)), "thickness_avg"}
+          "production_time", "grammage", "subtotal_note"]
+NUMBERS = {"gross_kg", "core_kg", "cover_kg", "net_kg", *(f"thickness_{i}" for i in range(1, 7)), "thickness_avg",
+           "subtotal_note"}
 PAGE = ["day", "month", "year", "shift", "names"]
 TRIES = 3
 KEY = re.compile(r"\s+(?=[a-z_0-9]+=)")
+SUBTOTAL_FACTOR = 2  # a thickness_avg above this many times the row's thickest reading is a run subtotal
+SUBTOTAL_FLOOR = 150  # mic; with no thickness on the row, an "average" above the thickest film made (110 mic) is a subtotal
 
 PROMPT = """This photo shows a handwritten Vietnamese production sheet. Write it as plain text lines and nothing else.
 First line: layout=form_a for "Báo cáo chi tiết máy thổi" (columns Cả bì, Lõi, Bìa, Sau trừ bì), layout=back for the "Màng ống" side (columns Tổng KL, Lõi, KL đã trừ), layout=other for anything else. On the same line add day= month= year= shift= names= from Ngày, Tháng, Năm, Ca and the staff names in the "Tên Nhân Viên" box, as written; leave out any that is blank.
@@ -28,7 +31,7 @@ Keys: Khách hàng=customer, Loại màng=film_type, Mã cuộn=roll_code, Dày/
 These columns are usually blank; add them only when something is written: Máy=machine, Công thức hạt=pellet_formula, Ca/ngày trộn hạt=mixing_shift_date, Thông số độ dày 1-6=thickness_1..thickness_6, Trung bình=thickness_avg, Đường kính cuộn A/B=diameter_a/diameter_b, Thời gian sản xuất=production_time, Định lượng=grammage.
 Write values as on paper, with a comma decimal like gross_kg=70,6. A ditto mark (〃, '' or a mark like 11) means the value above: write that value, never 11. A crossed-out value: write only the final one.
 Write customer, film_type, thickness_mic, width_mm and length_mm only on the row where they are written.
-Handwritten subtotals beside the table are not cells: leave them out.
+A bracketed run subtotal written beside a run in the thickness area, like [363,2], is not a thickness: write it as subtotal_note=363,2 on that run's row, never as thickness_avg. Other handwritten subtotals beside the table are not cells: leave them out.
 Put ~ before a value you are not sure of, like net_kg=~16,8. Write ? for a value that cannot be read.
 Customers are written in shorthand. Write customer as the standard name from this list: {customers}.
 Write film_type as the standard name from this list: {products}.
@@ -147,6 +150,7 @@ class CloudReader:
                 if value:
                     cells[field] = self._cell(field, value, doubt)
             if cells:
+                _move_stray_average(cells)
                 rows.append({"cells": cells})
         return {"layout": layout, "rows": rows,
                 "page": {k: {"value": (head.get(k) or "").strip() or None, "doubt": False} for k in PAGE}}
@@ -162,3 +166,16 @@ class CloudReader:
             standard = self.aliases.get((field, " ".join(value.split()).casefold()))
             return {"value": standard or value, "doubt": doubt or standard is None}
         return {"value": value, "doubt": doubt}
+
+
+def _move_stray_average(cells):
+    """A run subtotal read as thickness_avg sits far above the row's thicknesses: move it to subtotal_note."""
+    average = cells.get("thickness_avg")
+    if not average or not isinstance(average["value"], float):
+        return
+    readings = [cells.get(f, {}).get("value") for f in ("thickness_mic", *(f"thickness_{i}" for i in range(1, 7)))]
+    readings = [v for v in readings if isinstance(v, float)]
+    limit = SUBTOTAL_FACTOR * max(readings) if readings else SUBTOTAL_FLOOR
+    if average["value"] > limit:
+        average["doubt"] = True
+        cells["subtotal_note"] = cells.pop("thickness_avg")

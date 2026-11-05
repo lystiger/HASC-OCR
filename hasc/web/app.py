@@ -1,12 +1,14 @@
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+import io
+import os
 from pathlib import Path
 import sqlite3
 from typing import Optional
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -19,12 +21,15 @@ from hasc.db import (
     delete_session,
     delete_user_sessions,
     get_connection,
+    get_default_photos_dir,
+    get_photo_by_id,
     get_user_by_id,
     get_user_by_username,
     init_db,
     set_user_active,
     update_user_password,
 )
+from hasc.excel import build_daily_report, daily_report_filename
 from hasc.web.auth import (
     clear_session_cookie,
     get_active_user,
@@ -92,12 +97,9 @@ def create_app(
         redoc_url=None,
         openapi_url=None,
     )
-    app.state.db_path = db_path
-    app.state.photos_dir = (
-        Path(photos_dir)
-        if photos_dir
-        else (Path(db_path).parent / "photos" if db_path else Path("data/photos"))
-    )
+    effective_db_path = db_path if db_path is not None else os.environ.get("HASC_DB_PATH")
+    app.state.db_path = effective_db_path
+    app.state.photos_dir = get_default_photos_dir(photos_dir=photos_dir, db_path=effective_db_path)
     app.state.secure_cookies = secure_cookies
     app.state.enforce_https = enforce_https
 
@@ -530,6 +532,37 @@ def create_app(
     ):
         raise AppError(code="not_implemented", message="Chức năng này chưa có trong bản S1", status_code=501)
 
+    @app.get("/api/photos/{photo_id}/download")
+    @app.get("/photos/{photo_id}/download")
+    def api_photo_download(
+        photo_id: int,
+        request: Request,
+        user: dict = Depends(require_role("review_sheet")),  # role table row 4: download is office only
+        conn: sqlite3.Connection = Depends(get_db),
+    ):
+        photo = get_photo_by_id(conn, photo_id)
+        if not photo:
+            raise AppError("not_found", "Không tìm thấy ảnh", 404)
+
+        file_path = Path(photo["path"])
+        if not file_path.is_file():
+            photos_dir = getattr(request.app.state, "photos_dir", None)
+            if not photos_dir:
+                photos_dir = get_default_photos_dir(db_path=getattr(request.app.state, "db_path", None))
+            if photos_dir:
+                candidate = Path(photos_dir) / file_path.name
+                if candidate.is_file():
+                    file_path = candidate
+
+        if not file_path.is_file():
+            raise AppError("not_found", "Tệp ảnh không tồn tại trên đĩa", 404)
+
+        return FileResponse(
+            path=str(file_path),
+            filename=file_path.name,
+            media_type="application/octet-stream",
+        )
+
     @app.post("/api/not-running", status_code=201)
     def api_not_running(
         user: dict = Depends(require_role("mark_not_running")),
@@ -547,5 +580,36 @@ def create_app(
         user: dict = Depends(require_role("view_stats")),
     ):
         raise AppError(code="not_implemented", message="Chức năng này chưa có trong bản S1", status_code=501)
+
+    @app.get("/api/days/{production_date}/report")
+    def api_daily_report(
+        production_date: str,
+        user: dict = Depends(require_role("employee", "boss", "admin")),
+        conn: sqlite3.Connection = Depends(get_db),
+    ):
+        try:
+            if len(production_date) != 10:
+                raise ValueError
+            parsed_date = datetime.strptime(production_date, "%Y-%m-%d").date()
+        except ValueError:
+            raise AppError(
+                code="invalid_date",
+                message="Ngày sản xuất không hợp lệ (định dạng YYYY-MM-DD)",
+                status_code=422,
+            )
+
+        wb = build_daily_report(conn, parsed_date)
+        buf = io.BytesIO()
+        wb.save(buf)
+        excel_bytes = buf.getvalue()
+        filename = daily_report_filename(parsed_date)
+
+        return Response(
+            content=excel_bytes,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+            },
+        )
 
     return app

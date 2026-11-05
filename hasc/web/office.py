@@ -1,4 +1,5 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
+import hashlib
 import io
 from pathlib import Path
 import sqlite3
@@ -10,14 +11,17 @@ from pydantic import BaseModel
 
 from hasc.db import (
     create_event,
+    get_default_photos_dir,
     get_photo_by_id,
     get_photos_for_sheet,
     get_sheet_by_id,
     get_sheet_data,
     get_user_by_id,
+    update_photo_small_copy_path,
     update_sheet_status,
 )
 from hasc.excel import build_page_workbook, page_filename
+from hasc.images import display_copy
 from hasc.web.auth import get_active_user, get_db
 from hasc.web.errors import AppError
 from hasc.web.roles import require_role
@@ -237,12 +241,14 @@ def render_office_screen(
         include_all_statuses=(status is not None),
     )
     templates = request.app.state.templates
+    yesterday = (datetime.now().date() - timedelta(days=1)).isoformat()
     return templates.TemplateResponse(
         request=request,
         name="office.html",
         context={
             "user": user,
             "sheets": sheets,
+            "yesterday": yesterday,
             "filters": {
                 "machine": machine or "",
                 "date": date or "",
@@ -273,6 +279,15 @@ def office_sheet_list_page(
         shift=_shift_filter(shift),
         status=status or None,
     )
+
+
+@router.get("/office/report")
+def office_daily_report_form(
+    date: str,
+    user: dict = Depends(require_role("employee", "boss", "admin")),
+):
+    """The office screen's date form; works without JavaScript (ADR 7)."""
+    return RedirectResponse(url=f"/api/days/{date}/report", status_code=303)
 
 
 @router.get("/office/sheets/partial", response_class=HTMLResponse)
@@ -328,6 +343,13 @@ def office_sheet_detail_page(
         )
 
     photos = [dict(p) for p in get_photos_for_sheet(conn, sheet_id)]
+    photos_dir = getattr(request.app.state, "photos_dir", None)
+    if not photos_dir:
+        photos_dir = get_default_photos_dir(db_path=getattr(request.app.state, "db_path", None))
+    for p in photos:
+        display_path = ensure_display_copy(conn, p, photos_dir)
+        if display_path:
+            p["small_copy_path"] = str(display_path)
     uploader_username = None
     if photos:
         first_uploader_id = photos[0].get("uploaded_by")
@@ -438,6 +460,7 @@ def api_sheets(
 @router.get("/api/sheets/{sheet_id}")
 def api_sheet_detail(
     sheet_id: int,
+    request: Request,
     user: dict = Depends(require_role("view_sheet_numbers")),
     conn: sqlite3.Connection = Depends(get_db),
 ):
@@ -455,6 +478,13 @@ def api_sheet_detail(
         )
 
     photos = [dict(p) for p in get_photos_for_sheet(conn, sheet_id)]
+    photos_dir = getattr(request.app.state, "photos_dir", None)
+    if not photos_dir:
+        photos_dir = get_default_photos_dir(db_path=getattr(request.app.state, "db_path", None))
+    for p in photos:
+        display_path = ensure_display_copy(conn, p, photos_dir)
+        if display_path:
+            p["small_copy_path"] = str(display_path)
     rows = get_sheet_data(conn, sheet_id)
     return {
         "id": sheet["id"],
@@ -622,6 +652,61 @@ def sheet_excel_download(
 # -----------------------------------------------------------------------------
 
 
+def resolve_photo_file(photo_path_str: str | None, photos_dir: Path | str | None) -> Path | None:
+    if not photo_path_str:
+        return None
+    p = Path(photo_path_str)
+    if p.is_file():
+        return p
+    if photos_dir:
+        photos_dir = Path(photos_dir)
+        if not p.is_absolute():
+            candidate = photos_dir / p
+            if candidate.is_file():
+                return candidate
+        candidate_name = photos_dir / p.name
+        if candidate_name.is_file():
+            return candidate_name
+    return None
+
+
+def ensure_display_copy(
+    conn: sqlite3.Connection,
+    photo: sqlite3.Row | dict,
+    photos_dir: Path | str | None,
+) -> Path | None:
+    small_path_str = photo.get("small_copy_path") if isinstance(photo, dict) else photo["small_copy_path"]
+    existing = resolve_photo_file(small_path_str, photos_dir)
+    if existing is not None:
+        return existing
+
+    orig_path_str = photo.get("path") if isinstance(photo, dict) else photo["path"]
+    orig_file = resolve_photo_file(orig_path_str, photos_dir)
+    if orig_file is None:
+        return None
+
+    try:
+        raw_bytes = orig_file.read_bytes()
+        upright_bytes = display_copy(raw_bytes)
+    except Exception:
+        return None  # the page then shows no picture rather than the sideways original
+
+    target_dir = Path(photos_dir).resolve() if photos_dir else orig_file.parent.resolve()
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    sha = photo.get("sha256") if isinstance(photo, dict) else photo["sha256"]
+    if not sha:
+        sha = hashlib.sha256(raw_bytes).hexdigest()
+
+    upright_file = (target_dir / f"{sha}_display.jpg").resolve()
+    upright_file.write_bytes(upright_bytes)
+
+    photo_id = photo.get("id") if isinstance(photo, dict) else photo["id"]
+    update_photo_small_copy_path(conn, photo_id, str(upright_file))
+
+    return upright_file
+
+
 @router.get("/api/photos/{photo_id}")
 @router.get("/photos/{photo_id}")
 def view_photo(
@@ -634,15 +719,35 @@ def view_photo(
     if not photo:
         raise AppError("not_found", "Không tìm thấy ảnh", 404)
 
-    file_path = Path(photo["path"])
-    if not file_path.is_file():
-        photos_dir = getattr(request.app.state, "photos_dir", None)
-        if photos_dir:
-            candidate = Path(photos_dir) / file_path.name
-            if candidate.is_file():
-                file_path = candidate
+    photos_dir = getattr(request.app.state, "photos_dir", None)
+    if not photos_dir:
+        photos_dir = get_default_photos_dir(db_path=getattr(request.app.state, "db_path", None))
 
-    if not file_path.is_file():
+    file_path = resolve_photo_file(photo["path"], photos_dir)
+    if not file_path or not file_path.is_file():
         raise AppError("not_found", "Tệp ảnh không tồn tại trên đĩa", 404)
 
     return FileResponse(path=str(file_path))
+
+
+@router.get("/api/photos/{photo_id}/display")
+@router.get("/photos/{photo_id}/display")
+def view_photo_display(
+    photo_id: int,
+    request: Request,
+    user: dict = Depends(require_role("view_all_sheets")),
+    conn: sqlite3.Connection = Depends(get_db),
+):
+    photo = get_photo_by_id(conn, photo_id)
+    if not photo:
+        raise AppError("not_found", "Không tìm thấy ảnh", 404)
+
+    photos_dir = getattr(request.app.state, "photos_dir", None)
+    if not photos_dir:
+        photos_dir = get_default_photos_dir(db_path=getattr(request.app.state, "db_path", None))
+
+    display_file = ensure_display_copy(conn, photo, photos_dir)
+    if not display_file or not display_file.is_file():
+        raise AppError("not_found", "Tệp ảnh không tồn tại trên đĩa", 404)
+
+    return FileResponse(path=str(display_file), media_type="image/jpeg")
