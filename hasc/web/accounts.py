@@ -25,6 +25,72 @@ from hasc.web.security import (
 USERNAME_REGEX = re.compile(r"^[a-zA-Z0-9._]+$")
 ALLOWED_ROLES = {"employee", "boss", "admin"}
 
+ROLE_LABELS: dict[str, str] = {
+    "employee": "Văn phòng",
+    "boss": "Ban giám đốc",
+    "admin": "Quản trị",
+    "operator": "Xưởng",
+}
+
+
+def get_account_actions(actor: dict, target: dict) -> dict:
+    """Determine permitted actions and role choices for an actor on a target account."""
+    actor_id = actor.get("id")
+    actor_is_owner = bool(actor.get("is_owner"))
+    target_id = target.get("id")
+    target_is_owner = bool(target.get("is_owner"))
+    target_role = target.get("role")
+    target_active = target.get("active")
+
+    # 1. Self or target is owner: no actions
+    if actor_id == target_id or target_is_owner:
+        return {
+            "can_reset": False,
+            "can_change_role": False,
+            "can_deactivate": False,
+            "can_reactivate": False,
+            "can_logout": False,
+            "available_roles": [],
+        }
+
+    # 2. Non-owner admin cannot manage any admin account
+    if not actor_is_owner and target_role == "admin":
+        return {
+            "can_reset": False,
+            "can_change_role": False,
+            "can_deactivate": False,
+            "can_reactivate": False,
+            "can_logout": False,
+            "available_roles": [],
+        }
+
+    # Available roles: only owner can grant admin; neither can grant operator
+    if actor_is_owner:
+        allowed = ["employee", "boss", "admin"]
+    else:
+        allowed = ["employee", "boss"]
+
+    available_roles = [r for r in allowed if r != target_role]
+
+    return {
+        "can_reset": True,
+        "can_change_role": len(available_roles) > 0,
+        "can_deactivate": (target_active == 1),
+        "can_reactivate": (target_active == 0),
+        "can_logout": True,
+        "available_roles": [(r, ROLE_LABELS.get(r, r)) for r in available_roles],
+    }
+
+
+def get_addable_roles(actor: dict) -> list[tuple[str, str]]:
+    """Roles that the actor is allowed to assign when creating a new account."""
+    actor_is_owner = bool(actor.get("is_owner"))
+    if actor_is_owner:
+        roles = ["employee", "boss", "admin"]
+    else:
+        roles = ["employee", "boss"]
+    return [(r, ROLE_LABELS.get(r, r)) for r in roles]
+
 
 def validate_username(username: str) -> str:
     """Validate username rules according to spec-1.1.0 section 4:

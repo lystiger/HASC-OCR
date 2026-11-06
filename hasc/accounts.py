@@ -1,8 +1,11 @@
 """Shared account logic module reused across web API, CLI, and account pages."""
 from hasc.web.accounts import (
     ALLOWED_ROLES,
+    ROLE_LABELS,
     change_account_role,
     create_account,
+    get_account_actions,
+    get_addable_roles,
     list_account_events,
     list_accounts_with_status,
     logout_account,
@@ -16,6 +19,7 @@ from hasc.web.accounts import (
 
 __all__ = [
     "ALLOWED_ROLES",
+    "ROLE_LABELS",
     "validate_username",
     "validate_owner_rules",
     "create_account",
@@ -27,4 +31,7 @@ __all__ = [
     "list_accounts_with_status",
     "list_account_events",
     "set_or_create_owner",
+    "get_account_actions",
+    "get_addable_roles",
 ]
+

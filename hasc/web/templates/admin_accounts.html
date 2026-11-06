@@ -1,0 +1,86 @@
+{% extends "office_base.html" %}
+
+{% block nav_accounts_active %}is-active{% endblock %}
+
+{% block title %}Quản lý tài khoản – HASC VN{% endblock %}
+
+{% block content %}
+<div id="accounts-content" style="max-width: 1040px; margin: 1.5rem auto;">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.25rem;">
+    <div>
+      <h1 style="margin: 0; font-size: 1.5rem;">Quản lý tài khoản</h1>
+      <p style="margin: 0.25rem 0 0; font-size: 0.9rem; color: var(--color-muted);">
+        Danh sách người dùng văn phòng và phân quyền hệ thống
+      </p>
+    </div>
+    <div class="accounts-tabs" style="display: flex; gap: 0.5rem;">
+      <a href="/admin/accounts" class="btn btn--secondary is-active" style="font-weight: 600; border-color: var(--color-action); color: var(--color-action);">Danh sách tài khoản</a>
+      <a href="/admin/accounts/history" class="btn btn--secondary" style="font-weight: 500;">Lịch sử thao tác</a>
+    </div>
+  </div>
+
+  {% if success_message %}
+  <div class="alert alert--success" role="status" data-toast="success" style="margin-bottom: 1rem;">
+    {{ success_message }}
+  </div>
+  {% endif %}
+
+  {% if temp_password %}
+  <div class="alert alert--success temp-password-box" style="margin-bottom: 1.5rem; padding: 1.25rem; border: 2px solid var(--color-action); background: #FFFDF9; border-radius: var(--radius-md);">
+    <h3 style="margin: 0 0 0.5rem; color: var(--color-action); font-size: 1.15rem;">
+      Mật khẩu tạm thời cho tài khoản <strong>{{ temp_user }}</strong>
+    </h3>
+    <div style="margin: 0.75rem 0;">
+      <span class="temp-password num" style="font-size: 1.35rem; font-family: var(--font-mono); font-weight: 700; background: #FFFFFF; border: 2px dashed var(--color-action); padding: 0.35rem 0.85rem; border-radius: 4px; display: inline-block; letter-spacing: 1px;">
+        {{ temp_password }}
+      </span>
+    </div>
+    <p class="temp-pw-note" style="margin: 0.5rem 0 0; font-size: 0.85rem; color: var(--color-muted);">
+      Mật khẩu này chỉ hiển thị một lần duy nhất. Hãy sao chép và giao trực tiếp cho người dùng. Khi tải lại trang, mật khẩu sẽ không hiển thị lại.
+    </p>
+  </div>
+  {% endif %}
+
+  {% if error_message %}
+  <div class="alert alert--error" role="alert" data-toast="error" style="margin-bottom: 1rem;">
+    {{ error_message }}
+  </div>
+  {% endif %}
+
+  <!-- Add Account Card -->
+  <div class="card" style="margin-bottom: 1.5rem; padding: 1.25rem;">
+    <h2 style="margin: 0 0 1rem; font-size: 1.15rem;">Thêm tài khoản mới</h2>
+    <form method="post" action="/admin/accounts" class="add-account-form" hx-post="/admin/accounts" hx-target="#accounts-content" hx-select="#accounts-content">
+      <input type="hidden" name="action" value="add" />
+      <div style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end;">
+        <div class="form-field" style="margin-bottom: 0; flex: 1; min-width: 180px;">
+          <label for="add-username" style="font-size: 0.85rem; font-weight: 500;">Tên đăng nhập</label>
+          <input type="text" id="add-username" name="username" placeholder="Ví dụ: hung, mai.le" required pattern="[a-zA-Z0-9._]{3,32}" />
+        </div>
+        <div class="form-field" style="margin-bottom: 0; min-width: 160px;">
+          <label for="add-role" style="font-size: 0.85rem; font-weight: 500;">Vai trò</label>
+          <select id="add-role" name="role" required>
+            {% for r_code, r_label in add_roles %}
+            <option value="{{ r_code }}">{{ r_label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn btn--primary" style="min-height: 40px; padding: 0.5rem 1.25rem;">
+          Thêm tài khoản
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Accounts List Card -->
+  <div class="card" style="padding: 1.25rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+      <h2 style="margin: 0; font-size: 1.15rem;">Danh sách tài khoản hệ thống</h2>
+    </div>
+
+    <div id="accounts-table-container" hx-get="/admin/accounts/partial" hx-trigger="every 10s" hx-swap="innerHTML">
+      {% include "admin_accounts_table.html" %}
+    </div>
+  </div>
+</div>
+{% endblock %}

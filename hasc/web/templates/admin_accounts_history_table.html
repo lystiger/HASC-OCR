@@ -1,0 +1,33 @@
+<div class="table-wrap">
+  {% if not events %}
+  <div class="alert" style="background: var(--color-surface); border: 1px dashed var(--color-border); color: var(--color-muted); text-align: center; padding: 2rem 1rem;">
+    Chưa có sự kiện nào được ghi nhận.
+  </div>
+  {% else %}
+  <table class="history-table">
+    <thead>
+      <tr>
+        <th>Thời gian</th>
+        <th>Người thực hiện</th>
+        <th>Hành động</th>
+        <th>Tài khoản tác động</th>
+        <th>Chi tiết thay đổi</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in events %}
+      <tr class="event-row" data-event-id="{{ e.id }}" data-action="{{ e.action }}">
+        <td class="num" style="white-space: nowrap; font-size: 0.85rem;">{{ e.at|vntime }}</td>
+        <td><strong>{{ e.actor_username or '-' }}</strong></td>
+        <td>
+          <span class="badge badge--event badge--{{ e.action }}">{{ e.action_label }}</span>
+        </td>
+        <td><strong>{{ e.target_username or ('#' ~ e.target_user_id) or '-' }}</strong></td>
+        <td>{{ e.detail_text }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+
