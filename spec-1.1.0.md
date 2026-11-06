@@ -40,8 +40,8 @@ Pages other than the accounts screen show no role names ("show no roles", Lystig
 
 - Exactly one account is the **owner** (Lystiger). Nobody else can deactivate, demote, reset or log it out.
 - Only the owner can give or take away the admin role. Other admins manage employee, boss and operator accounts only: they cannot reset, log out, deactivate or change the role of any admin account, their own included.
-- Nobody changes their own role or deactivates themselves from the screen.
-- **Where the owner comes from:** `scripts/create_user.py` gains `--owner`, which creates the account as an admin owner, or makes an existing admin the owner and sets a new temporary password for it. The Windows installer creates its first `admin` with `--owner`. On an existing database the migration makes the oldest active admin the owner.
+- Nobody changes their own role, deactivates, resets or logs out themselves from the screen; people change their own password on the change-password page.
+- **Where the owner comes from:** `scripts/create_user.py` gains `--owner`, which creates the account as an admin owner, or makes an existing admin the owner and sets a new temporary password for it. If another account is the owner, the flag moves (cleared there and set here in one transaction). The target's sessions end. The Windows installer creates its first `admin` with `--owner`. On an existing database the migration makes the oldest active admin the owner.
 - If the owner loses their password, recovery is `create_user.py --owner` run as `hasc` on the PC (documented in the README), not the website.
 
 ### Accounts screen (admin only)
@@ -57,7 +57,7 @@ Pages other than the accounts screen show no role names ("show no roles", Lystig
 
 ### Usernames (P127, P133)
 
-- Case-insensitive and unique: `Hung` and `hung` are the same account, and login accepts either.
+- Case-insensitive and unique: `Hung` and `hung` are the same account, and login accepts either (the username lookup compares with `COLLATE NOCASE`).
 - A username is never reused, even after deactivation. The way back is reactivating the old account.
 - 3–32 characters from `a-z`, `0-9`, `.` and `_`; stored in lower case. Refusals are in Vietnamese.
 - The rules apply to new accounts. Existing usernames are kept as they are, even if they break a rule.
@@ -65,7 +65,7 @@ Pages other than the accounts screen show no role names ("show no roles", Lystig
 ### Temporary password and first login (P125, P133, P144)
 
 - A temporary password keeps working until the user sets their own password, for at most 72 hours after it was made (P144). Closing the page by mistake is harmless.
-- While an account still has a temporary password, every page except the change-password page and log-out redirects there (`303`), and every API call except changing the password and logging out returns `403` with code `must_change_password`.
+- While an account still has a temporary password, every page except the change-password page and log-out redirects there (`303`), and every API call except changing the password and logging out returns `403` with the existing code `password_change_required`. `/login`, `/logout`, `/change-password` and `/static/*` are never redirected.
 - Once the user has set a password, the temporary password no longer works.
 - After 72 hours, login with it fails with "Mật khẩu tạm đã hết hạn. Hãy nhờ Quản trị đặt lại." in both the login page and `POST /api/login`.
 
@@ -87,7 +87,7 @@ An account is **online** when it made a request in the last 5 minutes. The scree
 ## 5. Acceptance criteria
 
 1. The admin adds an employee. The account appears in the list as active, and a temporary password is shown once; reloading the page does not show it again.
-2. The new user logs in with it and lands on the change-password page. Any other page redirects back there, any other API call returns `403` `must_change_password`, and logging in again with the temporary password before changing it still works.
+2. The new user logs in with it and lands on the change-password page. Any other page redirects back there, any other API call returns `403` `password_change_required`, and logging in again with the temporary password before changing it still works.
 3. After the user sets a password, the temporary password fails at login, and the user reaches the office frame.
 4. A temporary password not used within 72 hours fails at login; a reset makes a new one that works.
 5. A reset, log-out, role change or deactivation ends that account's open sessions: its next request goes to the login page.
@@ -100,10 +100,10 @@ An account is **online** when it made a request in the last 5 minutes. The scree
 12. The role picker offers no `operator`, and the API refuses `operator` in both creating an account and changing a role; an existing operator account still logs in and uploads.
 13. An employee, a boss and an admin can upload a photo from Tải ảnh lên, and the sheet records them as the uploader.
 14. The sidebar shows Tài khoản to admins only; a non-admin requesting the accounts page or `GET /api/admin/users` gets `403`.
-15. The accounts screen and the frame work at phone width (360 px) without sideways scrolling.
-16. A fresh database with `create_user.py --owner` has exactly one owner; the migration on an existing database marks the oldest active admin; a second owner cannot be stored.
+15. The accounts screen and the frame work at phone width (360 px) without sideways scrolling: a test checks the viewport meta tag and the folded menu's markup; the verifier checks the layout at 360 px.
+16. A fresh database with `create_user.py --owner` has exactly one owner; running it again for another admin moves the flag; the migration on an existing database marks the oldest active admin; a second owner cannot be stored.
 17. With HTTPS on, the website serves only TLS; a plain HTTP request to port 8080 gets a `308` redirect to the same path on `https://<host>/` and never a login form (spec.md criterion 10); session cookies are `Secure`. Tested in the suite through the redirect app and `create_app` with HTTPS on.
-18. On the Windows bundle CI job, a fresh install and an update both end with `https://127.0.0.1/login` answering with a certificate that chains to the exported authority, `http://127.0.0.1:8080/login` redirecting, and `http://127.0.0.1:8080/ca.crt` serving that authority. The README gives the steps to trust it on Windows, Android and iPhone.
+18. On the Windows bundle CI job, a fresh install creates `admin` as the owner, and a fresh install and an update both end with `https://127.0.0.1/login` answering with a certificate that chains to the exported authority, `http://127.0.0.1:8080/login` redirecting, and `http://127.0.0.1:8080/ca.crt` serving that authority. The README gives the steps to trust it on Windows, Android and iPhone.
 
 ## 6. Design
 
@@ -112,19 +112,20 @@ An account is **online** when it made a request in the last 5 minutes. The scree
   - `CREATE UNIQUE INDEX users_username_nocase ON users(username COLLATE NOCASE)`.
   - `CREATE UNIQUE INDEX users_one_owner ON users(is_owner) WHERE is_owner = 1`.
   - Mark the owner: the active admin with the lowest `id`.
-  - Before applying this file, the migration runner checks for usernames that differ only by case and stops with a message naming them, instead of a raw `IntegrityError`.
+  - Before applying this file (matched by its file name, before `executescript`, which is not atomic), the migration runner checks for usernames that differ only by case and stops with a message naming them, instead of a raw `IntegrityError`.
 - **Temporary password:** `temp_password_expires_at` is set (now + 72 h) whenever a temporary password is made (add, reset, `create_user.py` without `--password` or with `--owner`), cleared when the user sets their own password, and checked by both login routes.
 - **Ending sessions:** every action in "Accounts screen" that ends sessions deletes that user's rows in `sessions`, as `POST /api/admin/users/{id}/logout` does today.
-- **Last seen:** the dependency that resolves the logged-in user writes `last_seen_at` at most once a minute per account. All times come from one `now()` helper that tests replace, so criterion 7 needs no waiting.
-- **Events:** account actions reuse `events`: `user_id` is the admin who acted, `action` is one of `account_add`, `account_reset`, `account_role`, `account_deactivate`, `account_reactivate`, `account_logout`, `field` is `user:<target id>`, and `old_value`/`new_value` hold the changed role or active flag. `sheet_id` is null. Passwords never appear in an event.
-- **Routes:** pages `/admin/accounts` and `/admin/accounts/history`; API `GET /api/admin/users` (the list) and `GET /api/admin/users/events` (the history, newest first). `POST` and `PATCH` enforce the owner and username rules and refuse `operator`. `upload_photo` permission extends to employee, boss and admin.
+- **Last seen:** the dependency that resolves the logged-in user writes `last_seen_at` at most once a minute per account, so last seen is accurate to one minute. A new `now()` helper becomes the single source of the current time for sessions, temporary-password expiry and last seen (replacing the direct `datetime.now` calls there), so tests replace it and criteria 4, 6 and 7 need no waiting.
+- **Events:** account actions reuse `events`: `user_id` is the admin who acted, `action` is one of `account_add`, `account_reset`, `account_role`, `account_deactivate`, `account_reactivate`, `account_logout`, `field` is `user:<target id>`, and `old_value`/`new_value` hold: the new role on add (`new_value`), the old and new role on a role change, `1`/`0` on deactivate and reactivate, nothing on reset and log-out. `sheet_id` is null. The history page joins `users` to show both usernames. Passwords never appear in an event.
+- **Routes:** pages `/admin/accounts` and `/admin/accounts/history`; API `GET /api/admin/users` (the list) and `GET /api/admin/users/events` (the history, newest first). `POST` and `PATCH` enforce the owner and username rules and refuse `operator`. `upload_photo`, `view_own_uploads` and `view_limits` extend to employee, boss and admin, so the upload screen works inside the frame.
 - **Pages:** server-rendered with htmx, like the office pages; the frame is a shared base template.
 - **HTTPS (job B):**
-  - The installer makes a certificate authority (kept) and a certificate for the PC's name and current addresses, both in `C:\HASC\config` (encrypted to `hasc`). An update makes a new PC certificate when the addresses changed. Job B may add `cryptography` to `requirements.txt` for this.
+  - The installer makes a certificate authority (kept) and a certificate for the PC's name and current addresses, in `C:\HASC\config` as `ca.crt`, `ca.key`, `server.crt`, `server.key` (encrypted to `hasc`). An update makes a new PC certificate when the addresses changed. Job B may add `cryptography` to `requirements.txt` for this.
   - `hasc-web` runs uvicorn with TLS on port 443 (`--ssl-keyfile`, `--ssl-certfile`).
-  - A third service, `hasc-redirect`, runs a small app (`hasc.web.redirect`) on port 8080. It answers `/ca.crt` with the authority's public certificate (so a phone can download it) and every other request with `308` to `https://<host without port>/<path>`.
+  - A third service, `hasc-redirect`, runs a small app (`hasc.web.redirect`) on port 8080. It answers `/ca.crt` with the file named by `HASC_CA_CERT` (so a phone can download it) and every other request with `308` to `https://<host without port>/<path>?<query>`. It runs as `hasc` with the same NSSM settings as the other two services.
   - `create_app` reads `HASC_HTTPS=1` from the environment to set `secure_cookies`; the redirect app replaces Starlette's `HTTPSRedirectMiddleware`, which would keep port 8080.
-  - The installer's health check, printed addresses, shortcuts and firewall rule (443 and 8080) change to match.
+  - The installer's health check, printed addresses, shortcuts and firewall rule (443 and 8080) change to match, and its fresh-database path creates the first admin with `create_user.py --owner`.
+  - `.github/workflows/windows-bundle.yml` logs in over HTTPS: it imports the exported authority into the runner's trusted roots, then calls `https://127.0.0.1/api/login`.
 
 ## 7. Alternatives considered
 
@@ -135,14 +136,14 @@ An account is **online** when it made a request in the last 5 minutes. The scree
 
 ## 8. Risks
 
-- **The admin screen shows a temporary password** on a screen others might see. It is shown once, works once, and expires in 72 hours.
+- **The admin screen shows a temporary password** on a screen others might see. It is shown once, works only until the person sets their own, and expires in 72 hours.
 - **Trusting the certificate on every device (P141, P143).** Each office PC and every phone, factory phones included, must trust the office PC's certificate once, at the 1.1.0 update; a device that skips it shows a security warning. If the PC's address changes, phones keep working only if the PC keeps its fixed address (DHCP reservation).
 - **Two old usernames differing only by case** stop the migration; the admin renames one first.
 - **The owner forgets their password:** recovery needs the `hasc` password and the PC.
 
 ## 9. Test plan
 
-Unit and API tests with made-up data only: one test per acceptance criterion, the owner rules for every account action, the migration on a database with mixed-case usernames, and session ending for each listed action. CI runs them on Linux and Windows, and the Windows bundle job installs the build and logs in.
+Unit and API tests with made-up data only: one test per acceptance criterion, the owner rules for every account action, the migration on a database with mixed-case usernames, and session ending for each listed action. Job B adds suite tests for the redirect app (`308` with path and query, `/ca.crt`) and `Secure` cookies with `HASC_HTTPS=1`. CI runs the suite on Linux and Windows, and the Windows bundle job installs the build, checks HTTPS and the owner (criterion 18) and logs in over HTTPS.
 
 ## 10. Rollout
 
@@ -158,7 +159,7 @@ Unit and API tests with made-up data only: one test per acceptance criterion, th
 |---|---|
 | P123 | 1.1.0 covers add, deactivate, reactivate, reset password and change role from a screen. |
 | P124 | Office and admin pages get an ERP-style frame for later modules. Entries appear only when their module ships. |
-| P125 | A temporary password works for one login, then the user must set their own. *(Its sending part is replaced by P138.)* |
+| P125 | A temporary password forces the user to set their own. *(Sending replaced by P138; "one login" replaced by P144.)* |
 | P126 | The first admin (Lystiger) is the owner: cannot be deactivated or demoted, and is the only one who can give or remove the admin role. |
 | P127 | `employee` is shown as "Văn phòng". Usernames are case-insensitive; a deactivated username returns only by reactivating that account. |
 | P128 | Employee and boss can also upload (option D3), under their own account. |
