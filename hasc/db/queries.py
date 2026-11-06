@@ -109,6 +109,11 @@ def set_user_active(conn: sqlite3.Connection, user_id: int, active: int) -> None
         conn.execute("UPDATE users SET active = ? WHERE id = ?", (active, user_id))
 
 
+def update_user_role(conn: sqlite3.Connection, user_id: int, role: str) -> None:
+    with conn:
+        conn.execute("UPDATE users SET role = ? WHERE id = ?", (role, user_id))
+
+
 def list_users(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     cursor = conn.execute("SELECT * FROM users ORDER BY id ASC")
     return cursor.fetchall()

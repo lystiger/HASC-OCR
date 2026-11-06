@@ -40,6 +40,7 @@ from hasc.db.queries import (
     update_sheet_status,
     update_user_last_seen,
     update_user_password,
+    update_user_role,
     upsert_cell,
     upsert_page_value,
 )
@@ -58,6 +59,7 @@ __all__ = [
     "get_user_by_username",
     "update_user_last_seen",
     "update_user_password",
+    "update_user_role",
     "set_user_active",
     "list_users",
     "create_session",

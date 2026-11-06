@@ -9,6 +9,8 @@ from hasc.db import (
     init_db,
 )
 from hasc.db.connection import get_default_db_path
+from hasc.web.accounts import validate_username
+from hasc.web.errors import AppError
 from hasc.web.security import (
     generate_temporary_password,
     hash_password,
@@ -65,9 +67,15 @@ def main(argv: list[str] | None = None) -> int:
     db_path = Path(args.db) if args.db else get_default_db_path()
     conn = init_db(db_path)
     try:
-        existing = get_user_by_username(conn, args.username)
+        try:
+            username = validate_username(args.username)
+        except AppError as e:
+            print(f"Error: {e.message}", file=sys.stderr)
+            return 1
+
+        existing = get_user_by_username(conn, username)
         if existing:
-            print(f"Error: User '{args.username}' already exists.", file=sys.stderr)
+            print(f"Error: User '{username}' already exists.", file=sys.stderr)
             return 1
 
         password = args.password
@@ -83,7 +91,7 @@ def main(argv: list[str] | None = None) -> int:
         temp_expiry = temp_password_expires_at() if must_change else None
         user_id = create_user(
             conn,
-            username=args.username,
+            username=username,
             password_hash=pw_hash,
             role=args.role,
             active=1,
@@ -91,7 +99,7 @@ def main(argv: list[str] | None = None) -> int:
             temp_password_expires_at=temp_expiry,
         )
 
-        print(f"User '{args.username}' created successfully (ID: {user_id}, Role: {args.role}).")
+        print(f"User '{username}' created successfully (ID: {user_id}, Role: {args.role}).")
         if must_change:
             print(f"Temporary password: {password}")
             print("Note: User must change password upon first login.")
