@@ -120,7 +120,7 @@ function Remove-Hasc {
         }
         if (-not $removed) {
             # A task that runs once as SYSTEM at the next start, removes the profile, then deletes itself.
-            $task = "HASC remove profile"
+            $task = "HASC remove profile $sid"
             $cmd = "Get-CimInstance Win32_UserProfile | Where-Object { `$_.SID -eq '$sid' } | Remove-CimInstance; Unregister-ScheduledTask -TaskName '$task' -Confirm:`$false"
             $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -Command `"$cmd`""
             Register-ScheduledTask -TaskName $task -Action $action -Trigger (New-ScheduledTaskTrigger -AtStartup) `

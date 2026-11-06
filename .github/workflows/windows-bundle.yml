@@ -72,6 +72,7 @@ jobs:
           Check "account removed" (-not (Get-LocalUser hasc -ErrorAction SilentlyContinue))
           Check "C:\HASC removed" (-not (Test-Path C:\HASC))
           Check "firewall rule removed" (-not (Get-NetFirewallRule -DisplayName "HASC website" -ErrorAction SilentlyContinue))
+          Check "profile removed, or a startup task will remove it" ((-not (Get-CimInstance Win32_UserProfile | Where-Object { $_.LocalPath -like "*\hasc" })) -or [bool](Get-ScheduledTask -TaskName "HASC remove profile *" -ErrorAction SilentlyContinue))
           $users = & "$b\python\python.exe" -c "import sqlite3; print(sqlite3.connect(r'C:\hasc-keep\hasc.db').execute('select count(*) from users').fetchone()[0])"
           Check "kept database readable by an administrator ($users users)" ([int]$users -ge 1)
 
