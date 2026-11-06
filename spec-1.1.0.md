@@ -46,7 +46,7 @@ Pages other than the accounts screen show no role names ("show no roles", Lystig
 
 ### Accounts screen (admin only)
 
-- A list of every account: username, role, active or deactivated, **online**, last seen, created.
+- A list of every account: username, role, an **owner** mark on the owner, active or deactivated, **online**, last seen, created. Actions the viewer may not take on an account (owner rules) are not offered for it.
 - **Add:** username and role. The system makes a temporary password and shows it to the admin **once**, on that screen, to hand over in person (P138). It is never shown again; a lost one means a reset.
 - **Reset password:** makes a new temporary password, shown once the same way, and ends that account's sessions.
 - **Change role:** ends that account's sessions; the new role applies at their next login.
@@ -93,7 +93,7 @@ An account is **online** when it made a request in the last 5 minutes. The scree
 5. A reset, log-out, role change or deactivation ends that account's open sessions: its next request goes to the login page.
 6. An office session still expires after 8 hours (spec.md criterion 2 for office stays).
 7. While a user is using the site, the accounts screen shows them online; 6 minutes after their last request it shows them offline, with that time as last seen.
-8. A non-owner admin cannot give or remove the admin role, or reset, log out, deactivate or change the role of any admin account (the owner and themselves included): the API returns `403` and nothing changes. Nobody can deactivate or demote the owner, and nobody can change their own role or deactivate themselves.
+8. A non-owner admin cannot give or remove the admin role, or reset, log out, deactivate or change the role of any admin account (the owner and themselves included): the API returns `403` and nothing changes. Nobody can deactivate or demote the owner, and nobody can change their own role, deactivate, reset or log out themselves from the screen. The list marks the owner (`is_owner` in the API).
 9. `Hung` cannot be created when `hung` exists, active or deactivated, and `hung` can log in by typing `Hung`.
 10. A username with a space, a Vietnamese letter, or fewer than 3 or more than 32 characters is refused with a Vietnamese message.
 11. Each account action writes a history entry an admin can see; an employee or boss requesting the history gets `403`.
@@ -117,7 +117,7 @@ An account is **online** when it made a request in the last 5 minutes. The scree
 - **Ending sessions:** every action in "Accounts screen" that ends sessions deletes that user's rows in `sessions`, as `POST /api/admin/users/{id}/logout` does today.
 - **Last seen:** the dependency that resolves the logged-in user writes `last_seen_at` at most once a minute per account, so last seen is accurate to one minute. A new `now()` helper becomes the single source of the current time for sessions, temporary-password expiry and last seen (replacing the direct `datetime.now` calls there), so tests replace it and criteria 4, 6 and 7 need no waiting.
 - **Events:** account actions reuse `events`: `user_id` is the admin who acted, `action` is one of `account_add`, `account_reset`, `account_role`, `account_deactivate`, `account_reactivate`, `account_logout`, `field` is `user:<target id>`, and `old_value`/`new_value` hold: the new role on add (`new_value`), the old and new role on a role change, `1`/`0` on deactivate and reactivate, nothing on reset and log-out. `sheet_id` is null. The history page joins `users` to show both usernames. Passwords never appear in an event.
-- **Routes:** pages `/admin/accounts` and `/admin/accounts/history`; API `GET /api/admin/users` (the list) and `GET /api/admin/users/events` (the history, newest first). `POST` and `PATCH` enforce the owner and username rules and refuse `operator`. `upload_photo`, `view_own_uploads` and `view_limits` extend to employee, boss and admin, so the upload screen works inside the frame.
+- **Routes:** pages `/admin/accounts` and `/admin/accounts/history`; API `GET /api/admin/users` (the list, each account with `is_owner`, `last_seen_at` and `online`) and `GET /api/admin/users/events` (the history, newest first). `POST` and `PATCH` enforce the owner and username rules and refuse `operator`. `upload_photo`, `view_own_uploads` and `view_limits` extend to employee, boss and admin, so the upload screen works inside the frame.
 - **Pages:** server-rendered with htmx, like the office pages; the frame is a shared base template.
 - **HTTPS (job B):**
   - The installer makes a certificate authority (kept) and a certificate for the PC's name and current addresses, in `C:\HASC\config` as `ca.crt`, `ca.key`, `server.crt`, `server.key` (encrypted to `hasc`). An update makes a new PC certificate when the addresses changed. Job B may add `cryptography` to `requirements.txt` for this.
