@@ -40,7 +40,9 @@ def get_user_by_id(conn: sqlite3.Connection, user_id: int) -> sqlite3.Row | None
 
 
 def get_user_by_username(conn: sqlite3.Connection, username: str) -> sqlite3.Row | None:
-    cursor = conn.execute("SELECT * FROM users WHERE username = ?", (username,))
+    cursor = conn.execute(
+        "SELECT * FROM users WHERE username = ? COLLATE NOCASE", (username,)
+    )
     return cursor.fetchone()
 
 
