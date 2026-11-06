@@ -1,6 +1,6 @@
 # HASC Production Records 1.1.0: accounts screen and office frame
 
-Date: 2026-11-06. Decisions by Lystiger (P123–P138). Builds on `spec.md` and v1.0.2 (production on the Windows office PC, ADR 8). Where this file and `spec.md` differ, this file wins for 1.1.0. Items marked **UNDECIDED** need Lystiger before the build step that uses them; items marked *(Claude's recommendation, to confirm)* are proposals Lystiger has not yet agreed.
+Date: 2026-11-06. Decisions by Lystiger (P123–P140). Builds on `spec.md` and v1.0.2 (production on the Windows office PC, ADR 8). Where this file and `spec.md` differ, this file wins for 1.1.0. Items marked **UNDECIDED** need Lystiger before the build step that uses them; items marked *(Claude's recommendation, to confirm)* are proposals Lystiger has not yet agreed.
 
 ## 1. Problem
 
@@ -15,7 +15,7 @@ v1.0.2 has an account API (`POST /api/admin/users`, `PATCH /api/admin/users/{id}
 
 ## 3. Non-goals
 
-- **Operator accounts.** Operators will not log in at all. The factory QR upload page, the trưởng ca attribution and the daily read cap (P134–P137) are **1.2.0**, specified separately *(Claude's recommendation, to confirm: keeps 1.1.0 small enough to build and ship this week)*.
+- **Operator accounts.** Operators will not log in at all. The factory QR upload page, the trưởng ca attribution and the daily read cap (P134–P137) are **1.2.0**, specified separately (P139).
 - Sending passwords by SMS or Zalo (replaced by P138; U1 is closed).
 - Self-service sign-up or "forgot password". Only the admin creates and resets accounts.
 - Forced periodic password changes (NIST SP 800-63B advises against them).
@@ -31,7 +31,7 @@ v1.0.2 has an account API (`POST /api/admin/users`, `PATCH /api/admin/users/{id}
 | `employee` | Văn phòng (P127) | yes |
 | `boss` | **UNDECIDED U6** | yes |
 | `admin` | **UNDECIDED U6** | owner only (see Owner) |
-| `operator` | **UNDECIDED U6** | no: existing operator accounts keep working until deactivated, so the factory keeps uploading until 1.2.0 ships *(Claude's recommendation, to confirm)* |
+| `operator` | **UNDECIDED U6** | no: existing operator accounts keep working until deactivated, so the factory keeps uploading until 1.2.0 ships (P140) |
 
 Pages other than the accounts screen show no role names ("show no roles", Lystiger). The role table in spec.md section 4 stays, with one change: **employee and boss may also upload a photo**, recorded under their own account (P128).
 
@@ -150,6 +150,8 @@ Unit and API tests with made-up data only: one test per acceptance criterion, th
 | P136 | A system-wide cap on AI reads a day, with an alert to Lystiger; about 40 sheets a day are expected (1.2.0; the number is U8). |
 | P137 | No per-device lock for wrong uploads until junk uploads actually happen. |
 | P138 | Lystiger hands office passwords over in person. The system shows the temporary password to the admin once. Replaces sending by SMS or Zalo (U1 closed). |
+| P139 | 1.1.0 is the accounts screen and the office frame only; the QR upload page, trưởng ca attribution and the read cap are 1.2.0. |
+| P140 | The role picker no longer offers `operator`; existing operator accounts keep working until deactivated. |
 
 ## UNDECIDED
 
