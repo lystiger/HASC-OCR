@@ -121,7 +121,7 @@ Needs `git`, Python 3.12+ (developed on 3.14) and `sqlite3` (only for moving exi
 ```bash
 git clone https://github.com/lystiger/HASC-OCR.git ~/HASC-OCR
 cd ~/HASC-OCR
-git checkout v1.0.0
+git checkout v1.0.1
 python3 -m venv .venv
 .venv/bin/pip install --upgrade pip
 .venv/bin/pip install -r requirements.txt
@@ -271,13 +271,12 @@ EFS needs Windows **Pro** (or Enterprise). Run `winver`; on Windows Home, stop h
 ### 2. Install the tools
 
 ```powershell
-winget install -e --id Python.Python.3.12
+winget install -e --id Python.Python.3.12 --scope machine
 winget install -e --id Git.Git
 winget install -e --id NSSM.NSSM
-winget install -e --id SQLite.SQLite   # only for moving existing data
 ```
 
-Close and reopen PowerShell so the new commands are on `PATH`.
+Close and reopen PowerShell so the new commands are on `PATH`. Python must be installed for all users (`--scope machine`, under `C:\Program Files`): a Python installed only in the Administrator's profile cannot be used by the `hasc` service.
 
 ### 3. Create the `hasc` account and the folders
 
@@ -296,12 +295,16 @@ Never reset the `hasc` password from another account (`net user hasc newpass`): 
 ```powershell
 git clone https://github.com/lystiger/HASC-OCR.git C:\HASC\HASC-OCR
 cd C:\HASC\HASC-OCR
-git checkout v1.0.0
+git checkout v1.0.1
 py -3.12 -m venv .venv
 .venv\Scripts\python -m pip install --upgrade pip
 .venv\Scripts\python -m pip install -r requirements.txt
 .venv\Scripts\python -m unittest discover -s tests
+# hasc may read and run the code, but not change it; other accounts get nothing:
+icacls C:\HASC\HASC-OCR /inheritance:r /grant:r "hasc:(OI)(CI)RX" "Administrators:(OI)(CI)F" "SYSTEM:(OI)(CI)F"
 ```
+
+`v1.0.1` is the first release that runs on Windows.
 
 ### 5. Encrypt the data folders to `hasc`, and back up the key
 
@@ -316,10 +319,12 @@ In that `hasc` window:
 ```bat
 cipher /e /s:C:\HASC\data
 cipher /e /s:C:\HASC\config
-cipher /x C:\HASC\hasc-efs-key
+cipher /x C:\HASC\logs\hasc-efs-key
 ```
 
-`cipher /x` asks for a password and writes `C:\HASC\hasc-efs-key.pfx`. Copy that file to a USB stick kept away from the PC, then delete it from the PC. Without it, a broken `hasc` profile means the data is lost.
+`cipher /x` asks for a password and writes `C:\HASC\logs\hasc-efs-key.pfx`. Copy that file to a USB stick kept away from the PC, then delete it from the PC. Without it, a broken `hasc` profile means the data is lost.
+
+A file that another account (such as Administrator) creates or copies into `C:\HASC\data` or `C:\HASC\config` is encrypted to that account, and the service cannot read it. `cipher /c <file>` lists who can open a file; it must show `hasc`.
 
 ### 6. Worker settings
 
@@ -343,17 +348,17 @@ set HASC_DB_PATH=C:\HASC\data\hasc.db
 C:\HASC\HASC-OCR\.venv\Scripts\python C:\HASC\HASC-OCR\scripts\create_user.py --username admin --role admin
 ```
 
-**Move from another machine:** take the `.backup` copy on the old machine as in the Linux section, step 3, copy `hasc.db` into `C:\HASC\data\` and the photos into `C:\HASC\data\photos\` (from the `hasc` window, so they are encrypted), then point the stored paths at the new folder:
+**Move from another machine:** take the `.backup` copy on the old machine as in the Linux section, step 3, copy `hasc.db` into `C:\HASC\data\` and the photos into `C:\HASC\data\photos\` (from the `hasc` window, so they are encrypted), then point the stored paths at the new folder. Replace `OLD` with the old machine's user name; this uses the venv's Python, so no extra tool is needed:
 
 ```bat
-sqlite3 C:\HASC\data\hasc.db "UPDATE photos SET path = replace(replace(path, '/home/OLD/.local/share/hasc-ocr-dev/photos/', 'C:\HASC\data\photos\'), '/', '\'), small_copy_path = replace(replace(small_copy_path, '/home/OLD/.local/share/hasc-ocr-dev/photos/', 'C:\HASC\data\photos\'), '/', '\'); SELECT path FROM photos LIMIT 3;"
+C:\HASC\HASC-OCR\.venv\Scripts\python -c "import sqlite3; c = sqlite3.connect(r'C:\HASC\data\hasc.db'); old = '/home/OLD/.local/share/hasc-ocr-dev/photos/'; new = 'C:\\HASC\\data\\photos\\'; fix = lambda p: p and p.replace(old, new).replace('/', '\\'); [c.execute('UPDATE photos SET path = ?, small_copy_path = ? WHERE id = ?', (fix(p), fix(s), i)) for i, p, s in c.execute('SELECT id, path, small_copy_path FROM photos').fetchall()]; c.commit(); print(c.execute('SELECT path FROM photos LIMIT 3').fetchall())"
 ```
 
 Close the `hasc` window.
 
 ### 8. Run the website and the worker as services
 
-Back in PowerShell as Administrator. Replace `HASC_PASSWORD` with the `hasc` password:
+Back in PowerShell as Administrator. Replace `HASC_PASSWORD` with the `hasc` password, in single quotes (`'...'`) so PowerShell does not change characters such as `$`, `&` or `;`:
 
 ```powershell
 nssm install hasc-web C:\HASC\HASC-OCR\.venv\Scripts\python.exe "-m uvicorn hasc.web:create_app --factory --host 0.0.0.0 --port 8080"
@@ -386,7 +391,7 @@ NSSM restarts either service if it stops. If a service will not start with error
   New-NetFirewallRule -DisplayName "HASC website" -Direction Inbound -Protocol TCP -LocalPort 8080 -RemoteAddress 192.168.1.0/24 -Profile Private -Action Allow
   ```
 
-  The office network must be set to **Private** in Windows network settings, or the rule does not apply.
+  Change `192.168.1.0/24` if the office network uses other addresses (`ipconfig` shows them). The office network must be set to **Private** in Windows network settings, or the rule does not apply.
 - **Never sleep:**
 
   ```powershell
