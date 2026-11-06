@@ -264,16 +264,25 @@ systemctl --user restart hasc-web hasc-worker
 
 The office PC (Intel i3-8100, 8 GB RAM, Windows) hosts the website and the worker for the factory. Office staff also use this PC, so HASC runs as its own Windows account, `hasc`, and its data is encrypted to that account with EFS: staff logged in as themselves cannot open the database or photos. Run the commands below in **PowerShell as Administrator** unless a step says otherwise.
 
-### Quick install: the USB bundle (recommended)
+### Quick install: the bundle (recommended)
 
-Each release has a zip, `hasc-<version>-win64.zip`, on the GitHub **Releases** page. It holds the code, a portable Python with every library installed, and `nssm.exe`, so the PC needs no git, no Python installer and no `pip`. CI installs every bundle on a clean Windows machine before it is published.
+Each release has a zip, `hasc-<version>-win64.zip`, on the GitHub **Releases** page. It holds the code, a portable Python with every library installed, `nssm.exe`, and three tools: `install.cmd`, `update.cmd` and `delete.cmd`. The PC needs no git, no Python installer and no `pip`. CI installs, updates, deletes and reinstalls every bundle on a clean Windows machine before it is published.
 
-1. On a PC signed in to GitHub, download the zip from Releases and copy it to a USB stick, together with `known_names.json` (and, to bring existing data, the `hasc.db` backup and its `photos` folder).
-2. On the office PC, unzip it anywhere except `C:\HASC` (for example `Downloads\hasc-bundle`).
-3. Right-click `install.cmd`, **Run as administrator**, and answer the questions: a password for the `hasc` account (at least 8 characters), the path to `known_names.json` (you can drag the file into the window), the OpenRouter key, existing data or a fresh start (a fresh start prints the admin password once: write it down), the office network that may reach the site, and whether to set a Public network to Private. On Windows Pro a window opens as `hasc` to back up the encryption key: copy the `.pfx` it makes to a USB stick before pressing Enter. On Windows Home there is no encryption; give office staff standard accounts.
-4. It ends by printing the address phones use. Do the three steps it lists by hand (BIOS power-on after power loss, a fixed address in the router, Windows Update paused).
+Each tool is a double-click: Windows asks to allow it to make changes (choose **Yes**), and small windows ask the questions.
 
-**Updating:** unzip the new release's bundle and run `install.cmd` again as administrator. It sees HASC is already installed, replaces the code and Python, keeps the data, settings and firewall rule, and asks only for the `hasc` password. A wrong password stops it before anything changes.
+**Install**
+
+1. Copy the zip and `known_names.json` to the PC (and, to bring existing data, the `hasc.db` backup with its `photos` folder next to it).
+2. Unzip it anywhere except `C:\HASC` (for example `Downloads\hasc-bundle`) and double-click `install.cmd`.
+3. Answer the windows: a password for the `hasc` Windows account (at least 8 characters; keep it, updates ask for it), `known_names.json`, the OpenRouter key, existing data or a fresh start, and the office network. A fresh start shows the admin's first password once: write it down.
+4. On Windows Pro a black window opens as `hasc` to back up the encryption key: type a password for the key file there. Then copy the selected `hasc-efs-key.pfx` to a USB stick before pressing OK.
+5. The website opens when it is done. The last window lists what to do by hand: BIOS power-on after power loss, a fixed address in the router, Windows Update paused.
+
+The installer adds **HASC website** and **HASC update** to the desktop, and both plus **HASC delete** to the Start menu.
+
+**Update:** double-click **HASC update**. It asks GitHub for the latest release, says what will change, downloads the bundle and installs it, keeping the data, settings and firewall rule. The first time it asks for a read-only GitHub token (github.com, Settings, Developer settings, Fine-grained tokens: repository HASC-OCR only, Contents read-only) and keeps it encrypted to your Windows user. Without internet, unzip a newer bundle and double-click its `install.cmd` instead.
+
+**Delete:** **HASC delete** in the Start menu (or `C:\HASC\tools\delete.cmd`). It asks whether to keep the database and photos: kept, they are moved, readable by administrators only, to `C:\HASC-backup-<date>`, and `install.cmd` can bring them back; otherwise they are erased. Everything else goes: the services, the firewall rule, `C:\HASC`, the shortcuts, and the `hasc` account with its profile and encryption key.
 
 **Warning:** never reset the `hasc` password from another account. Windows then throws away the encryption keys and the data can no longer be read.
 

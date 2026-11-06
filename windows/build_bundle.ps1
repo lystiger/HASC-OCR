@@ -54,7 +54,7 @@ Expand-Archive "$work\nssm.zip" "$work\nssm"
 New-Item -ItemType Directory -Path "$stage\bin" | Out-Null
 Copy-Item (Get-ChildItem "$work\nssm" -Recurse -Filter nssm.exe | Where-Object { $_.FullName -like "*\win64\*" } | Select-Object -First 1).FullName "$stage\bin\nssm.exe"
 
-Copy-Item "$PSScriptRoot\install.ps1", "$PSScriptRoot\install.cmd" $stage
+foreach ($f in @("common.ps1", "install.ps1", "update.ps1", "delete.ps1", "install.cmd", "update.cmd", "delete.cmd")) { Copy-Item "$PSScriptRoot\$f" $stage }
 Set-Content "$stage\VERSION.txt" $Version -Encoding ASCII
 
 $zip = Join-Path $OutDir "$name.zip"

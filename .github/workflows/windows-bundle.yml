@@ -35,20 +35,56 @@ jobs:
           & ..\python\python.exe -m unittest discover -s tests
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
-      - name: Install as on the office PC (Windows PowerShell 5.1)
+      - name: Install, update, delete and reinstall as on the office PC (Windows PowerShell 5.1)
         shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          $ErrorActionPreference = "Stop"
+          $b = "$env:RUNNER_TEMP\bundle"
+          $zip = "$env:RUNNER_TEMP\dist\hasc-$env:VERSION-win64.zip"
+          function Check([string]$what, [bool]$ok) { if (-not $ok) { throw "FAILED: $what" } ; Write-Host "ok: $what" }
+          function Run([scriptblock]$block) { & $block; if ($LASTEXITCODE) { throw "exit code $LASTEXITCODE" } }
+          function Login([string]$pass) {
+            $r = Invoke-WebRequest "http://127.0.0.1:8080/api/login" -Method Post -UseBasicParsing `
+              -ContentType "application/json" -Body ('{"username": "admin", "password": "' + $pass + '"}')
+            return $r.StatusCode
+          }
           '{"customers": {}, "products": {}}' | Set-Content "$env:RUNNER_TEMP\known_names.json"
           $pw = ConvertTo-SecureString "Ci-Pw-$(Get-Random)-Aa1!" -AsPlainText -Force
           $key = ConvertTo-SecureString "sk-or-ci-dummy" -AsPlainText -Force
-          & "$env:RUNNER_TEMP\bundle\install.ps1" -NonInteractive -SkipKeyExport -HascPassword $pw -OpenRouterKey $key `
-            -KnownNames "$env:RUNNER_TEMP\known_names.json" -AdminPassword "ci-admin-pass" -Subnet "10.0.0.0/8"
-          # Data is encrypted to hasc, the website answers, a second run updates in place.
-          cipher /c C:\HASC\data\hasc.db
-          & "$env:RUNNER_TEMP\bundle\install.ps1" -NonInteractive -HascPassword $pw -Subnet "10.0.0.0/8"
-          $login = Invoke-WebRequest "http://127.0.0.1:8080/api/login" -Method Post -UseBasicParsing `
-            -ContentType "application/json" -Body '{"username": "admin", "password": "ci-admin-pass"}'
-          Write-Host "Login: $($login.StatusCode)"
+
+          # 1. First install.
+          Run { & "$b\install.ps1" -NonInteractive -SkipKeyExport -FreshStart -HascPassword $pw -OpenRouterKey $key `
+            -KnownNames "$env:RUNNER_TEMP\known_names.json" -AdminPassword "ci-admin-pass" -Subnet "10.0.0.0/8" }
+          Check "admin can log in" ((Login "ci-admin-pass") -eq 200)
+          Check "database encrypted to hasc" ((cipher /c C:\HASC\data\hasc.db | Out-String) -match "\\hasc")
+          Check "tools installed" (Test-Path C:\HASC\tools\delete.ps1)
+
+          # 2. Update from a local zip through update.ps1, and ask GitHub for the latest release.
+          Run { & C:\HASC\tools\update.ps1 -NonInteractive -ZipPath $zip -HascPassword $pw }
+          Check "admin can log in after the update" ((Login "ci-admin-pass") -eq 200)
+          Run { & C:\HASC\tools\update.ps1 -NonInteractive -CheckOnly -Token $env:GH_TOKEN }
+
+          # 3. Delete, keeping the data.
+          Run { & C:\HASC\tools\delete.ps1 -NonInteractive -HascPassword $pw -KeepDataTo C:\hasc-keep }
+          Check "services removed" (-not (Get-Service hasc-web -ErrorAction SilentlyContinue))
+          Check "account removed" (-not (Get-LocalUser hasc -ErrorAction SilentlyContinue))
+          Check "C:\HASC removed" (-not (Test-Path C:\HASC))
+          Check "firewall rule removed" (-not (Get-NetFirewallRule -DisplayName "HASC website" -ErrorAction SilentlyContinue))
+          $users = & "$b\python\python.exe" -c "import sqlite3; print(sqlite3.connect(r'C:\hasc-keep\hasc.db').execute('select count(*) from users').fetchone()[0])"
+          Check "kept database readable by an administrator ($users users)" ([int]$users -ge 1)
+
+          # 4. Reinstall from the kept data: the old admin password still works.
+          $pw2 = ConvertTo-SecureString "Ci-Pw-$(Get-Random)-Bb2!" -AsPlainText -Force
+          Run { & "$b\install.ps1" -NonInteractive -SkipKeyExport -HascPassword $pw2 -OpenRouterKey $key `
+            -KnownNames "$env:RUNNER_TEMP\known_names.json" -ImportDb C:\hasc-keep\hasc.db -ImportPhotos C:\hasc-keep\photos -Subnet "10.0.0.0/8" }
+          Check "kept admin password works after reinstall" ((Login "ci-admin-pass") -eq 200)
+
+          # 5. Delete and erase the data.
+          Run { & C:\HASC\tools\delete.ps1 -NonInteractive -EraseData }
+          Check "C:\HASC removed after erase" (-not (Test-Path C:\HASC))
+          Check "account removed after erase" (-not (Get-LocalUser hasc -ErrorAction SilentlyContinue))
 
       - name: Show permissions
         if: failure()
@@ -90,5 +126,5 @@ jobs:
         run: |
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
             gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" \
-              --notes "Windows bundle: unzip, then right-click install.cmd, Run as administrator."
+              --notes "Windows bundle: unzip, then double-click install.cmd. Installed PCs update with the HASC update shortcut."
           gh release upload "$TAG" "hasc-$TAG-win64.zip" --repo "$GITHUB_REPOSITORY" --clobber
