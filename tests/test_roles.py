@@ -152,7 +152,7 @@ class TestSection4RoleTable(unittest.TestCase):
         """Action 9: Add or deactivate accounts, reset passwords, log out any account: Admin=Yes, others=No"""
         for role in ["operator", "employee", "boss", "admin"]:
             client = self.clients[role]
-            res = client.post("/api/admin/users", json={"username": f"user_by_{role}", "role": "operator"})
+            res = client.post("/api/admin/users", json={"username": f"user_by_{role}", "role": "employee"})
             if role == "admin":
                 self._assert_allowed(role, res, "POST /api/admin/users")
             else:

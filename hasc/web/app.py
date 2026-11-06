@@ -31,6 +31,13 @@ from hasc.db import (
     update_user_password,
 )
 from hasc.excel import build_daily_report, daily_report_filename
+from hasc.web.accounts import (
+    create_account,
+    list_account_events,
+    list_accounts_with_status,
+    logout_account,
+    patch_account,
+)
 from hasc.web.auth import (
     clear_session_cookie,
     get_active_user,
@@ -446,40 +453,32 @@ def create_app(
     # API Routes: Admin User Management
     # -------------------------------------------------------------------------
 
+    @app.get("/api/admin/users")
+    def api_admin_list_users(
+        admin: dict = Depends(require_role("admin")),
+        conn: sqlite3.Connection = Depends(get_db),
+    ):
+        return list_accounts_with_status(conn)
+
+    @app.get("/api/admin/users/events")
+    def api_admin_list_user_events(
+        admin: dict = Depends(require_role("admin")),
+        conn: sqlite3.Connection = Depends(get_db),
+    ):
+        return list_account_events(conn)
+
     @app.post("/api/admin/users", status_code=201)
     def api_admin_create_user(
         payload: CreateUserRequest,
         admin: dict = Depends(require_role("admin")),
         conn: sqlite3.Connection = Depends(get_db),
     ):
-        if payload.role not in ("operator", "employee", "boss", "admin"):
-            raise AppError(
-                code="invalid_role",
-                message="Vai trò người dùng không hợp lệ",
-                status_code=400,
-            )
-
-        existing = get_user_by_username(conn, payload.username)
-        if existing:
-            raise AppError(
-                code="duplicate_username",
-                message="Tên đăng nhập đã tồn tại",
-                status_code=400,
-            )
-
-        temp_password = generate_temporary_password()
-        pw_hash = hash_password(temp_password)
-        expiry = temp_password_expires_at()
-        user_id = create_user(
-            conn,
+        user_id, temp_password = create_account(
+            conn=conn,
+            actor=admin,
             username=payload.username,
-            password_hash=pw_hash,
             role=payload.role,
-            active=1,
-            must_change_password=1,
-            temp_password_expires_at=expiry,
         )
-
         return JSONResponse(
             status_code=201,
             content={"id": user_id, "temporary_password": temp_password},
@@ -492,44 +491,14 @@ def create_app(
         admin: dict = Depends(require_role("admin")),
         conn: sqlite3.Connection = Depends(get_db),
     ):
-        target_user = get_user_by_id(conn, user_id)
-        if not target_user:
-            raise AppError(code="not_found", message="Người dùng không tồn tại", status_code=404)
-
-        temp_password = None
-        if payload.reset_password:
-            temp_password = generate_temporary_password()
-            pw_hash = hash_password(temp_password)
-            expiry = temp_password_expires_at()
-            update_user_password(
-                conn,
-                user_id,
-                pw_hash,
-                must_change_password=1,
-                temp_password_expires_at=expiry,
-            )
-            delete_user_sessions(conn, user_id)
-
-        if payload.active is not None:
-            set_user_active(conn, user_id, payload.active)
-            if payload.active == 0:
-                delete_user_sessions(conn, user_id)
-
-        if payload.role is not None:
-            if payload.role not in ("operator", "employee", "boss", "admin"):
-                raise AppError(code="invalid_role", message="Vai trò không hợp lệ", status_code=400)
-            with conn:
-                conn.execute("UPDATE users SET role = ? WHERE id = ?", (payload.role, user_id))
-            delete_user_sessions(conn, user_id)
-
-        updated_user = get_user_by_id(conn, user_id)
-        resp_data = {
-            "id": updated_user["id"],
-            "username": updated_user["username"],
-            "role": updated_user["role"],
-            "active": updated_user["active"],
-            "must_change_password": bool(updated_user["must_change_password"]),
-        }
+        resp_data, temp_password = patch_account(
+            conn=conn,
+            actor=admin,
+            target_user_id=user_id,
+            active=payload.active,
+            role=payload.role,
+            reset_password=payload.reset_password,
+        )
         if temp_password:
             resp_data["temporary_password"] = temp_password
         return resp_data
@@ -540,7 +509,7 @@ def create_app(
         admin: dict = Depends(require_role("admin")),
         conn: sqlite3.Connection = Depends(get_db),
     ):
-        delete_user_sessions(conn, user_id)
+        logout_account(conn=conn, actor=admin, target_user_id=user_id)
         return Response(status_code=204)
 
     # -------------------------------------------------------------------------
