@@ -264,6 +264,21 @@ systemctl --user restart hasc-web hasc-worker
 
 The office PC (Intel i3-8100, 8 GB RAM, Windows) hosts the website and the worker for the factory. Office staff also use this PC, so HASC runs as its own Windows account, `hasc`, and its data is encrypted to that account with EFS: staff logged in as themselves cannot open the database or photos. Run the commands below in **PowerShell as Administrator** unless a step says otherwise.
 
+### Quick install: the USB bundle (recommended)
+
+Each release has a zip, `hasc-<version>-win64.zip`, on the GitHub **Releases** page. It holds the code, a portable Python with every library installed, and `nssm.exe`, so the PC needs no git, no Python installer and no `pip`. CI installs every bundle on a clean Windows machine before it is published.
+
+1. On a PC signed in to GitHub, download the zip from Releases and copy it to a USB stick, together with `known_names.json` (and, to bring existing data, the `hasc.db` backup and its `photos` folder).
+2. On the office PC, unzip it anywhere except `C:\HASC` (for example `Downloads\hasc-bundle`).
+3. Right-click `install.cmd`, **Run as administrator**, and answer the questions: a password for the `hasc` account (at least 8 characters), the path to `known_names.json` (you can drag the file into the window), the OpenRouter key, existing data or a fresh start (a fresh start prints the admin password once: write it down), the office network that may reach the site, and whether to set a Public network to Private. On Windows Pro a window opens as `hasc` to back up the encryption key: copy the `.pfx` it makes to a USB stick before pressing Enter. On Windows Home there is no encryption; give office staff standard accounts.
+4. It ends by printing the address phones use. Do the three steps it lists by hand (BIOS power-on after power loss, a fixed address in the router, Windows Update paused).
+
+**Updating:** unzip the new release's bundle and run `install.cmd` again as administrator. It sees HASC is already installed, replaces the code and Python, keeps the data, settings and firewall rule, and asks only for the `hasc` password. A wrong password stops it before anything changes.
+
+**Warning:** never reset the `hasc` password from another account. Windows then throws away the encryption keys and the data can no longer be read.
+
+The numbered steps below do the same by hand, for when the installer cannot be used.
+
 ### 1. Check the Windows edition
 
 ```powershell
