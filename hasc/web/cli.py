@@ -12,6 +12,7 @@ from hasc.db.connection import get_default_db_path
 from hasc.web.security import (
     generate_temporary_password,
     hash_password,
+    temp_password_expires_at,
 )
 
 
@@ -79,6 +80,7 @@ def main(argv: list[str] | None = None) -> int:
             must_change = 0 if args.must_change_password is None else int(args.must_change_password)
 
         pw_hash = hash_password(password)
+        temp_expiry = temp_password_expires_at() if must_change else None
         user_id = create_user(
             conn,
             username=args.username,
@@ -86,6 +88,7 @@ def main(argv: list[str] | None = None) -> int:
             role=args.role,
             active=1,
             must_change_password=must_change,
+            temp_password_expires_at=temp_expiry,
         )
 
         print(f"User '{args.username}' created successfully (ID: {user_id}, Role: {args.role}).")
