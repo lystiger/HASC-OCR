@@ -42,11 +42,14 @@ from hasc.web.auth import (
 )
 from hasc.web.errors import AppError
 from hasc.web.roles import require_role
+from hasc.web import security
 from hasc.web.security import (
     generate_session_id,
     generate_temporary_password,
     get_session_duration,
     hash_password,
+    is_session_expired,
+    temp_password_expires_at,
     verify_password,
 )
 
@@ -151,6 +154,11 @@ def create_app(
     # {"error": {"code": "<code>", "message": "<Vietnamese text>"}}
     @app.exception_handler(AppError)
     async def app_error_handler(request: Request, exc: AppError):
+        if not request.url.path.startswith("/api/"):
+            if exc.code == "password_change_required":
+                return RedirectResponse(url="/change-password", status_code=303)
+            if exc.status_code == 401:
+                return RedirectResponse(url="/login", status_code=303)
         return exc.to_response()
 
     DEFAULT_HTTP_ERRORS = {
@@ -237,9 +245,7 @@ def create_app(
         request: Request,
         user: Optional[dict] = Depends(get_current_user_optional),
     ):
-        if user:
-            if user.get("must_change_password"):
-                return RedirectResponse(url="/change-password", status_code=303)
+        if user and not user.get("must_change_password"):
             return RedirectResponse(url="/", status_code=303)
 
         return templates.TemplateResponse(
@@ -272,10 +278,18 @@ def create_app(
                 status_code=403,
             )
 
+        if user["temp_password_expires_at"] and is_session_expired(user["temp_password_expires_at"]):
+            return templates.TemplateResponse(
+                request=request,
+                name="login.html",
+                context={"username": username, "error": "Mật khẩu tạm đã hết hạn. Hãy nhờ Quản trị đặt lại."},
+                status_code=401,
+            )
+
         # Create session
         session_id = generate_session_id()
         duration = get_session_duration(user["role"])
-        expires_at = (datetime.now(timezone.utc) + duration).isoformat()
+        expires_at = (security.now() + duration).isoformat()
         create_session(conn, session_id, user["id"], expires_at)
 
         target_url = "/change-password" if user["must_change_password"] else "/"
@@ -377,9 +391,16 @@ def create_app(
                 status_code=403,
             )
 
+        if user["temp_password_expires_at"] and is_session_expired(user["temp_password_expires_at"]):
+            raise AppError(
+                code="temp_password_expired",
+                message="Mật khẩu tạm đã hết hạn. Hãy nhờ Quản trị đặt lại.",
+                status_code=401,
+            )
+
         session_id = generate_session_id()
         duration = get_session_duration(user["role"])
-        expires_at = (datetime.now(timezone.utc) + duration).isoformat()
+        expires_at = (security.now() + duration).isoformat()
         create_session(conn, session_id, user["id"], expires_at)
 
         response = JSONResponse(
@@ -448,6 +469,7 @@ def create_app(
 
         temp_password = generate_temporary_password()
         pw_hash = hash_password(temp_password)
+        expiry = temp_password_expires_at()
         user_id = create_user(
             conn,
             username=payload.username,
@@ -455,6 +477,7 @@ def create_app(
             role=payload.role,
             active=1,
             must_change_password=1,
+            temp_password_expires_at=expiry,
         )
 
         return JSONResponse(
@@ -477,16 +500,27 @@ def create_app(
         if payload.reset_password:
             temp_password = generate_temporary_password()
             pw_hash = hash_password(temp_password)
-            update_user_password(conn, user_id, pw_hash, must_change_password=1)
+            expiry = temp_password_expires_at()
+            update_user_password(
+                conn,
+                user_id,
+                pw_hash,
+                must_change_password=1,
+                temp_password_expires_at=expiry,
+            )
+            delete_user_sessions(conn, user_id)
 
         if payload.active is not None:
             set_user_active(conn, user_id, payload.active)
+            if payload.active == 0:
+                delete_user_sessions(conn, user_id)
 
         if payload.role is not None:
             if payload.role not in ("operator", "employee", "boss", "admin"):
                 raise AppError(code="invalid_role", message="Vai trò không hợp lệ", status_code=400)
             with conn:
                 conn.execute("UPDATE users SET role = ? WHERE id = ?", (payload.role, user_id))
+            delete_user_sessions(conn, user_id)
 
         updated_user = get_user_by_id(conn, user_id)
         resp_data = {

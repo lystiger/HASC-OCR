@@ -9,8 +9,10 @@ from hasc.db import (
     get_connection,
     get_session,
     get_user_by_id,
+    update_user_last_seen,
 )
 from hasc.web.errors import AppError
+from hasc.web import security
 from hasc.web.security import (
     get_session_duration,
     is_session_expired,
@@ -64,7 +66,29 @@ def get_current_user_optional(
     if not user_row or user_row["active"] != 1:
         return None
 
-    return dict(user_row)
+    # Write last_seen_at in the current-user dependency at most once per minute
+    current_time = security.now()
+    last_seen = user_row["last_seen_at"]
+    should_update = False
+    if not last_seen:
+        should_update = True
+    else:
+        try:
+            seen_dt = datetime.fromisoformat(str(last_seen).replace("Z", "+00:00"))
+            if seen_dt.tzinfo is None:
+                seen_dt = seen_dt.replace(tzinfo=timezone.utc)
+            if (current_time - seen_dt).total_seconds() >= 60:
+                should_update = True
+        except ValueError:
+            should_update = True
+
+    user_dict = dict(user_row)
+    if should_update:
+        current_iso = current_time.isoformat()
+        update_user_last_seen(conn, user_row["id"], current_iso)
+        user_dict["last_seen_at"] = current_iso
+
+    return user_dict
 
 
 def get_authenticated_user(
