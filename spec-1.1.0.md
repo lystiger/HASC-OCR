@@ -1,6 +1,9 @@
-# HASC Production Records 1.0.1: accounts screen and office frame
+# HASC Production Records 1.1.0: accounts screen and office frame
 
-Date: 2026-11-06. Decisions by Lystiger (P123–P131). Builds on `spec.md` (v1.0.0); where this file and `spec.md` differ, this file wins for 1.0.1. Items marked **UNDECIDED** need Lystiger before the build step that uses them.
+Date: 2026-11-06. Decisions by Lystiger (P123–P131). Builds on `spec.md` (v1.0.1); where this file and `spec.md` differ, this file wins for 1.1.0. Items marked **UNDECIDED** need Lystiger before the build step that uses them.
+
+> **Not yet in this spec (discussed 2026-11-06, to settle before the build):** operators get no accounts; a QR code posted in the factory opens the upload page, and an upload counts as that shift's trưởng ca plus the phone; a system-wide cap of about 100 AI reads a day with an alert to Lystiger (about 40 sheets a day); no per-device lock until junk uploads happen; office passwords set by Lystiger in person, so U1 (SMS or Zalo) would go away. Sections 2–6 still describe operator accounts.
+
 
 ## 1. Problem
 
@@ -128,13 +131,13 @@ Unit and API tests with the fake reader and a fake sender, made-up data only: on
 1. Settle U1 and U6.
 2. Build on a branch as one Hermes job; merge after CI and an independent verifier.
 3. Deploy to the Dell (Lystiger), run the migration, and check the owner flag is on Lystiger's account.
-4. Tag `v1.0.1`.
+4. Tag `v1.1.0`.
 
 ## Decisions (Lystiger, 2026-11-06)
 
 | # | Decision |
 |---|---|
-| P123 | 1.0.1 covers add, deactivate, reactivate, reset password and change role from a screen. |
+| P123 | 1.1.0 covers add, deactivate, reactivate, reset password and change role from a screen. |
 | P124 | Office and admin pages get an ERP-style frame, so later modules (dashboard, PO, production plan) can join it. Entries appear only when their module ships (Claude's recommendation, to confirm). |
 | P125 | The system sends the temporary password to the user's phone. It works for one login, then the user must set their own password. |
 | P126 | The first admin (Lystiger) is the owner: cannot be deactivated or demoted, and is the only one who can give or remove the admin role. |
@@ -143,7 +146,7 @@ Unit and API tests with the fake reader and a fake sender, made-up data only: on
 | P129 | Operator devices stay logged in until the password changes (or a reset, log-out, role change or deactivation). Office sessions stay at 8 hours. |
 | P130 | Account changes are recorded; only admins see them. |
 | P131 | The accounts screen shows which accounts are online. |
-| P132 | HTTPS (spec.md P67) ships with 1.0.1, because operator sessions no longer expire. |
+| P132 | HTTPS (spec.md P67) ships with 1.1.0, because operator sessions no longer expire. |
 | P133 | An unused temporary password expires after 72 hours; "online" is a request in the last 5 minutes; usernames are 3–32 characters from `a-z`, `0-9`, `.`, `_`. |
 
 ## UNDECIDED
