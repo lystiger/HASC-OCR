@@ -50,6 +50,16 @@ jobs:
             -ContentType "application/json" -Body '{"username": "admin", "password": "ci-admin-pass"}'
           Write-Host "Login: $($login.StatusCode)"
 
+      - name: Show permissions
+        if: failure()
+        shell: powershell
+        run: |
+          whoami /groups /fo list | Select-String "Group Name|Attributes"
+          icacls C:\HASC
+          icacls C:\HASC\python
+          icacls C:\HASC\python\python.exe
+          Get-Item C:\HASC\python\python.exe -Stream * | Select-Object Stream
+
       - name: Show service logs
         if: always()
         shell: pwsh
