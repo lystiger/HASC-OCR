@@ -33,6 +33,7 @@ function Get-Token {
     $secure = Read-Text $help -Secret
     if ((Get-Plain $secure).Trim().Length -eq 0) { throw "No token given." }
     $secure | ConvertFrom-SecureString | Set-Content $TokenFile -Encoding ASCII
+    Invoke-Native icacls.exe @($TokenFile, "/inheritance:r", "/grant:r", "${AdminsSid}:F", "${SystemSid}:F", "/Q") | Out-Null
     return Get-Plain $secure
 }
 
@@ -50,10 +51,12 @@ function Invoke-GitHub([string]$Url, [string]$Accept, [string]$OutFile) {
     try { $response = $request.GetResponse() }
     catch [System.Net.WebException] {
         $code = [int]$_.Exception.Response.StatusCode
-        if ($code -eq 401 -or $code -eq 403 -or $code -eq 404) {
+        if ($code -eq 401) {
             Remove-Item $TokenFile -Force -ErrorAction SilentlyContinue
-            throw "GitHub refused the token (HTTP $code). Run the update again and paste a new read-only token."
+            throw "GitHub refused the token (expired or wrong). Run the update again and paste a new read-only token."
         }
+        if ($code -eq 403) { throw "GitHub refused the request (HTTP 403): the token may lack Contents read on HASC-OCR, or GitHub is limiting requests. Try again later." }
+        if ($code -eq 404) { throw "GitHub found no release (HTTP 404), or the token cannot see HASC-OCR." }
         throw
     }
     $status = [int]$response.StatusCode
@@ -117,6 +120,5 @@ function Update-Hasc {
 try {
     Update-Hasc
 } catch {
-    Show-Error $_.Exception.Message
-    exit 1
+    Exit-WithError $_
 }

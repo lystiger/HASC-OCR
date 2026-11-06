@@ -280,9 +280,9 @@ Each tool is a double-click: Windows asks to allow it to make changes (choose **
 
 The installer adds **HASC website** and **HASC update** to the desktop, and both plus **HASC delete** to the Start menu.
 
-**Update:** double-click **HASC update**. It asks GitHub for the latest release, says what will change, downloads the bundle and installs it, keeping the data, settings and firewall rule. The first time it asks for a read-only GitHub token (github.com, Settings, Developer settings, Fine-grained tokens: repository HASC-OCR only, Contents read-only) and keeps it encrypted to your Windows user. Without internet, unzip a newer bundle and double-click its `install.cmd` instead.
+**Update:** double-click **HASC update**. It asks GitHub for the latest release, says what will change, downloads the bundle and installs it, keeping the data, settings and firewall rule. It asks for the `hasc` password. The first time it asks for a read-only GitHub token (github.com, Settings, Developer settings, Fine-grained tokens: repository HASC-OCR only, Contents read-only) and keeps it encrypted to your Windows user. Without internet, unzip a newer bundle and double-click its `install.cmd` instead.
 
-**Delete:** **HASC delete** in the Start menu (or `C:\HASC\tools\delete.cmd`). It asks whether to keep the database and photos: kept, they are moved, readable by administrators only, to `C:\HASC-backup-<date>`, and `install.cmd` can bring them back; otherwise they are erased. Everything else goes: the services, the firewall rule, `C:\HASC`, the shortcuts, and the `hasc` account with its profile and encryption key.
+**Delete:** **HASC delete** in the Start menu (or `C:\HASC\tools\delete.cmd`). It asks whether to keep the database and photos: kept, they are moved, readable by administrators only, to `C:\HASC-backup-<date>`, and `install.cmd` can bring them back; otherwise they are erased. Everything else goes: the services, the firewall rule, `C:\HASC`, the shortcuts, and the `hasc` account with its profile and encryption key (the profile at the next restart if Windows still holds it).
 
 **Warning:** never reset the `hasc` password from another account. Windows then throws away the encryption keys and the data can no longer be read.
 

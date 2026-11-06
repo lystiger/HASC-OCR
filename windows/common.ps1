@@ -7,6 +7,8 @@ $WebsiteUrl = "http://localhost:8080/login"
 # Well-known SIDs, so the scripts work whatever language Windows is in.
 $AdminsSid = "*S-1-5-32-544"
 $SystemSid = "*S-1-5-18"
+# Windows PowerShell 5.1 downloads very slowly while it draws a progress bar.
+$ProgressPreference = "SilentlyContinue"
 
 function Test-Admin {
     return ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
@@ -60,9 +62,12 @@ function Show-Error([string]$Text) {
 
 function Confirm-Choice([string]$Text, [bool]$Default = $true, [switch]$Warning) {
     if ($NonInteractive) { return $Default }
-    $icon = "Question"
-    if ($Warning) { $icon = "Warning" }
-    return [System.Windows.Forms.MessageBox]::Show($Text, "HASC", "YesNo", $icon) -eq "Yes"
+    $icon = [System.Windows.Forms.MessageBoxIcon]::Question
+    if ($Warning) { $icon = [System.Windows.Forms.MessageBoxIcon]::Warning }
+    # Enter picks the default button, so it must be No when the safe answer is No.
+    $button = [System.Windows.Forms.MessageBoxDefaultButton]::Button1
+    if (-not $Default) { $button = [System.Windows.Forms.MessageBoxDefaultButton]::Button2 }
+    return [System.Windows.Forms.MessageBox]::Show($Text, "HASC", [System.Windows.Forms.MessageBoxButtons]::YesNo, $icon, $button) -eq "Yes"
 }
 
 function New-Dialog([string]$Text, [int]$Height) {
@@ -116,10 +121,14 @@ function Read-Text([string]$Text, [string]$Default = "", [switch]$Secret) {
     Add-Buttons $form
     $form.Add_Shown({ $box.Focus() })
     if ($form.ShowDialog() -ne "OK") { throw "Cancelled." }
-    $value = $box.Text.Trim().Trim('"')
+    $value = $box.Text
     $form.Dispose()
-    if ($Secret) { return (ConvertTo-SecureString $value -AsPlainText -Force) }
-    return $value
+    # A secret is kept exactly as typed; a path dragged into the box arrives in quotes.
+    if ($Secret) {
+        if ($value.Length -eq 0) { return (New-Object System.Security.SecureString) }
+        return (ConvertTo-SecureString $value -AsPlainText -Force)
+    }
+    return $value.Trim().Trim('"')
 }
 
 function Show-Secret([string]$Text, [string]$Value) {
@@ -186,11 +195,12 @@ function Set-ServiceLogonRight([string]$Sid, [switch]$Remove) {
         Invoke-Native secedit.exe @("/export", "/cfg", $cfg, "/areas", "USER_RIGHTS", "/quiet")
         $lines = Get-Content $cfg
         $line = $lines | Where-Object { $_ -like "SeServiceLogonRight*" }
-        $has = $line -and ($line -like "*$Sid*")
+        $pattern = "\*" + [regex]::Escape($Sid) + "(,|\s*$)"
+        $has = $line -and ($line -match $pattern)
         if ($Remove) {
             if (-not $has) { return }
             $lines = $lines | ForEach-Object {
-                if ($_ -like "SeServiceLogonRight*") { ($_ -replace (",?\*" + [regex]::Escape($Sid)), "") -replace "= ,", "= " } else { $_ }
+                if ($_ -like "SeServiceLogonRight*") { ($_ -replace (",?\*" + [regex]::Escape($Sid) + "(?=,|\s*$)"), "") -replace "= ,", "= " } else { $_ }
             }
         } else {
             if ($has) { return }
@@ -209,4 +219,13 @@ function Set-ServiceLogonRight([string]$Sid, [switch]$Remove) {
 
 function Get-AccountSid([string]$User) {
     return (New-Object System.Security.Principal.NTAccount($User)).Translate([System.Security.Principal.SecurityIdentifier]).Value
+}
+
+function Exit-WithError($ErrorRecord, [string]$Hint = "") {
+    # Cancel in a dialog is not an error: stop quietly.
+    if ($ErrorRecord.Exception.Message -eq "Cancelled.") { Write-Host "Cancelled."; exit 2 }
+    $text = $ErrorRecord.Exception.Message
+    if ($Hint) { $text += "`n`n$Hint" }
+    Show-Error $text
+    exit 1
 }

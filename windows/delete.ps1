@@ -6,41 +6,51 @@ param(
     [string]$InstallDir = "C:\HASC",
     [string]$KeepDataTo = "",
     [System.Security.SecureString]$HascPassword,
+    # The hasc password, encrypted to this Windows user, when the script restarts itself.
+    [string]$HascPasswordSaved = "",
     [switch]$EraseData,
     [switch]$NonInteractive
 )
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "common.ps1")
 
-# Run from a copy outside C:\HASC, since C:\HASC is about to be deleted.
+if (-not (Test-Admin) -and $NonInteractive) { throw "Run this as Administrator." }
+
+# Run from a copy outside C:\HASC, since C:\HASC is about to be deleted: no process of ours may keep
+# a file or its working folder inside it.
 $here = (Resolve-Path $PSScriptRoot).Path
 if ($here.StartsWith($InstallDir.TrimEnd("\"), [StringComparison]::OrdinalIgnoreCase)) {
     $copy = Join-Path $env:TEMP "hasc-delete"
     New-Item -ItemType Directory -Path $copy -Force | Out-Null
     Copy-Item (Join-Path $here "common.ps1"), (Join-Path $here "delete.ps1") $copy -Force
-    $forward = @("-InstallDir", "`"$InstallDir`"")
+    $forward = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$copy\delete.ps1`"", "-InstallDir", "`"$InstallDir`"")
     if ($NonInteractive) { $forward += "-NonInteractive" }
     if ($EraseData) { $forward += "-EraseData" }
     if ($KeepDataTo) { $forward += @("-KeepDataTo", "`"$KeepDataTo`"") }
-    if (Test-Admin) {
-        & (Join-Path $copy "delete.ps1") -InstallDir $InstallDir -KeepDataTo $KeepDataTo -HascPassword $HascPassword -EraseData:$EraseData -NonInteractive:$NonInteractive
-        exit $LASTEXITCODE
+    if ($HascPassword) { $forward += @("-HascPasswordSaved", (ConvertFrom-SecureString $HascPassword)) }
+    $start = @{ FilePath = "powershell.exe"; ArgumentList = $forward; WorkingDirectory = $env:TEMP }
+    if (-not (Test-Admin)) { $start.Verb = "RunAs" }
+    if ($NonInteractive) {
+        $p = Start-Process @start -Wait -PassThru -NoNewWindow
+        exit $p.ExitCode
     }
-    Restart-Elevated (Join-Path $copy "delete.ps1") $forward
+    # Not waiting lets this window (and the cmd window that started it) close, so neither holds C:\HASC\tools.
+    Start-Process @start
     exit
 }
 if (-not (Test-Admin)) {
-    if ($NonInteractive) { throw "Run this as Administrator." }
     Restart-Elevated $PSCommandPath @()
     exit
 }
+if ($HascPasswordSaved) { $HascPassword = ConvertTo-SecureString $HascPasswordSaved }
 
 $Data = Join-Path $InstallDir "data"
 $Nssm = Join-Path $InstallDir "bin\nssm.exe"
 
 function Remove-Hasc {
     Set-Location $env:SystemRoot
-    $hasData = Test-Path (Join-Path $Data "hasc.db")
+    [Environment]::CurrentDirectory = $env:SystemRoot
+    $hasData = (Test-Path $Data) -and [bool](Get-ChildItem $Data -Recurse -File -Force | Select-Object -First 1)
     $userExists = [bool](Get-LocalUser $Account -ErrorAction SilentlyContinue)
 
     if (-not (Confirm-Choice "Remove HASC from this PC?`n`nThis removes the website, the worker, $InstallDir, the shortcuts and the Windows account '$Account'." $true -Warning)) { return }
@@ -59,23 +69,29 @@ function Remove-Hasc {
         Test-HascPassword
     }
 
-    Step "Stopping and removing the services"
+    Step "Stopping the services"
     foreach ($s in $Services) {
-        if (Get-Service $s -ErrorAction SilentlyContinue) {
-            Stop-Service $s -Force
-            if (Test-Path $Nssm) { Invoke-Native $Nssm @("remove", $s, "confirm") }
-            else { Invoke-Native sc.exe @("delete", $s) }
-        }
+        if (Get-Service $s -ErrorAction SilentlyContinue) { Stop-Service $s -Force }
     }
 
     if ($keep) {
         Step "Moving the data to $KeepDataTo"
-        if ($userExists) { Invoke-AsHasc "cipher /d /s:`"$Data`" >nul" }
-        & robocopy.exe $Data $KeepDataTo /E /MOVE /R:2 /W:2 /NFL /NDL /NJH /NJS /NP | Out-Null
-        if ($LASTEXITCODE -ge 8) { throw "Moving the data failed (robocopy exit code $LASTEXITCODE). Nothing else was removed; the services are stopped." }
-        # Only administrators may open the backup.
+        # The backup folder is locked to administrators before any decrypted file goes into it.
+        New-Item -ItemType Directory -Path $KeepDataTo -Force | Out-Null
         Invoke-Native icacls.exe @($KeepDataTo, "/inheritance:r", "/grant:r", "${AdminsSid}:(OI)(CI)F", "${SystemSid}:(OI)(CI)F", "/Q")
+        $encrypted = ((Get-Item -LiteralPath $Data -Force).Attributes -band [IO.FileAttributes]::Encrypted) -ne 0
+        if ($userExists -and $encrypted) { Invoke-AsHasc "cipher /d /s:`"$Data`" >nul" }
+        & robocopy.exe $Data $KeepDataTo /E /MOVE /R:2 /W:2 /NFL /NDL /NJH /NJS /NP | Out-Null
+        if ($LASTEXITCODE -ge 8) { throw "Moving the data failed (robocopy exit code $LASTEXITCODE). Nothing was removed: the data is still in $Data. Start the services again with install.cmd, or try delete again." }
         Invoke-Native icacls.exe @("$KeepDataTo\*", "/reset", "/T", "/C", "/Q")
+    }
+
+    Step "Removing the services"
+    foreach ($s in $Services) {
+        if (Get-Service $s -ErrorAction SilentlyContinue) {
+            if (Test-Path $Nssm) { Invoke-Native $Nssm @("remove", $s, "confirm") }
+            else { Invoke-Native sc.exe @("delete", $s) }
+        }
     }
 
     Step "Removing the firewall rule and $InstallDir"
@@ -93,17 +109,27 @@ function Remove-Hasc {
         Step "Removing the Windows account '$Account' and its profile"
         $sid = Get-AccountSid $Account
         Set-ServiceLogonRight $sid -Remove
-        Remove-LocalUser $Account
-        # Windows may hold the profile for a few seconds after the last process that used it.
-        for ($i = 1; $i -le 5; $i++) {
-            try { Get-CimInstance Win32_UserProfile | Where-Object { $_.SID -eq $sid } | Remove-CimInstance; break }
-            catch { if ($i -eq 5) { Write-Host "The '$Account' profile folder is still in use; it goes at the next restart, or delete C:\Users\$Account by hand." -ForegroundColor Yellow } else { Start-Sleep -Seconds 3 } }
+        # The profile holds hasc's encryption key. Windows can keep it loaded for a while after the
+        # services stop, so if it is still in use, it is removed at the next start instead.
+        $removed = $false
+        for ($i = 1; $i -le 5 -and -not $removed; $i++) {
+            try {
+                Get-CimInstance Win32_UserProfile | Where-Object { $_.SID -eq $sid } | Remove-CimInstance
+                $removed = $true
+            } catch { Start-Sleep -Seconds 3 }
         }
+        if (-not $removed) {
+            $cmd = "powershell -NoProfile -Command `"Get-CimInstance Win32_UserProfile | Where-Object { `$_.SID -eq '$sid' } | Remove-CimInstance`""
+            New-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" -Name "HASC remove profile" -Value $cmd -Force | Out-Null
+            $script:profileLater = $true
+        }
+        Remove-LocalUser $Account
     }
 
     $done = "HASC is removed from this PC."
     if ($keep) { $done += "`n`nThe database and photos are in $KeepDataTo. To bring them back, run install.cmd and pick $KeepDataTo\hasc.db." }
     elseif ($hasData) { $done += "`n`nThe database and photos were erased." }
+    if ($script:profileLater) { $done += "`n`nThe '$Account' profile (with its encryption key) was still in use: it is removed at the next restart." }
     $done += "`n`nLeft as they were: the power settings (no sleep) and the network set to Private."
     Show-Info $done
 }
@@ -111,6 +137,5 @@ function Remove-Hasc {
 try {
     Remove-Hasc
 } catch {
-    Show-Error $_.Exception.Message
-    exit 1
+    Exit-WithError $_
 }

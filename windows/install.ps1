@@ -66,7 +66,8 @@ function New-Shortcut([string]$Path, [string]$Target, [string]$Description) {
     $shell = New-Object -ComObject WScript.Shell
     $link = $shell.CreateShortcut($Path)
     $link.TargetPath = $Target
-    $link.WorkingDirectory = Split-Path $Target -Parent
+    # Not inside C:\HASC: a window open in that folder would stop delete from removing it.
+    $link.WorkingDirectory = $env:SystemRoot
     $link.Description = $Description
     $link.Save()
 }
@@ -192,7 +193,7 @@ function Install-Hasc {
             # ".../photos/" and put it under this PC's photos folder.
             $env:HASC_NEW = (Join-Path $Data "photos") + "\"
             $env:HASC_DB = $Db
-            Invoke-Native $Py @("-c", "import os, re, sqlite3; c = sqlite3.connect(os.environ['HASC_DB']); new = os.environ['HASC_NEW']; fix = lambda p: p and (new + re.split(r'[\\/]photos[\\/]', p)[-1].replace('/', '\\') if re.search(r'[\\/]photos[\\/]', p) else p); rows = c.execute('SELECT id, path, small_copy_path FROM photos').fetchall(); [c.execute('UPDATE photos SET path = ?, small_copy_path = ? WHERE id = ?', (fix(p), fix(s), i)) for i, p, s in rows]; c.commit(); print(len(rows), 'photo paths updated'); c.close()")
+            Invoke-Native $Py @("-c", "import os, re, sqlite3; c = sqlite3.connect(os.environ['HASC_DB']); new = os.environ['HASC_NEW']; fix = lambda p: p and (new + re.split(r'(?i)(?:^|[\\/])photos[\\/]', p)[-1].replace('/', '\\') if re.search(r'(?i)(?:^|[\\/])photos[\\/]', p) else p); rows = c.execute('SELECT id, path, small_copy_path FROM photos').fetchall(); [c.execute('UPDATE photos SET path = ?, small_copy_path = ? WHERE id = ?', (fix(p), fix(s), i)) for i, p, s in rows]; c.commit(); print(len(rows), 'photo paths updated'); c.close()")
         } else {
             Step "Creating the database and the first admin account"
             $cliArgs = @("$Code\scripts\create_user.py", "--db", $Db, "--username", "admin", "--role", "admin")
@@ -311,6 +312,5 @@ function Install-Hasc {
 try {
     Install-Hasc
 } catch {
-    Show-Error "$($_.Exception.Message)`n`nThe log of each service is in $Logs."
-    exit 1
+    Exit-WithError $_ "The log of each service is in $Logs."
 }
