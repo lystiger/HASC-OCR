@@ -80,3 +80,14 @@
 **Consequences:** No separate frontend app, and the server stays the only place pages are built. Every page must still work as plain forms if htmx fails to load. The htmx file is served from the Dell, not a CDN, so pages don't depend on internet access.
 
 **What would make this wrong:** to be named by Lystiger.
+
+## ADR 8: Production on the Windows office PC; the Dell becomes the spare (2026-11-06)
+**Context:** With the cloud reader (P104) the host only runs the website, the worker and SQLite for about 40 sheets a day. The office has a Windows PC (Intel i3-8100, 8 GB RAM, 1.13 TB) that can run around the clock; office staff also use it for BCSX, plans and typing sheets. A power cut stops the whole company, so the host only needs to come back on its own before the next shift.
+
+**Options:** Production on the Dell (Ubuntu laptop) with the PC unused. Production on the PC with the Dell as staging. Production on the PC with the Dell as a cold spare.
+
+**Decision (Lystiger):** Production runs on the office PC under Windows, as NSSM services under a dedicated `hasc` account, starting at boot. The data and config folders are encrypted to `hasc` with EFS. CI runs every PR on Linux and Windows. The Dell is a cold spare and the restore-test machine, not staging (Claude's recommendation: an Ubuntu staging box would not match a Windows production).
+
+**Consequences:** More disk (about 20 years of photos at P72's estimate) and a machine built to run continuously. Windows Update must be paused and run in planned shutdowns, since the shifts cover 24 hours. Accepted risk: office staff share the PC; EFS stops them reading the data as themselves, but an administrator account could still copy the encrypted files, and losing the `hasc` profile without the exported EFS key loses the data. The README "Setting Up the Windows Production PC" section is the procedure.
+
+**What would make this wrong:** Office use slows the PC enough to delay reads, staff restart or shut it down during shifts, or a Windows-only fault reaches production that CI did not catch.
