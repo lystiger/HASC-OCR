@@ -402,7 +402,7 @@ NSSM restarts either service if it stops. If a service will not start with error
 - **After a power cut:** in the BIOS, set "Restore on AC power loss" (sometimes "AC Recovery") to **Power On**. The services start at boot, before anyone logs in, so nothing needs to be started by hand.
 - **Windows Update:** the shifts cover all 24 hours, longer than Windows' 18-hour active hours, so updates could restart the PC during a shift. Pause updates (Settings, Windows Update, Pause), install them during a planned shutdown, then pause again.
 - **Fixed address:** give the PC a DHCP reservation in the router, so phones keep reaching `http://<pc-ip>:8080/login`.
-- The site is plain HTTP until 1.0.1 adds HTTPS: keep it on the office network and never forward port 8080 from the router to the internet.
+- The site is plain HTTP until 1.1.0 adds HTTPS: keep it on the office network and never forward port 8080 from the router to the internet.
 
 ### 10. Check it works
 
