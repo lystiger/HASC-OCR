@@ -9,6 +9,7 @@ from hasc.web.accounts import (
     patch_account,
     reset_account_password,
     set_account_active,
+    set_or_create_owner,
     validate_owner_rules,
     validate_username,
 )
@@ -25,4 +26,5 @@ __all__ = [
     "patch_account",
     "list_accounts_with_status",
     "list_account_events",
+    "set_or_create_owner",
 ]
