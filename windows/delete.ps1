@@ -79,8 +79,8 @@ function Remove-Hasc {
         # The backup folder is locked to administrators before any decrypted file goes into it.
         New-Item -ItemType Directory -Path $KeepDataTo -Force | Out-Null
         Invoke-Native icacls.exe @($KeepDataTo, "/inheritance:r", "/grant:r", "${AdminsSid}:(OI)(CI)F", "${SystemSid}:(OI)(CI)F", "/Q")
-        $encrypted = ((Get-Item -LiteralPath $Data -Force).Attributes -band [IO.FileAttributes]::Encrypted) -ne 0
-        if ($userExists -and $encrypted) { Invoke-AsHasc "cipher /d /s:`"$Data`" >nul" }
+        # cipher /d leaves files that are not encrypted alone, so it runs whenever hasc exists.
+        if ($userExists) { Invoke-AsHasc "cipher /d /s:`"$Data`" >nul" }
         & robocopy.exe $Data $KeepDataTo /E /MOVE /R:2 /W:2 /NFL /NDL /NJH /NJS /NP | Out-Null
         if ($LASTEXITCODE -ge 8) { throw "Moving the data failed (robocopy exit code $LASTEXITCODE). Nothing was removed: the data is still in $Data. Start the services again with install.cmd, or try delete again." }
         Invoke-Native icacls.exe @("$KeepDataTo\*", "/reset", "/T", "/C", "/Q")
@@ -119,8 +119,12 @@ function Remove-Hasc {
             } catch { Start-Sleep -Seconds 3 }
         }
         if (-not $removed) {
-            $cmd = "powershell -NoProfile -Command `"Get-CimInstance Win32_UserProfile | Where-Object { `$_.SID -eq '$sid' } | Remove-CimInstance`""
-            New-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" -Name "HASC remove profile" -Value $cmd -Force | Out-Null
+            # A task that runs once as SYSTEM at the next start, removes the profile, then deletes itself.
+            $task = "HASC remove profile"
+            $cmd = "Get-CimInstance Win32_UserProfile | Where-Object { `$_.SID -eq '$sid' } | Remove-CimInstance; Unregister-ScheduledTask -TaskName '$task' -Confirm:`$false"
+            $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -Command `"$cmd`""
+            Register-ScheduledTask -TaskName $task -Action $action -Trigger (New-ScheduledTaskTrigger -AtStartup) `
+                -Principal (New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest) -Force | Out-Null
             $script:profileLater = $true
         }
         Remove-LocalUser $Account

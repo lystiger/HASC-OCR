@@ -30,11 +30,18 @@ function Get-Token {
         catch { Remove-Item $TokenFile -Force }  # saved by another Windows user: ask again
     }
     $help = "Updates come from GitHub. Paste a read-only GitHub token (asked once).`n`nTo make one: github.com, Settings, Developer settings, Fine-grained tokens, Generate. Repository access: only HASC-OCR. Permissions: Contents, Read-only."
-    $secure = Read-Text $help -Secret
-    if ((Get-Plain $secure).Trim().Length -eq 0) { throw "No token given." }
-    $secure | ConvertFrom-SecureString | Set-Content $TokenFile -Encoding ASCII
-    Invoke-Native icacls.exe @($TokenFile, "/inheritance:r", "/grant:r", "${AdminsSid}:F", "${SystemSid}:F", "/Q") | Out-Null
-    return Get-Plain $secure
+    $plain = (Get-Plain (Read-Text $help -Secret)).Trim()
+    if ($plain.Length -eq 0) { throw "No token given." }
+    ConvertTo-SecureString $plain -AsPlainText -Force | ConvertFrom-SecureString | Set-Content $TokenFile -Encoding ASCII
+    Protect-TokenFile
+    return $plain
+}
+
+function Protect-TokenFile {
+    # Administrators only. Runs again after an update, whose installer resets the tools folder.
+    if (Test-Path $TokenFile) {
+        Invoke-Native icacls.exe @($TokenFile, "/inheritance:r", "/grant:r", "${AdminsSid}:F", "${SystemSid}:F", "/Q") | Out-Null
+    }
 }
 
 function Invoke-GitHub([string]$Url, [string]$Accept, [string]$OutFile) {
@@ -112,6 +119,7 @@ function Update-Hasc {
     # The new release's own installer does the update; it asks before it changes anything.
     & (Join-Path $bundle "install.ps1") @installArgs
     $code = $LASTEXITCODE
+    Protect-TokenFile
     Set-Location $env:TEMP
     Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
     if ($code -ne 0 -and $null -ne $code) { exit $code }
