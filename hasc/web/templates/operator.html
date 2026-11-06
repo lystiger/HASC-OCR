@@ -1,4 +1,6 @@
-{% extends "base.html" %}
+{% extends frame_template|default("base.html") %}
+
+{% block nav_upload_active %}is-active{% endblock %}
 
 {% block title %}Tải lên biểu mẫu sản xuất – HASC VN{% endblock %}
 

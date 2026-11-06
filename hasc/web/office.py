@@ -283,10 +283,12 @@ def office_sheet_list_page(
 
 @router.get("/office/report")
 def office_daily_report_form(
-    date: str,
+    date: Optional[str] = None,
     user: dict = Depends(require_role("employee", "boss", "admin")),
 ):
     """The office screen's date form; works without JavaScript (ADR 7)."""
+    if not date:
+        date = (datetime.now().date() - timedelta(days=1)).isoformat()
     return RedirectResponse(url=f"/api/days/{date}/report", status_code=303)
 
 

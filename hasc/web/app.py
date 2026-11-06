@@ -512,6 +512,18 @@ def create_app(
         logout_account(conn=conn, actor=admin, target_user_id=user_id)
         return Response(status_code=204)
 
+    @app.get("/admin/accounts", response_class=HTMLResponse)
+    def admin_accounts_page(
+        request: Request,
+        admin: dict = Depends(require_role("admin")),
+    ):
+        templates = request.app.state.templates
+        return templates.TemplateResponse(
+            request=request,
+            name="office_base.html",
+            context={"user": admin},
+        )
+
     # -------------------------------------------------------------------------
     # Operator & Office Routes
     # -------------------------------------------------------------------------

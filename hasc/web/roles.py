@@ -6,11 +6,11 @@ from hasc.web.errors import AppError
 
 # Section 4 Role Table permissions
 ROLE_PERMISSIONS: dict[str, set[str]] = {
-    # 1. Upload a photo, see the printed limits
-    "upload_photo": {"operator"},
-    "view_limits": {"operator"},
-    # 2. See the status of own uploads, and which rolls failed a check
-    "view_own_uploads": {"operator"},
+    # 1. Upload a photo, see the printed limits (spec 1.1.0 P128, P145: extended to office)
+    "upload_photo": {"operator", "employee", "boss", "admin"},
+    "view_limits": {"operator", "employee", "boss", "admin"},
+    # 2. See the status of own uploads, and which rolls failed a check (spec 1.1.0 section 6)
+    "view_own_uploads": {"operator", "employee", "boss", "admin"},
     # 3. See the status of all sheets, and photos
     "view_all_sheets": {"employee", "boss", "admin"},
     # 4. Pick up, download, correct, re-upload, confirm, retry, hand-enter

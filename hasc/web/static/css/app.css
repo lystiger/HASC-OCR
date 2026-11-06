@@ -632,3 +632,118 @@ select.is-invalid {
   color: var(--color-error);
   font-size: 0.85rem;
 }
+
+/* Office Frame (ERP-style layout for office users: P124) */
+.office-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.user-name {
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.menu-toggle {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.menu-toggle-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  min-height: 36px;
+  background: var(--color-surface);
+  color: var(--color-accent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  user-select: none;
+}
+
+.menu-toggle-btn:hover {
+  background: var(--color-page);
+}
+
+.office-frame {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.office-sidebar {
+  width: 200px;
+  flex-shrink: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-light);
+  overflow: hidden;
+}
+
+.office-nav {
+  display: flex;
+  flex-direction: column;
+}
+
+.office-nav__item {
+  display: block;
+  padding: 0.7rem 1rem;
+  color: var(--color-text);
+  font-weight: 500;
+  text-decoration: none;
+  border-left: 3px solid transparent;
+  border-bottom: 1px solid var(--color-border);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.office-nav__item:last-child {
+  border-bottom: none;
+}
+
+.office-nav__item:hover,
+.office-nav__item:focus-visible {
+  background: var(--color-page);
+  color: var(--color-action);
+  border-left-color: var(--color-action);
+}
+
+.office-nav__item.is-active {
+  background: var(--color-page);
+  color: var(--color-action);
+  border-left-color: var(--color-action);
+  font-weight: 700;
+}
+
+.office-content {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .menu-toggle-btn {
+    display: inline-flex;
+  }
+
+  .office-frame {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .office-sidebar {
+    display: none;
+    width: 100%;
+  }
+
+  .menu-toggle:checked ~ .office-sidebar {
+    display: block;
+  }
+}

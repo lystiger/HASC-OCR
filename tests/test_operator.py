@@ -550,7 +550,7 @@ class TestOperatorUpload(unittest.TestCase):
         self.assertEqual(res_shift.status_code, 400)
         self.assertEqual(res_shift.json()["error"]["code"], "invalid_shift")
 
-        # 5. Non-operator forbidden
+        # 5. Under spec 1.1.0, employees are allowed to upload (P128, criterion 13)
         res_emp = self.client_emp.post(
             "/api/photos",
             data={
@@ -561,8 +561,21 @@ class TestOperatorUpload(unittest.TestCase):
             },
             files={"file": ("photo.jpg", make_test_table_jpeg(), "image/jpeg")},
         )
-        self.assertEqual(res_emp.status_code, 403)
-        self.assertEqual(res_emp.json()["error"]["code"], "forbidden")
+        self.assertEqual(res_emp.status_code, 201)
+
+        # 6. Unauthenticated request is rejected
+        unauth_client = TestClient(self.app)
+        res_unauth = unauth_client.post(
+            "/api/photos",
+            data={
+                "machine": "T1",
+                "production_date": "2026-10-19",
+                "shift": "1",
+                "page_no": "1",
+            },
+            files={"file": ("photo.jpg", make_test_table_jpeg(), "image/jpeg")},
+        )
+        self.assertEqual(res_unauth.status_code, 401)
 
     def test_quality_warnings_do_not_block_upload(self):
         """Criterion 13: A blurry, dark or non-form image is saved and returns a warning. The upload is not blocked."""

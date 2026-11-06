@@ -555,11 +555,17 @@ def render_operator_screen(
     uploads = get_operator_uploads(conn, user["id"])
     templates = request.app.state.templates
 
+    frame_template = (
+        "office_base.html"
+        if user.get("role") in ("employee", "boss", "admin")
+        else "base.html"
+    )
     return templates.TemplateResponse(
         request=request,
         name="operator.html",
         context={
             "user": user,
+            "frame_template": frame_template,
             "default_machine": default_machine,
             "default_shift": default_shift,
             "default_date": default_date,
@@ -575,6 +581,7 @@ def render_operator_screen(
 
 
 @router.get("/operator", response_class=HTMLResponse)
+@router.get("/office/upload", response_class=HTMLResponse)
 def operator_page(
     request: Request,
     user: dict = Depends(require_role("upload_photo")),
