@@ -1,6 +1,6 @@
 # HASC Production Records 1.1.0: accounts screen and office frame
 
-Date: 2026-11-06. Decisions by Lystiger (P123–P141). Builds on `spec.md` and v1.0.2 (production on the Windows office PC, ADR 8). Where this file and `spec.md` differ, this file wins for 1.1.0. Items marked **UNDECIDED** need Lystiger before the build step that uses them; items marked *(Claude's recommendation, to confirm)* are proposals Lystiger has not yet agreed.
+Date: 2026-11-06. Decisions by Lystiger (P123–P142). Builds on `spec.md` and v1.0.2 (production on the Windows office PC, ADR 8). Where this file and `spec.md` differ, this file wins for 1.1.0. Items marked **UNDECIDED** need Lystiger before the build step that uses them; items marked *(Claude's recommendation, to confirm)* are proposals Lystiger has not yet agreed.
 
 ## 1. Problem
 
@@ -30,9 +30,9 @@ v1.0.2 has an account API (`POST /api/admin/users`, `PATCH /api/admin/users/{id}
 | Code | Shown on the accounts screen | Can be created from the screen |
 |---|---|---|
 | `employee` | Văn phòng (P127) | yes |
-| `boss` | **UNDECIDED U6** | yes |
-| `admin` | **UNDECIDED U6** | owner only (see Owner) |
-| `operator` | **UNDECIDED U6** | no: existing operator accounts keep working until deactivated, so the factory keeps uploading until 1.2.0 ships (P140) |
+| `boss` | Ban giám đốc (P142) | yes |
+| `admin` | Quản trị (P142) | owner only (see Owner) |
+| `operator` | Xưởng (P142) | no: existing operator accounts keep working until deactivated, so the factory keeps uploading until 1.2.0 ships (P140) |
 
 Pages other than the accounts screen show no role names ("show no roles", Lystiger). The role table in spec.md section 4 stays, with one change: **employee and boss may also upload a photo**, recorded under their own account (P128).
 
@@ -129,10 +129,10 @@ Unit and API tests with made-up data only: one test per acceptance criterion, th
 
 ## 10. Rollout
 
-1. Settle U6.
-2. Build on a branch as one Hermes job; merge after CI and an independent verifier.
+1. **Job A** (Hermes): accounts screen, owner, history, online status, frame and username rules (acceptance criteria 1–15). PR, CI, independent verifier, merge.
+2. **Job B** (Hermes): HTTPS in the app and the Windows installer (criteria 16–17). Same gates.
 3. Tag `v1.1.0`; CI attaches the Windows bundle.
-4. Lystiger runs `install.cmd` from the new bundle on the office PC (an update: data kept) and checks the owner flag is on their account.
+4. Lystiger runs **HASC update** on the office PC (data kept) and checks the owner flag is on their account.
 
 ## Decisions (Lystiger, 2026-11-06)
 
@@ -156,13 +156,13 @@ Unit and API tests with made-up data only: one test per acceptance criterion, th
 | P138 | Lystiger hands office passwords over in person. The system shows the temporary password to the admin once. Replaces sending by SMS or Zalo (U1 closed). |
 | P139 | 1.1.0 is the accounts screen and the office frame only; the QR upload page, trưởng ca attribution and the read cap are 1.2.0. |
 | P141 | HTTPS ships in 1.1.0 (closes U11). |
+| P142 | Role labels on the accounts screen: `employee` Văn phòng, `boss` Ban giám đốc, `admin` Quản trị, `operator` Xưởng (closes U6). |
 | P140 | The role picker no longer offers `operator`; existing operator accounts keep working until deactivated. |
 
 ## UNDECIDED
 
 | # | Question | Why it matters | Needed by |
 |---|---|---|---|
-| U6 | Vietnamese names for `boss`, `admin` and `operator` on the accounts screen. You said "show no roles": this spec reads that as "no role names anywhere except the accounts screen", where the role picker needs labels. | The role picker and the list show them. | Build |
 | U8 | The daily read cap: 100 a day? What happens at the cap: refuse uploads, or queue them unread until the next day? | 1.2.0 design. | 1.2.0 |
 | U9 | Where the trưởng ca of each shift comes from: a fixed person per shift that the admin sets, or a roster per date? | 1.2.0 attribution. | 1.2.0 |
 | U10 | Does the QR link carry a secret the admin can change, so a link that leaks outside the factory can be cut off? | 1.2.0 security. | 1.2.0 |
