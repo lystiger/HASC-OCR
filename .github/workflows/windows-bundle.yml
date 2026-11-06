@@ -1,0 +1,72 @@
+name: Windows bundle
+
+# Builds the USB bundle for the office PC, installs it on a clean Windows runner and checks that the
+# website and worker run. On a version tag the zip is attached to the GitHub release.
+on:
+  pull_request:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bundle:
+    name: Build and test-install the bundle
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build the bundle
+        shell: pwsh
+        run: |
+          $version = if ($env:GITHUB_REF_TYPE -eq "tag") { $env:GITHUB_REF_NAME } else { "dev-$($env:GITHUB_SHA.Substring(0, 7))" }
+          "VERSION=$version" >> $env:GITHUB_ENV
+          .\windows\build_bundle.ps1 -Version $version -OutDir "$env:RUNNER_TEMP\dist"
+
+      - name: Run the test suite with the bundled Python
+        shell: pwsh
+        run: |
+          Expand-Archive "$env:RUNNER_TEMP\dist\hasc-$env:VERSION-win64.zip" "$env:RUNNER_TEMP\bundle"
+          cd "$env:RUNNER_TEMP\bundle\HASC-OCR"
+          & ..\python\python.exe -m unittest discover -s tests
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Install as on the office PC (Windows PowerShell 5.1)
+        shell: powershell
+        run: |
+          '{"customers": {}, "products": {}}' | Set-Content "$env:RUNNER_TEMP\known_names.json"
+          $pw = ConvertTo-SecureString "Ci-Hasc-$(Get-Random)-Aa1!" -AsPlainText -Force
+          $key = ConvertTo-SecureString "sk-or-ci-dummy" -AsPlainText -Force
+          & "$env:RUNNER_TEMP\bundle\install.ps1" -NonInteractive -SkipKeyExport -HascPassword $pw -OpenRouterKey $key `
+            -KnownNames "$env:RUNNER_TEMP\known_names.json" -AdminPassword "ci-admin-pass" -Subnet "10.0.0.0/8"
+          # Data is encrypted to hasc, the website answers, a second run updates in place.
+          cipher /c C:\HASC\data\hasc.db
+          & "$env:RUNNER_TEMP\bundle\install.ps1" -NonInteractive -HascPassword $pw -Subnet "10.0.0.0/8"
+          $login = Invoke-WebRequest "http://127.0.0.1:8080/api/login" -Method Post -UseBasicParsing `
+            -ContentType "application/json" -Body '{"username": "admin", "password": "ci-admin-pass"}'
+          Write-Host "Login: $($login.StatusCode)"
+
+      - name: Show service logs
+        if: always()
+        shell: pwsh
+        run: Get-ChildItem C:\HASC\logs\*.log -ErrorAction SilentlyContinue | ForEach-Object { "--- $_"; Get-Content $_ -Tail 40 }
+
+      - name: Upload the bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: hasc-${{ env.VERSION }}-win64
+          path: ${{ runner.temp }}/dist/hasc-${{ env.VERSION }}-win64.zip
+
+      - name: Attach to the release
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view $env:VERSION 2>$null
+          if ($LASTEXITCODE -ne 0) { gh release create $env:VERSION --title $env:VERSION --notes "Windows bundle: unzip, then right-click install.cmd, Run as administrator." }
+          gh release upload $env:VERSION "$env:RUNNER_TEMP\dist\hasc-$env:VERSION-win64.zip" --clobber
