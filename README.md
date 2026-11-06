@@ -266,17 +266,35 @@ The office PC (Intel i3-8100, 8 GB RAM, Windows) hosts the website and the worke
 
 ### 1. Check the Windows edition
 
-EFS needs Windows **Pro** (or Enterprise). Run `winver`; on Windows Home, stop here and decide another way to protect the data folder.
+```powershell
+(Get-CimInstance Win32_OperatingSystem).Caption
+```
+
+- **Pro** (or Enterprise, Education): follow every step.
+- **Home:** EFS is not available. In step 5, open the `hasc` window but skip the `cipher` commands. The folder permissions in step 3 still keep out anyone who logs in with a **standard** account, so give office staff standard accounts, not administrator ones.
+
+An unactivated Windows runs all of this; activation only unlocks personalization settings. Windows 10 gets no more security updates (support ended in October 2025), so the firewall rule in step 9 matters: keep the PC reachable only from the office network.
 
 ### 2. Install the tools
 
-```powershell
-winget install -e --id Python.Python.3.12 --scope machine
-winget install -e --id Git.Git
-winget install -e --id NSSM.NSSM
-```
+Download these in a browser and run them as Administrator:
 
-Close and reopen PowerShell so the new commands are on `PATH`. Python must be installed for all users (`--scope machine`, under `C:\Program Files`): a Python installed only in the Administrator's profile cannot be used by the `hasc` service.
+1. **Python 3.12.10:** <https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe>. Choose **Customize installation** and tick **Install Python 3.12 for all users** and **Add Python to environment variables**. It must install under `C:\Program Files\Python312`: a Python installed only in the Administrator's profile cannot be used by the `hasc` service. Or run it silently from the Downloads folder:
+
+   ```powershell
+   .\python-3.12.10-amd64.exe /quiet InstallAllUsers=1 PrependPath=1 Include_launcher=1
+   ```
+
+2. **Git for Windows:** <https://git-scm.com/download/win>, default options. The repository is private: the first `git clone` opens a browser to sign in to GitHub.
+3. **NSSM:** <https://nssm.cc/ci/nssm-2.24-101-g897c7ad.zip> (this pre-release build fixes services failing to start on Windows 10; the older 2.24 has that bug). Unzip it and copy `win64\nssm.exe` to `C:\Windows\System32`.
+
+Close and reopen PowerShell, then check:
+
+```powershell
+py -3.12 --version
+git --version
+nssm version
+```
 
 ### 3. Create the `hasc` account and the folders
 
