@@ -35,16 +35,22 @@ $SystemSid = "*S-1-5-18"
 function Step([string]$Text) { Write-Host ""; Write-Host "==> $Text" -ForegroundColor Cyan }
 
 function Invoke-Native {
-    param([string]$Exe, [string[]]$Arguments)
+    # -Secret: the arguments hold a password, so the error message leaves them out.
+    param([string]$Exe, [string[]]$Arguments, [switch]$Secret)
     & $Exe @Arguments
-    if ($LASTEXITCODE -ne 0) { throw "$Exe $($Arguments -join ' ') failed with exit code $LASTEXITCODE" }
+    if ($LASTEXITCODE -ne 0) {
+        $shown = $Arguments -join ' '
+        if ($Secret) { $shown = $Arguments[0..1] -join ' ' }
+        throw "$Exe $shown failed with exit code $LASTEXITCODE"
+    }
 }
 
 function Ask([string]$Question, [string]$Default) {
     if ($NonInteractive) { return $Default }
     $answer = Read-Host "$Question [$Default]"
     if ([string]::IsNullOrWhiteSpace($answer)) { return $Default }
-    return $answer.Trim()
+    # A path dragged into the window arrives in quotes.
+    return $answer.Trim().Trim('"')
 }
 
 function Get-Plain([System.Security.SecureString]$Secure) {
@@ -64,8 +70,10 @@ function Invoke-AsHasc([string]$Command, [switch]$Visible) {
     # Runs a command as hasc with its profile loaded, so EFS encrypts to hasc's key.
     $style = "Hidden"
     if ($Visible) { $style = "Normal" }
+    $dir = $Logs
+    if (-not (Test-Path $dir)) { $dir = $env:SystemRoot }
     $p = Start-Process cmd.exe -ArgumentList "/c $Command" -Credential (Get-HascCredential) -LoadUserProfile `
-        -WorkingDirectory $Logs -WindowStyle $style -Wait -PassThru
+        -WorkingDirectory $dir -WindowStyle $style -Wait -PassThru
     if ($p.ExitCode -ne 0) { throw "As ${Account}: '$Command' failed with exit code $($p.ExitCode)" }
 }
 
@@ -73,18 +81,21 @@ function Grant-ServiceLogonRight([string]$User) {
     $sid = (New-Object System.Security.Principal.NTAccount($User)).Translate([System.Security.Principal.SecurityIdentifier]).Value
     $cfg = Join-Path $env:TEMP "hasc-rights.inf"
     $sdb = Join-Path $env:TEMP "hasc-rights.sdb"
-    Invoke-Native secedit.exe @("/export", "/cfg", $cfg, "/areas", "USER_RIGHTS", "/quiet")
-    $lines = Get-Content $cfg
-    $line = $lines | Where-Object { $_ -like "SeServiceLogonRight*" }
-    if ($line -and $line -like "*$sid*") { return }
-    if ($line) {
-        $lines = $lines | ForEach-Object { if ($_ -like "SeServiceLogonRight*") { "$_,*$sid" } else { $_ } }
-    } else {
-        $lines = $lines | ForEach-Object { $_; if ($_ -eq "[Privilege Rights]") { "SeServiceLogonRight = *$sid" } }
+    try {
+        Invoke-Native secedit.exe @("/export", "/cfg", $cfg, "/areas", "USER_RIGHTS", "/quiet")
+        $lines = Get-Content $cfg
+        $line = $lines | Where-Object { $_ -like "SeServiceLogonRight*" }
+        if ($line -and $line -like "*$sid*") { return }
+        if ($line) {
+            $lines = $lines | ForEach-Object { if ($_ -like "SeServiceLogonRight*") { "$_,*$sid" } else { $_ } }
+        } else {
+            $lines = $lines | ForEach-Object { $_; if ($_ -eq "[Privilege Rights]") { "SeServiceLogonRight = *$sid" } }
+        }
+        Set-Content $cfg $lines -Encoding Unicode
+        Invoke-Native secedit.exe @("/configure", "/db", $sdb, "/cfg", $cfg, "/areas", "USER_RIGHTS", "/quiet")
+    } finally {
+        Remove-Item $cfg, $sdb -Force -ErrorAction SilentlyContinue
     }
-    Set-Content $cfg $lines -Encoding Unicode
-    Invoke-Native secedit.exe @("/configure", "/db", $sdb, "/cfg", $cfg, "/areas", "USER_RIGHTS", "/quiet")
-    Remove-Item $cfg, $sdb -Force -ErrorAction SilentlyContinue
 }
 
 function Set-Folder([string]$Path, [string]$HascRights) {
@@ -96,6 +107,10 @@ function Set-Folder([string]$Path, [string]$HascRights) {
     if (Get-ChildItem $Path -Force | Select-Object -First 1) {
         Invoke-Native icacls.exe @("$Path\*", "/reset", "/T", "/C", "/Q")
     }
+}
+
+function Test-Encrypted([string]$Path) {
+    return ((Get-Item -LiteralPath $Path -Force).Attributes -band [IO.FileAttributes]::Encrypted) -ne 0
 }
 
 function Wait-Website {
@@ -127,22 +142,7 @@ if ($update) { $mode = "Updating" } else { $mode = "Installing" }
 Write-Host "$mode HASC $version in $InstallDir on $edition"
 if (-not $hasEfs) { Write-Host "Windows Home has no EFS: the data folder is protected by permissions only." -ForegroundColor Yellow }
 
-# --- Code and Python (install and update) ---------------------------------------------------------
-Step "Stopping the services"
-foreach ($s in $Services) {
-    if (Get-Service $s -ErrorAction SilentlyContinue) { Stop-Service $s -Force }
-}
-
-Step "Copying Python, the code and NSSM into $InstallDir"
-if (-not (Test-Path $InstallDir)) { New-Item -ItemType Directory -Path $InstallDir | Out-Null }
-foreach ($part in @("python", "HASC-OCR", "bin")) {
-    & robocopy.exe (Join-Path $Bundle $part) (Join-Path $InstallDir $part) /MIR /NFL /NDL /NJH /NJS /NP | Out-Null
-    if ($LASTEXITCODE -ge 8) { throw "Copying $part failed (robocopy exit code $LASTEXITCODE)" }
-}
-Copy-Item (Join-Path $Bundle "VERSION.txt") $InstallDir -Force -ErrorAction SilentlyContinue
-Get-ChildItem $InstallDir -Recurse -File | Unblock-File
-
-# --- The hasc account (first install) -------------------------------------------------------------
+# --- The hasc account (asked first, so a wrong password changes nothing) ---------------------------
 if (-not (Get-LocalUser $Account -ErrorAction SilentlyContinue)) {
     Step "Creating the Windows account '$Account'"
     if (-not $HascPassword) {
@@ -152,18 +152,42 @@ if (-not (Get-LocalUser $Account -ErrorAction SilentlyContinue)) {
         $again = Read-Host "Type it again" -AsSecureString
         if ((Get-Plain $HascPassword) -cne (Get-Plain $again)) { throw "The passwords do not match." }
     }
+    if ((Get-Plain $HascPassword).Length -lt 8) { throw "Use a password of at least 8 characters for '$Account'." }
+    if ((Get-Plain $HascPassword).Contains('"')) { throw "Do not use the character '`"' in the '$Account' password." }
     try {
         New-LocalUser -Name $Account -Password $HascPassword -PasswordNeverExpires -UserMayNotChangePassword `
             -Description "Runs the HASC website and worker" | Out-Null
     } catch [Microsoft.PowerShell.Commands.InvalidPasswordException] {
         throw "Windows rejected the password for '$Account': make it longer, mix letters, digits and symbols, and do not include '$Account'."
     }
+} else {
+    Step "Checking the '$Account' password"
+    try { Invoke-AsHasc "exit 0" }
+    catch { throw "That is not the password of '$Account'. Nothing was changed." }
 }
 # A password that expired would stop both services at the next restart.
 Set-LocalUser -Name $Account -PasswordNeverExpires $true
 Grant-ServiceLogonRight $Account
 
+# --- Code and Python (install and update) ---------------------------------------------------------
+Step "Stopping the services"
+foreach ($s in $Services) {
+    if (Get-Service $s -ErrorAction SilentlyContinue) { Stop-Service $s -Force }
+}
+
+Step "Copying Python, the code and NSSM into $InstallDir"
+if (-not (Test-Path $InstallDir)) { New-Item -ItemType Directory -Path $InstallDir | Out-Null }
+foreach ($part in @("python", "HASC-OCR", "bin")) {
+    & robocopy.exe (Join-Path $Bundle $part) (Join-Path $InstallDir $part) /MIR /R:2 /W:2 /NFL /NDL /NJH /NJS /NP | Out-Null
+    if ($LASTEXITCODE -ge 8) { throw "Copying $part failed (robocopy exit code $LASTEXITCODE)" }
+}
+Copy-Item (Join-Path $Bundle "VERSION.txt") $InstallDir -Force -ErrorAction SilentlyContinue
+foreach ($part in @("python", "HASC-OCR", "bin")) { Get-ChildItem (Join-Path $InstallDir $part) -Recurse -File | Unblock-File }
+
 Step "Setting folder permissions"
+# C:\HASC itself: staff may not add, rename or replace anything in it.
+Invoke-Native icacls.exe @($InstallDir, "/inheritance:r", "/grant:r",
+    "${Account}:(OI)(CI)RX", "${AdminsSid}:(OI)(CI)F", "${SystemSid}:(OI)(CI)F", "/Q")
 Set-Folder $Data "F"
 Set-Folder $Config "F"
 Set-Folder $Logs "F"
@@ -172,19 +196,18 @@ foreach ($part in @("python", "HASC-OCR", "bin")) { Set-Folder (Join-Path $Insta
 # --- Settings and data (first install) ------------------------------------------------------------
 $workerEnv = Join-Path $Config "worker.env"
 $namesTarget = Join-Path $Config "known_names.json"
-$newFiles = $false
 if (-not (Test-Path $workerEnv)) {
     Step "Worker settings"
     if (-not $KnownNames) { $KnownNames = Ask "Path to known_names.json (for example on the USB stick)" (Join-Path $Bundle "known_names.json") }
-    if (-not (Test-Path $KnownNames)) { throw "known_names.json not found at $KnownNames" }
-    Copy-Item $KnownNames $namesTarget -Force
+    if (-not (Test-Path -LiteralPath $KnownNames)) { throw "known_names.json not found at $KnownNames" }
     if (-not $OpenRouterKey) { $OpenRouterKey = Read-Host "OpenRouter API key" -AsSecureString }
+    if ((Get-Plain $OpenRouterKey).Trim().Length -eq 0) { throw "The OpenRouter key is empty." }
+    Copy-Item -LiteralPath $KnownNames $namesTarget -Force
     Set-Content $workerEnv -Encoding ASCII -Value @(
         "OPENROUTER_API_KEY=$(Get-Plain $OpenRouterKey)",
         "HASC_READER_MODEL=google/gemini-3.8-flash",
         "HASC_READER_FALLBACK=qwen/qwen3.8-27b",
         "HASC_KNOWN_NAMES=$namesTarget")
-    $newFiles = $true
 }
 
 if (-not (Test-Path $Db)) {
@@ -196,7 +219,7 @@ if (-not (Test-Path $Db)) {
         Copy-Item $ImportDb $Db
         if (-not $ImportPhotos) { $ImportPhotos = Ask "Folder with the old photos" (Join-Path (Split-Path $ImportDb -Parent) "photos") }
         if (-not $OldPhotosPrefix) { $OldPhotosPrefix = Ask "Photo folder path on the old machine, ending in /" "/home/OLD/.local/share/hasc-ocr-dev/photos/" }
-        & robocopy.exe $ImportPhotos (Join-Path $Data "photos") /E /NFL /NDL /NJH /NJS /NP | Out-Null
+        & robocopy.exe $ImportPhotos (Join-Path $Data "photos") /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP | Out-Null
         if ($LASTEXITCODE -ge 8) { throw "Copying the photos failed (robocopy exit code $LASTEXITCODE)" }
         $env:HASC_OLD = $OldPhotosPrefix
         $env:HASC_NEW = (Join-Path $Data "photos") + "\"
@@ -206,15 +229,16 @@ if (-not (Test-Path $Db)) {
         Step "Creating the database and the first admin account"
         $cliArgs = @("$Code\scripts\create_user.py", "--db", $Db, "--username", "admin", "--role", "admin")
         if ($AdminPassword) { $cliArgs += @("--password", $AdminPassword) }
-        Invoke-Native $Py $cliArgs
+        Invoke-Native $Py $cliArgs -Secret
         Write-Host "Write down the admin password above: it is shown only once." -ForegroundColor Yellow
     }
-    $newFiles = $true
 }
 New-Item -ItemType Directory -Path (Join-Path $Data "photos") -Force | Out-Null
 
 # --- Encryption (first install, Pro only) ---------------------------------------------------------
-if ($hasEfs -and $newFiles) {
+# Decided from the files themselves, so a run that stopped half way still encrypts on the next run.
+$plainFiles = @($Data, $Config, $Db, $workerEnv, $namesTarget) | Where-Object { -not (Test-Encrypted $_) }
+if ($hasEfs -and $plainFiles) {
     Step "Encrypting the data and settings to '$Account' (EFS)"
     Invoke-AsHasc "cipher /e /s:`"$Data`" >nul && cipher /e /s:`"$Config`" >nul"
     if (-not $SkipKeyExport) {
@@ -226,7 +250,7 @@ if ($hasEfs -and $newFiles) {
         Write-Host "Without it, a broken '$Account' profile means the data is lost."
         if (-not $NonInteractive) {
             Read-Host "Press Enter once it is copied; the file is then deleted from this PC" | Out-Null
-            Remove-Item "$pfx.pfx" -Force
+            Remove-Item "$pfx.pfx" -Force -ErrorAction SilentlyContinue
         }
     }
 }
@@ -244,7 +268,7 @@ Invoke-Native $Nssm @("set", "hasc-worker", "AppEnvironmentExtra", "HASC_DB_PATH
 foreach ($s in $Services) {
     $log = Join-Path $Logs ($s.Replace("hasc-", "") + ".log")
     Invoke-Native $Nssm @("set", $s, "AppDirectory", $Code)
-    Invoke-Native $Nssm @("set", $s, "ObjectName", ".\$Account", $plain)
+    Invoke-Native $Nssm @("set", $s, "ObjectName", ".\$Account", $plain) -Secret
     Invoke-Native $Nssm @("set", $s, "Start", "SERVICE_AUTO_START")
     Invoke-Native $Nssm @("set", $s, "AppStdout", $log)
     Invoke-Native $Nssm @("set", $s, "AppStderr", $log)
@@ -255,19 +279,26 @@ $plain = $null
 
 # --- Network and power (first install; safe to repeat) --------------------------------------------
 Step "Firewall and power"
-if (-not $Subnet) {
-    $ip = Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.PrefixOrigin -ne "WellKnown" -and $_.IPAddress -notlike "169.254.*" } | Select-Object -First 1
-    $guess = "192.168.1.0/24"
-    if ($ip -and $ip.PrefixLength -eq 24) { $guess = ($ip.IPAddress -replace "\.\d+$", ".0") + "/24" }
-    $Subnet = Ask "Office network that may reach the website" $guess
+$rule = Get-NetFirewallRule -DisplayName "HASC website" -ErrorAction SilentlyContinue
+if ($rule -and -not $Subnet) {
+    Write-Host "Keeping the firewall rule for $(($rule | Get-NetFirewallAddressFilter).RemoteAddress)"
+} else {
+    if (-not $Subnet) {
+        $ip = Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.PrefixOrigin -ne "WellKnown" -and $_.IPAddress -notlike "169.254.*" } | Select-Object -First 1
+        $guess = "192.168.1.0/24"
+        if ($ip -and $ip.PrefixLength -eq 24) { $guess = ($ip.IPAddress -replace "\.\d+$", ".0") + "/24" }
+        $Subnet = Ask "Office network that may reach the website" $guess
+    }
+    if ($rule) { $rule | Remove-NetFirewallRule }
+    New-NetFirewallRule -DisplayName "HASC website" -Direction Inbound -Protocol TCP -LocalPort 8080 `
+        -RemoteAddress $Subnet -Profile Private, Domain -Action Allow | Out-Null
 }
-Get-NetFirewallRule -DisplayName "HASC website" -ErrorAction SilentlyContinue | Remove-NetFirewallRule
-New-NetFirewallRule -DisplayName "HASC website" -Direction Inbound -Protocol TCP -LocalPort 8080 `
-    -RemoteAddress $Subnet -Profile Private, Domain -Action Allow | Out-Null
-foreach ($net in Get-NetConnectionProfile) {
-    if ($net.NetworkCategory -eq "Public") {
-        $answer = Ask "Network '$($net.Name)' is Public, so phones cannot reach the website. Set it to Private? (y/n)" "y"
-        if ($answer -like "y*") { Set-NetConnectionProfile -InterfaceIndex $net.InterfaceIndex -NetworkCategory Private }
+if (-not $update) {
+    foreach ($net in Get-NetConnectionProfile) {
+        if ($net.NetworkCategory -eq "Public") {
+            $answer = Ask "Network '$($net.Name)' is Public, so phones cannot reach the website. Set it to Private? (y/n)" "y"
+            if ($answer -like "y*") { Set-NetConnectionProfile -InterfaceIndex $net.InterfaceIndex -NetworkCategory Private }
+        }
     }
 }
 Invoke-Native powercfg.exe @("/change", "standby-timeout-ac", "0")

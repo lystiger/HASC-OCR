@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   bundle:
@@ -71,12 +71,24 @@ jobs:
           name: hasc-${{ env.VERSION }}-win64
           path: ${{ runner.temp }}/dist/hasc-${{ env.VERSION }}-win64.zip
 
-      - name: Attach to the release
-        if: github.ref_type == 'tag'
-        shell: pwsh
+
+  release:
+    name: Attach the bundle to the release
+    needs: bundle
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: hasc-${{ github.ref_name }}-win64
+      - name: Create the release and upload the zip
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
         run: |
-          gh release view $env:VERSION 2>$null
-          if ($LASTEXITCODE -ne 0) { gh release create $env:VERSION --title $env:VERSION --notes "Windows bundle: unzip, then right-click install.cmd, Run as administrator." }
-          gh release upload $env:VERSION "$env:RUNNER_TEMP\dist\hasc-$env:VERSION-win64.zip" --clobber
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" \
+              --notes "Windows bundle: unzip, then right-click install.cmd, Run as administrator."
+          gh release upload "$TAG" "hasc-$TAG-win64.zip" --repo "$GITHUB_REPOSITORY" --clobber

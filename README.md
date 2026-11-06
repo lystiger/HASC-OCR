@@ -270,10 +270,10 @@ Each release has a zip, `hasc-<version>-win64.zip`, on the GitHub **Releases** p
 
 1. On a PC signed in to GitHub, download the zip from Releases and copy it to a USB stick, together with `known_names.json` (and, to bring existing data, the `hasc.db` backup and its `photos` folder).
 2. On the office PC, unzip it anywhere except `C:\HASC` (for example `Downloads\hasc-bundle`).
-3. Right-click `install.cmd`, **Run as administrator**, and answer the questions: a password for the `hasc` account, the path to `known_names.json`, the OpenRouter key, and existing data or a fresh start (a fresh start prints the admin password once: write it down). On Windows Pro a window opens as `hasc` to back up the encryption key: copy the `.pfx` it makes to a USB stick before pressing Enter.
+3. Right-click `install.cmd`, **Run as administrator**, and answer the questions: a password for the `hasc` account (at least 8 characters), the path to `known_names.json` (you can drag the file into the window), the OpenRouter key, existing data or a fresh start (a fresh start prints the admin password once: write it down), the office network that may reach the site, and whether to set a Public network to Private. On Windows Pro a window opens as `hasc` to back up the encryption key: copy the `.pfx` it makes to a USB stick before pressing Enter. On Windows Home there is no encryption; give office staff standard accounts.
 4. It ends by printing the address phones use. Do the three steps it lists by hand (BIOS power-on after power loss, a fixed address in the router, Windows Update paused).
 
-**Updating:** unzip the new release's bundle and run `install.cmd` again as administrator. It sees HASC is already installed, replaces the code and Python, keeps the data and settings, and asks only for the `hasc` password.
+**Updating:** unzip the new release's bundle and run `install.cmd` again as administrator. It sees HASC is already installed, replaces the code and Python, keeps the data, settings and firewall rule, and asks only for the `hasc` password. A wrong password stops it before anything changes.
 
 **Warning:** never reset the `hasc` password from another account. Windows then throws away the encryption keys and the data can no longer be read.
 
