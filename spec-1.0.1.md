@@ -12,6 +12,7 @@ v1.0.0 has the account API (`POST /api/admin/users`, `PATCH /api/admin/users/{id
 2. The temporary password reaches the new user's phone without the admin reading it out (P125).
 3. Office staff can upload a sheet from their own account (P128).
 4. Office and admin pages share one navigation frame that later modules can join (P124).
+5. The website runs on HTTPS on the local network, as spec.md P67 already decided (P132).
 
 ## 3. Non-goals
 
@@ -53,13 +54,13 @@ The role table in spec.md section 4 stays, with one change: **employee and boss 
 
 - Case-insensitive and unique: `Hung` and `hung` are the same account.
 - A username is never given to a new account, even after deactivation. The way back is reactivating the old one.
-- Allowed characters and length: **UNDECIDED U5**.
+- 3–32 characters from `a-z`, `0-9`, `.` and `_`; letters are stored in lower case (P133).
 
 ### Temporary password and first login (P125)
 
 - A temporary password works for one login only. After that login the user is sent to the change-password page and can open nothing else until they set their own password.
 - Once the user has set a password, the temporary password no longer works.
-- How long an unused temporary password stays valid: **UNDECIDED U2**.
+- An unused temporary password stops working 72 hours after it was sent (P133).
 
 ### Sessions (P129)
 
@@ -70,7 +71,7 @@ The role table in spec.md section 4 stays, with one change: **employee and boss 
 
 ### Online status (P131)
 
-- An account is **online** when it made a request in the last 5 minutes (Claude's default; Lystiger to confirm). The screen shows "last seen" for the rest.
+- An account is **online** when it made a request in the last 5 minutes (P133). The screen shows "last seen" for the rest.
 
 ### Office frame (P124)
 
@@ -90,6 +91,9 @@ The role table in spec.md section 4 stays, with one change: **employee and boss 
 9. Each account action in section 4 writes an event an admin can see; an employee or boss requesting the account history gets `403`.
 10. An employee and a boss can upload a photo, and the sheet records them as the uploader.
 11. The sidebar shows Tài khoản to admins only; a non-admin requesting the accounts page gets `403`.
+12. A temporary password not used within 72 hours fails at login; a reset sends a new one.
+13. A username with a space, a Vietnamese letter, or fewer than 3 or more than 32 characters is refused with a Vietnamese message.
+14. Every page and API call is served over HTTPS with the Dell's certificate; a plain HTTP request is redirected and never reaches a login form (spec.md criterion 10).
 
 ## 6. Design
 
@@ -110,7 +114,7 @@ The role table in spec.md section 4 stays, with one change: **employee and boss 
 
 ## 8. Risks
 
-- **Operator sessions with no time limit over plain HTTP.** The server setup in README.md runs plain HTTP, but spec.md P67 and criterion 10 require HTTPS. A session cookie that never expires can be copied by anyone on the Wi-Fi. See U4.
+- **Installing the certificate on every device (P67).** Each phone and office computer must trust the Dell's certificate once, and a phone that skips it shows a security warning. The README server setup (plain HTTP today) is updated in the same release.
 - **A lost operator phone** stays logged in until the admin logs the account out or resets it. The accounts screen and "last seen" make that a one-step action.
 - **SMS or Zalo sending fails or costs more than expected.** See U1.
 - **Two old usernames differing only by case** stop the migration; the admin renames one first.
@@ -121,7 +125,7 @@ Unit and API tests with the fake reader and a fake sender, made-up data only: on
 
 ## 10. Rollout
 
-1. Settle U1–U5.
+1. Settle U1 and U6.
 2. Build on a branch as one Hermes job; merge after CI and an independent verifier.
 3. Deploy to the Dell (Lystiger), run the migration, and check the owner flag is on Lystiger's account.
 4. Tag `v1.0.1`.
@@ -139,14 +143,12 @@ Unit and API tests with the fake reader and a fake sender, made-up data only: on
 | P129 | Operator devices stay logged in until the password changes (or a reset, log-out, role change or deactivation). Office sessions stay at 8 hours. |
 | P130 | Account changes are recorded; only admins see them. |
 | P131 | The accounts screen shows which accounts are online. |
+| P132 | HTTPS (spec.md P67) ships with 1.0.1, because operator sessions no longer expire. |
+| P133 | An unused temporary password expires after 72 hours; "online" is a request in the last 5 minutes; usernames are 3–32 characters from `a-z`, `0-9`, `.`, `_`. |
 
 ## UNDECIDED
 
 | # | Question | Why it matters | Needed by |
 |---|---|---|---|
 | U1 | SMS or Zalo, which provider, and what happens when sending fails (show the password to the admin once, or retry)? | Cost per message, a stored phone number per user, and a new outside service that can fail. Zalo needs a Zalo Official Account; SMS needs a gateway with a sender name. | Build |
-| U2 | How long an unused temporary password stays valid (Claude suggests 72 hours). | Without a limit, a text read months later still opens the account. | Build |
-| U3 | Confirm "online" = a request in the last 5 minutes. | Sets what the admin sees. | Build |
-| U4 | Does HTTPS (spec.md P67, criterion 10) ship before or with 1.0.1? | Unlimited operator sessions over plain HTTP can be copied on the Wi-Fi. | Before go-live |
 | U6 | Vietnamese names for operator, boss and admin on the screen (the UI shows no role names today). | The accounts screen and the role picker show them. | Build |
-| U5 | Username rules: allowed characters (suggest `a-z`, `0-9`, `.`, `_`), length (suggest 3–32). | Vietnamese letters and spaces in usernames cause login mistakes on phones. | Build |
