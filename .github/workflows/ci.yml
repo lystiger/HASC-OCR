@@ -11,8 +11,13 @@ permissions:
 
 jobs:
   check:
-    name: Run checks
-    runs-on: ubuntu-latest
+    name: Run checks (${{ matrix.os }})
+    # Production runs on a Windows office PC, so every PR is checked there too.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -29,4 +34,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run scripts/check
+        shell: bash
+        env:
+          PYTHON: python
         run: ./scripts/check

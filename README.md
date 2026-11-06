@@ -110,9 +110,9 @@ Run the automated checks (runs the import-boundary check and full unittest suite
 ./scripts/check
 ```
 
-## Setting Up a Server Machine
+## Setting Up a Linux Server (the Dell spare)
 
-Everything needed to run the website and the worker on a dedicated machine (for example the office Dell) that the phones reach over the local network. Steps run as the user that will own the service; `~` is that user's home.
+Production runs on the Windows office PC (see [Setting Up the Windows Production PC](#setting-up-the-windows-production-pc)). The Dell is the cold spare: restore the latest backup onto it if the PC fails, and use it to test restores. These steps set it up. Steps run as the user that will own the service; `~` is that user's home.
 
 ### 1. Install the code
 
@@ -121,7 +121,7 @@ Needs `git`, Python 3.12+ (developed on 3.14) and `sqlite3` (only for moving exi
 ```bash
 git clone https://github.com/lystiger/HASC-OCR.git ~/HASC-OCR
 cd ~/HASC-OCR
-git checkout v1.0.0
+git checkout v1.0.1
 python3 -m venv .venv
 .venv/bin/pip install --upgrade pip
 .venv/bin/pip install -r requirements.txt
@@ -259,3 +259,172 @@ git checkout <new-tag>
 ./scripts/check
 systemctl --user restart hasc-web hasc-worker
 ```
+
+## Setting Up the Windows Production PC
+
+The office PC (Intel i3-8100, 8 GB RAM, Windows) hosts the website and the worker for the factory. Office staff also use this PC, so HASC runs as its own Windows account, `hasc`, and its data is encrypted to that account with EFS: staff logged in as themselves cannot open the database or photos. Run the commands below in **PowerShell as Administrator** unless a step says otherwise.
+
+### 1. Check the Windows edition
+
+EFS needs Windows **Pro** (or Enterprise). Run `winver`; on Windows Home, stop here and decide another way to protect the data folder.
+
+### 2. Install the tools
+
+```powershell
+winget install -e --id Python.Python.3.12 --scope machine
+winget install -e --id Git.Git
+winget install -e --id NSSM.NSSM
+```
+
+Close and reopen PowerShell so the new commands are on `PATH`. Python must be installed for all users (`--scope machine`, under `C:\Program Files`): a Python installed only in the Administrator's profile cannot be used by the `hasc` service.
+
+### 3. Create the `hasc` account and the folders
+
+```powershell
+net user hasc * /add          # type a strong password; keep it in your password manager
+mkdir C:\HASC\data\photos, C:\HASC\config, C:\HASC\logs
+icacls C:\HASC\data   /inheritance:r /grant:r "hasc:(OI)(CI)F" "Administrators:(OI)(CI)F"
+icacls C:\HASC\config /inheritance:r /grant:r "hasc:(OI)(CI)F" "Administrators:(OI)(CI)F"
+icacls C:\HASC\logs   /inheritance:r /grant:r "hasc:(OI)(CI)F" "Administrators:(OI)(CI)F"
+```
+
+Never reset the `hasc` password from another account (`net user hasc newpass`): Windows then throws away the EFS keys and the data can no longer be read. Change it only while logged in as `hasc`.
+
+### 4. Install the code
+
+```powershell
+git clone https://github.com/lystiger/HASC-OCR.git C:\HASC\HASC-OCR
+cd C:\HASC\HASC-OCR
+git checkout v1.0.1
+py -3.12 -m venv .venv
+.venv\Scripts\python -m pip install --upgrade pip
+.venv\Scripts\python -m pip install -r requirements.txt
+.venv\Scripts\python -m unittest discover -s tests
+# hasc may read and run the code, but not change it; other accounts get nothing:
+icacls C:\HASC\HASC-OCR /inheritance:r /grant:r "hasc:(OI)(CI)RX" "Administrators:(OI)(CI)F" "SYSTEM:(OI)(CI)F"
+```
+
+`v1.0.1` is the first release that runs on Windows.
+
+### 5. Encrypt the data folders to `hasc`, and back up the key
+
+Every step that creates or copies files in `C:\HASC\data` or `C:\HASC\config` must run **as `hasc`**, so the files are encrypted to that account. Open a command prompt as `hasc` and keep it for steps 5–7:
+
+```powershell
+runas /user:hasc cmd
+```
+
+In that `hasc` window:
+
+```bat
+cipher /e /s:C:\HASC\data
+cipher /e /s:C:\HASC\config
+cipher /x C:\HASC\logs\hasc-efs-key
+```
+
+`cipher /x` asks for a password and writes `C:\HASC\logs\hasc-efs-key.pfx`. Copy that file to a USB stick kept away from the PC, then delete it from the PC. Without it, a broken `hasc` profile means the data is lost.
+
+A file that another account (such as Administrator) creates or copies into `C:\HASC\data` or `C:\HASC\config` is encrypted to that account, and the service cannot read it. `cipher /c <file>` lists who can open a file; it must show `hasc`.
+
+### 6. Worker settings
+
+Still in the `hasc` window, create `C:\HASC\config\worker.env` (for example with `notepad C:\HASC\config\worker.env`), and copy `known_names.json` into `C:\HASC\config\` by hand:
+
+```ini
+OPENROUTER_API_KEY=your_openrouter_api_key_here
+HASC_READER_MODEL=google/gemini-3.8-flash
+HASC_READER_FALLBACK=qwen/qwen3.8-27b
+HASC_KNOWN_NAMES=C:\HASC\config\known_names.json
+```
+
+### 7. Data: start fresh, or bring the existing data
+
+Still in the `hasc` window.
+
+**Fresh:**
+
+```bat
+set HASC_DB_PATH=C:\HASC\data\hasc.db
+C:\HASC\HASC-OCR\.venv\Scripts\python C:\HASC\HASC-OCR\scripts\create_user.py --username admin --role admin
+```
+
+**Move from another machine:** take the `.backup` copy on the old machine as in the Linux section, step 3, copy `hasc.db` into `C:\HASC\data\` and the photos into `C:\HASC\data\photos\` (from the `hasc` window, so they are encrypted), then point the stored paths at the new folder. Replace `OLD` with the old machine's user name; this uses the venv's Python, so no extra tool is needed:
+
+```bat
+C:\HASC\HASC-OCR\.venv\Scripts\python -c "import sqlite3; c = sqlite3.connect(r'C:\HASC\data\hasc.db'); old = '/home/OLD/.local/share/hasc-ocr-dev/photos/'; new = 'C:\\HASC\\data\\photos\\'; fix = lambda p: p and p.replace(old, new).replace('/', '\\'); [c.execute('UPDATE photos SET path = ?, small_copy_path = ? WHERE id = ?', (fix(p), fix(s), i)) for i, p, s in c.execute('SELECT id, path, small_copy_path FROM photos').fetchall()]; c.commit(); print(c.execute('SELECT path FROM photos LIMIT 3').fetchall())"
+```
+
+Close the `hasc` window.
+
+### 8. Run the website and the worker as services
+
+Back in PowerShell as Administrator. Replace `HASC_PASSWORD` with the `hasc` password, in single quotes (`'...'`) so PowerShell does not change characters such as `$`, `&` or `;`:
+
+```powershell
+nssm install hasc-web C:\HASC\HASC-OCR\.venv\Scripts\python.exe "-m uvicorn hasc.web:create_app --factory --host 0.0.0.0 --port 8080"
+nssm set hasc-web AppDirectory C:\HASC\HASC-OCR
+nssm set hasc-web AppEnvironmentExtra HASC_DB_PATH=C:\HASC\data\hasc.db
+nssm set hasc-web ObjectName .\hasc HASC_PASSWORD
+nssm set hasc-web Start SERVICE_AUTO_START
+nssm set hasc-web AppStdout C:\HASC\logs\web.log
+nssm set hasc-web AppStderr C:\HASC\logs\web.log
+
+nssm install hasc-worker C:\HASC\HASC-OCR\.venv\Scripts\python.exe "-u -m hasc.worker"
+nssm set hasc-worker AppDirectory C:\HASC\HASC-OCR
+nssm set hasc-worker AppEnvironmentExtra HASC_DB_PATH=C:\HASC\data\hasc.db HASC_WORKER_ENV=C:\HASC\config\worker.env
+nssm set hasc-worker ObjectName .\hasc HASC_PASSWORD
+nssm set hasc-worker Start SERVICE_AUTO_START
+nssm set hasc-worker AppStdout C:\HASC\logs\worker.log
+nssm set hasc-worker AppStderr C:\HASC\logs\worker.log
+
+nssm start hasc-web
+nssm start hasc-worker
+```
+
+NSSM restarts either service if it stops. If a service will not start with error 1069, give `hasc` the "Log on as a service" right: `secpol.msc`, Local Policies, User Rights Assignment, Log on as a service, add `hasc`.
+
+### 9. Keep it running
+
+- **Network port:** open 8080 to the office network only.
+
+  ```powershell
+  New-NetFirewallRule -DisplayName "HASC website" -Direction Inbound -Protocol TCP -LocalPort 8080 -RemoteAddress 192.168.1.0/24 -Profile Private -Action Allow
+  ```
+
+  Change `192.168.1.0/24` if the office network uses other addresses (`ipconfig` shows them). The office network must be set to **Private** in Windows network settings, or the rule does not apply.
+- **Never sleep:**
+
+  ```powershell
+  powercfg /change standby-timeout-ac 0
+  powercfg /change hibernate-timeout-ac 0
+  ```
+
+- **After a power cut:** in the BIOS, set "Restore on AC power loss" (sometimes "AC Recovery") to **Power On**. The services start at boot, before anyone logs in, so nothing needs to be started by hand.
+- **Windows Update:** the shifts cover all 24 hours, longer than Windows' 18-hour active hours, so updates could restart the PC during a shift. Pause updates (Settings, Windows Update, Pause), install them during a planned shutdown, then pause again.
+- **Fixed address:** give the PC a DHCP reservation in the router, so phones keep reaching `http://<pc-ip>:8080/login`.
+- The site is plain HTTP until 1.1.0 adds HTTPS: keep it on the office network and never forward port 8080 from the router to the internet.
+
+### 10. Check it works
+
+```powershell
+nssm status hasc-web
+nssm status hasc-worker
+Get-Content C:\HASC\logs\worker.log -Tail 20 -Wait
+```
+
+Log in from a phone, upload one test photo, and watch the worker read it.
+
+### Updating
+
+There is no separate staging machine: CI runs every PR on Linux and Windows, and each release gets a short check on this PC before the next shift.
+
+```powershell
+cd C:\HASC\HASC-OCR
+git fetch --tags
+git checkout <new-tag>
+.venv\Scripts\python -m pip install -r requirements.txt
+nssm restart hasc-web
+nssm restart hasc-worker
+```
+
+Then log in from a phone and upload one test photo before the shift starts.

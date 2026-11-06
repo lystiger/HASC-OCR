@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta, timezone
+import gc
 import re
 import io
 from pathlib import Path
@@ -55,6 +56,7 @@ class TestOfficeScreens(unittest.TestCase):
             self.clients[role_name] = client
 
     def tearDown(self):
+        gc.collect()  # Windows cannot delete a database file a leftover connection still holds
         self.temp_dir.cleanup()
 
     def _get_conn(self):

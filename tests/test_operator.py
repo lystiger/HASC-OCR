@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import gc
 import hashlib
 import io
 from pathlib import Path
@@ -95,6 +96,7 @@ class TestOperatorUpload(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
 
     def tearDown(self):
+        gc.collect()  # Windows cannot delete a database file a leftover connection still holds
         self.temp_dir.cleanup()
 
     def test_shift_and_date_clock_logic(self):

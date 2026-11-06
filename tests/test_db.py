@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import gc
 import sqlite3
 import tempfile
 import unittest
@@ -59,6 +60,7 @@ class TestDatabase(unittest.TestCase):
 
     def tearDown(self):
         self.conn.close()
+        gc.collect()  # Windows cannot delete a database file a leftover connection still holds
         self.temp_dir.cleanup()
 
     def test_wal_mode_and_foreign_keys_on(self):

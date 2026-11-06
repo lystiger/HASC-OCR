@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import gc
 import tempfile
 import unittest
 
@@ -61,6 +62,7 @@ class TestAccounts(unittest.TestCase):
         )
 
     def tearDown(self):
+        gc.collect()  # Windows cannot delete a database file a leftover connection still holds
         self.temp_dir.cleanup()
 
     def test_api_login_success_and_cookie_attributes(self):

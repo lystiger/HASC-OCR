@@ -63,39 +63,41 @@ def main(argv: list[str] | None = None) -> int:
 
     db_path = Path(args.db) if args.db else get_default_db_path()
     conn = init_db(db_path)
+    try:
+        existing = get_user_by_username(conn, args.username)
+        if existing:
+            print(f"Error: User '{args.username}' already exists.", file=sys.stderr)
+            return 1
 
-    existing = get_user_by_username(conn, args.username)
-    if existing:
-        print(f"Error: User '{args.username}' already exists.", file=sys.stderr)
-        return 1
+        password = args.password
+        if password is None:
+            password = generate_temporary_password(10)
+            # Generated passwords default to temporary
+            must_change = 1 if args.must_change_password is None else int(args.must_change_password)
+        else:
+            # If password was provided and --temporary/--no-temporary not specified, default to permanent (0)
+            must_change = 0 if args.must_change_password is None else int(args.must_change_password)
 
-    password = args.password
-    if password is None:
-        password = generate_temporary_password(10)
-        # Generated passwords default to temporary
-        must_change = 1 if args.must_change_password is None else int(args.must_change_password)
-    else:
-        # If password was provided and --temporary/--no-temporary not specified, default to permanent (0)
-        must_change = 0 if args.must_change_password is None else int(args.must_change_password)
+        pw_hash = hash_password(password)
+        user_id = create_user(
+            conn,
+            username=args.username,
+            password_hash=pw_hash,
+            role=args.role,
+            active=1,
+            must_change_password=must_change,
+        )
 
-    pw_hash = hash_password(password)
-    user_id = create_user(
-        conn,
-        username=args.username,
-        password_hash=pw_hash,
-        role=args.role,
-        active=1,
-        must_change_password=must_change,
-    )
+        print(f"User '{args.username}' created successfully (ID: {user_id}, Role: {args.role}).")
+        if must_change:
+            print(f"Temporary password: {password}")
+            print("Note: User must change password upon first login.")
+        elif args.password is None:
+            print(f"Password: {password}")
 
-    print(f"User '{args.username}' created successfully (ID: {user_id}, Role: {args.role}).")
-    if must_change:
-        print(f"Temporary password: {password}")
-        print("Note: User must change password upon first login.")
-    elif args.password is None:
-        print(f"Password: {password}")
-
-    return 0
+        return 0
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":

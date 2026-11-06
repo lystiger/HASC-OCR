@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta
+import gc
 import io
 from pathlib import Path
 import tempfile
@@ -44,6 +45,7 @@ class TestDailyReportEndpoint(unittest.TestCase):
         self.unauth_client = TestClient(self.app)
 
     def tearDown(self):
+        gc.collect()  # Windows cannot delete a database file a leftover connection still holds
         self.temp_dir.cleanup()
 
     def test_roles_allowed_for_employee_boss_admin(self):

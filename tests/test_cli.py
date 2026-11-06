@@ -1,4 +1,5 @@
 from pathlib import Path
+import gc
 import subprocess
 import sys
 import tempfile
@@ -15,6 +16,7 @@ class TestCreateUserCLI(unittest.TestCase):
         self.db_path = str(Path(self.temp_dir.name) / "test.db")
 
     def tearDown(self):
+        gc.collect()  # Windows cannot delete a database file a leftover connection still holds
         self.temp_dir.cleanup()
 
     def test_cli_create_admin_with_password(self):

@@ -1,3 +1,4 @@
+import gc
 import io
 from pathlib import Path
 import tempfile
@@ -45,6 +46,7 @@ class TestUprightPhotos(unittest.TestCase):
         conn.close()
 
     def tearDown(self):
+        gc.collect()  # Windows cannot delete a database file a leftover connection still holds
         self.temp_dir.cleanup()
 
     def _login(self, username: str, password: str = "pass1") -> TestClient:

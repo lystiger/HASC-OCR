@@ -183,7 +183,9 @@ class TestPhotoFolder(unittest.TestCase):
 
     def test_get_default_photos_dir_never_returns_repo_path_by_default(self):
         """When no env vars or arguments are provided, default photo folder is not in repo."""
-        with mock.patch.dict(os.environ, {}, clear=True):
+        # Windows finds the home folder through USERPROFILE (or HOMEDRIVE/HOMEPATH), not HOME.
+        home_vars = {k: v for k, v in os.environ.items() if k in ("HOME", "USERPROFILE", "HOMEDRIVE", "HOMEPATH")}
+        with mock.patch.dict(os.environ, home_vars, clear=True):
             resolved = get_default_photos_dir()
             self.assertTrue(resolved.is_absolute())
             self.assertFalse(resolved.is_relative_to(REPO_ROOT))
