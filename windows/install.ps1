@@ -89,8 +89,13 @@ function Grant-ServiceLogonRight([string]$User) {
 
 function Set-Folder([string]$Path, [string]$HascRights) {
     if (-not (Test-Path $Path)) { New-Item -ItemType Directory -Path $Path | Out-Null }
+    # Set the folder's own ACL, then make everything inside inherit it. (icacls /T would give files
+    # nothing: the (OI)(CI) flags do not apply to files, and their inherited entries are gone.)
     Invoke-Native icacls.exe @($Path, "/inheritance:r", "/grant:r",
-        "${Account}:(OI)(CI)$HascRights", "${AdminsSid}:(OI)(CI)F", "${SystemSid}:(OI)(CI)F", "/T", "/Q")
+        "${Account}:(OI)(CI)$HascRights", "${AdminsSid}:(OI)(CI)F", "${SystemSid}:(OI)(CI)F", "/Q")
+    if (Get-ChildItem $Path -Force | Select-Object -First 1) {
+        Invoke-Native icacls.exe @("$Path\*", "/reset", "/T", "/C", "/Q")
+    }
 }
 
 function Wait-Website {
