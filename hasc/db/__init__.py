@@ -1,5 +1,5 @@
 from hasc.db.connection import get_connection, get_default_db_path, get_default_photos_dir, init_db
-from hasc.db.migrations import get_applied_migrations, get_migrations_dir, migrate
+from hasc.db.migrations import MigrationError, get_applied_migrations, get_migrations_dir, migrate
 from hasc.db.queries import (
     clean_expired_sessions,
     create_event,
@@ -49,6 +49,7 @@ __all__ = [
     "get_default_photos_dir",
     "init_db",
     "migrate",
+    "MigrationError",
     "get_applied_migrations",
     "get_migrations_dir",
     "create_user",
