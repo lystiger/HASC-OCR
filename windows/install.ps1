@@ -147,8 +147,12 @@ if (-not (Get-LocalUser $Account -ErrorAction SilentlyContinue)) {
         $again = Read-Host "Type it again" -AsSecureString
         if ((Get-Plain $HascPassword) -cne (Get-Plain $again)) { throw "The passwords do not match." }
     }
-    New-LocalUser -Name $Account -Password $HascPassword -PasswordNeverExpires -UserMayNotChangePassword `
-        -Description "Runs the HASC website and worker" | Out-Null
+    try {
+        New-LocalUser -Name $Account -Password $HascPassword -PasswordNeverExpires -UserMayNotChangePassword `
+            -Description "Runs the HASC website and worker" | Out-Null
+    } catch [Microsoft.PowerShell.Commands.InvalidPasswordException] {
+        throw "Windows rejected the password for '$Account': make it longer, mix letters, digits and symbols, and do not include '$Account'."
+    }
 }
 # A password that expired would stop both services at the next restart.
 Set-LocalUser -Name $Account -PasswordNeverExpires $true

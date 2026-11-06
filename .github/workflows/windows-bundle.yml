@@ -39,7 +39,7 @@ jobs:
         shell: powershell
         run: |
           '{"customers": {}, "products": {}}' | Set-Content "$env:RUNNER_TEMP\known_names.json"
-          $pw = ConvertTo-SecureString "Ci-Hasc-$(Get-Random)-Aa1!" -AsPlainText -Force
+          $pw = ConvertTo-SecureString "Ci-Pw-$(Get-Random)-Aa1!" -AsPlainText -Force
           $key = ConvertTo-SecureString "sk-or-ci-dummy" -AsPlainText -Force
           & "$env:RUNNER_TEMP\bundle\install.ps1" -NonInteractive -SkipKeyExport -HascPassword $pw -OpenRouterKey $key `
             -KnownNames "$env:RUNNER_TEMP\known_names.json" -AdminPassword "ci-admin-pass" -Subnet "10.0.0.0/8"
