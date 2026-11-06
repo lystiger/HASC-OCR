@@ -549,3 +549,73 @@ def list_account_events(conn: sqlite3.Connection) -> list[dict]:
         item["target_username"] = target_username
         results.append(item)
     return results
+
+
+def set_or_create_owner(
+    conn: sqlite3.Connection,
+    username: str,
+    password: str | None = None,
+) -> tuple[int, str, bool]:
+    """Create a new owner admin or transfer ownership to an existing admin.
+
+    According to spec-1.1.0 section 4 & 6:
+    - Creates the account as an admin owner, or makes an existing admin the owner
+    - In one transaction, clears owner from old owner and sets on target
+    - Sets a new temporary password (with the 72 h expiry)
+    - Ends the target's sessions
+    - Old owner retains owner flag if failure occurs part-way
+
+    Returns (user_id, temporary_password, created_new).
+    """
+    clean_username = validate_username(username)
+    temp_pw = password if password is not None else generate_temporary_password(10)
+    pw_hash = hash_password(temp_pw)
+    expiry = temp_password_expires_at()
+
+    with conn:
+        cursor = conn.execute(
+            "SELECT * FROM users WHERE username = ? COLLATE NOCASE", (clean_username,)
+        )
+        existing = cursor.fetchone()
+
+        if existing:
+            if existing["role"] != "admin":
+                raise AppError(
+                    code="invalid_role",
+                    message=f"Tài khoản '{clean_username}' không phải là quản trị viên",
+                    status_code=400,
+                )
+            target_id = existing["id"]
+            # Clear owner flag first to satisfy users_one_owner partial unique index
+            conn.execute("UPDATE users SET is_owner = 0 WHERE is_owner = 1")
+            conn.execute(
+                """
+                UPDATE users
+                SET is_owner = 1,
+                    active = 1,
+                    password_hash = ?,
+                    must_change_password = 1,
+                    temp_password_expires_at = ?
+                WHERE id = ?
+                """,
+                (pw_hash, expiry, target_id),
+            )
+            conn.execute("DELETE FROM sessions WHERE user_id = ?", (target_id,))
+            return target_id, temp_pw, False
+        else:
+            conn.execute("UPDATE users SET is_owner = 0 WHERE is_owner = 1")
+            created_at = security.now().isoformat()
+            cursor = conn.execute(
+                """
+                INSERT INTO users (
+                    username, password_hash, role, active,
+                    must_change_password, created_at, is_owner,
+                    temp_password_expires_at, last_seen_at
+                ) VALUES (?, ?, 'admin', 1, 1, ?, 1, ?, NULL)
+                """,
+                (clean_username, pw_hash, created_at, expiry),
+            )
+            new_id = cursor.lastrowid
+            conn.execute("DELETE FROM sessions WHERE user_id = ?", (new_id,))
+            return new_id, temp_pw, True
+
