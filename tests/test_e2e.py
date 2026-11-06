@@ -459,17 +459,15 @@ class TestNegativeChecks(unittest.TestCase):
         self.assertEqual(op_res.status_code, 403)
         self.assertEqual(op_res.json()["error"]["code"], "forbidden")
 
-        # --- Office employee attempts photo upload -> 403 Forbidden ---
+        # --- Office employee photo upload -> 201 (spec 1.1.0 P128, criterion 13) ---
         jpeg_bytes = generate_test_sheet_jpeg()
         upload_res = self.office_client.post(
             "/api/photos",
             data={"machine": "T1", "production_date": "2026-10-25", "shift": 1, "page_no": 1},
             files={"file": ("photo.jpg", jpeg_bytes, "image/jpeg")},
         )
-        self.assertEqual(upload_res.status_code, 403)
-        self.assertEqual(upload_res.json()["error"]["code"], "forbidden")
-
-        self.assertEqual(self.office_client.get("/api/uploads/mine").status_code, 403)
+        self.assertEqual(upload_res.status_code, 201)
+        self.assertEqual(self.office_client.get("/api/uploads/mine").status_code, 200)
 
         # --- Admin attempts sheet review actions -> 403 Forbidden ---
         self.assertEqual(
