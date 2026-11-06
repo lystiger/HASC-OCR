@@ -1,4 +1,5 @@
 from pathlib import Path
+import gc
 import tempfile
 import unittest
 
@@ -39,6 +40,7 @@ class TestSection4RoleTable(unittest.TestCase):
             self.clients[role] = client
 
     def tearDown(self):
+        gc.collect()  # Windows cannot delete a database file a leftover connection still holds
         self.temp_dir.cleanup()
 
     def _assert_allowed(self, role: str, res, msg: str = ""):

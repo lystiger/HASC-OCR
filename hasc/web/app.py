@@ -111,7 +111,7 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         # Startup: Run database migrations
-        init_db(app.state.db_path)
+        init_db(app.state.db_path).close()
         yield
         # Shutdown logic if needed
 

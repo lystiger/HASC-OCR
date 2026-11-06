@@ -1,4 +1,5 @@
 from pathlib import Path
+import gc
 import tempfile
 import unittest
 
@@ -15,6 +16,7 @@ class TestAppFactory(unittest.TestCase):
         self.app = create_app(db_path=self.db_path)
 
     def tearDown(self):
+        gc.collect()  # Windows cannot delete a database file a leftover connection still holds
         self.temp_dir.cleanup()
 
     def test_startup_runs_migrations(self):
