@@ -1,6 +1,6 @@
 # HASC Production Records 1.1.0: accounts screen and office frame
 
-Date: 2026-11-06. Decisions by Lystiger (P123–P140). Builds on `spec.md` and v1.0.2 (production on the Windows office PC, ADR 8). Where this file and `spec.md` differ, this file wins for 1.1.0. Items marked **UNDECIDED** need Lystiger before the build step that uses them; items marked *(Claude's recommendation, to confirm)* are proposals Lystiger has not yet agreed.
+Date: 2026-11-06. Decisions by Lystiger (P123–P141). Builds on `spec.md` and v1.0.2 (production on the Windows office PC, ADR 8). Where this file and `spec.md` differ, this file wins for 1.1.0. Items marked **UNDECIDED** need Lystiger before the build step that uses them; items marked *(Claude's recommendation, to confirm)* are proposals Lystiger has not yet agreed.
 
 ## 1. Problem
 
@@ -10,6 +10,7 @@ v1.0.2 has an account API (`POST /api/admin/users`, `PATCH /api/admin/users/{id}
 
 1. The admin adds, deactivates, reactivates, resets and changes the role of office accounts from a screen (P123).
 2. The admin hands each new person their first password in person; the person then sets their own (P138).
+5. The website runs on HTTPS on the office network (spec.md P67, P141).
 3. One office frame that later modules (dashboard, purchase orders, production plan) can join (P124).
 4. Office staff can upload a sheet from their own account (P128).
 
@@ -95,6 +96,8 @@ An account is **online** when it made a request in the last 5 minutes. The scree
 13. An employee and a boss can upload a photo, and the sheet records them as the uploader.
 14. The sidebar shows Tài khoản to admins only; a non-admin requesting the accounts page or `GET /api/admin/users` gets `403`.
 15. The accounts screen and the frame work at phone width (360 px) without sideways scrolling.
+16. Every page and API call is served over HTTPS with a certificate the installer makes for the office PC; a plain HTTP request is redirected and never reaches a login form (spec.md criterion 10). Session cookies are `Secure`.
+17. A fresh `install.cmd` and an update both end with HTTPS working, and the installer gives the certificate file to install on office PCs and phones, with steps for Windows, Android and iPhone.
 
 ## 6. Design
 
@@ -104,6 +107,7 @@ An account is **online** when it made a request in the last 5 minutes. The scree
 - **Events:** account actions reuse the `events` table with `action` values `account_add`, `account_reset`, `account_role`, `account_deactivate`, `account_reactivate`, `account_logout`; `sheet_id` is null and `detail` names the target account and the old and new values. Passwords never appear in an event.
 - **API:** adds `GET /api/admin/users` (the list) and `GET /api/admin/users/events` (the history); `PATCH` enforces the owner rules; `POST` refuses `operator` and enforces the username rules.
 - **Pages:** server-rendered with htmx, like the office pages; the frame is a shared base template.
+- **HTTPS:** the installer makes a small certificate authority and a certificate for the PC's name and addresses (kept in `C:\HASC\config`, encrypted to `hasc`), and exports only the authority's public certificate for devices to trust. uvicorn serves TLS on port 443 and a plain listener on 8080 only redirects to it; the firewall rule opens both. `create_app` takes `enforce_https` and `secure_cookies` from the environment.
 
 ## 7. Alternatives considered
 
@@ -115,7 +119,7 @@ An account is **online** when it made a request in the last 5 minutes. The scree
 ## 8. Risks
 
 - **The admin screen shows a temporary password** on a screen others might see. It is shown once, works once, and expires in 72 hours.
-- **Plain HTTP on the office network** until HTTPS ships (U11): passwords cross the office Wi-Fi unencrypted. Accepted for 1.1.0 if U11 says so; the firewall already limits the site to the office network.
+- **Trusting the certificate on every device (P141).** Each office PC and phone must trust the office PC's certificate once; a device that skips it shows a security warning. Factory phones meet it in 1.2.0 with the QR page.
 - **Two old usernames differing only by case** stop the migration; the admin renames one first.
 - **The owner forgets their password:** recovery needs the `hasc` password and the PC.
 
@@ -125,7 +129,7 @@ Unit and API tests with made-up data only: one test per acceptance criterion, th
 
 ## 10. Rollout
 
-1. Settle U6 and U11 (the build needs U6; U11 decides whether HTTPS is in this release).
+1. Settle U6.
 2. Build on a branch as one Hermes job; merge after CI and an independent verifier.
 3. Tag `v1.1.0`; CI attaches the Windows bundle.
 4. Lystiger runs `install.cmd` from the new bundle on the office PC (an update: data kept) and checks the owner flag is on their account.
@@ -151,6 +155,7 @@ Unit and API tests with made-up data only: one test per acceptance criterion, th
 | P137 | No per-device lock for wrong uploads until junk uploads actually happen. |
 | P138 | Lystiger hands office passwords over in person. The system shows the temporary password to the admin once. Replaces sending by SMS or Zalo (U1 closed). |
 | P139 | 1.1.0 is the accounts screen and the office frame only; the QR upload page, trưởng ca attribution and the read cap are 1.2.0. |
+| P141 | HTTPS ships in 1.1.0 (closes U11). |
 | P140 | The role picker no longer offers `operator`; existing operator accounts keep working until deactivated. |
 
 ## UNDECIDED
@@ -158,7 +163,6 @@ Unit and API tests with made-up data only: one test per acceptance criterion, th
 | # | Question | Why it matters | Needed by |
 |---|---|---|---|
 | U6 | Vietnamese names for `boss`, `admin` and `operator` on the accounts screen. You said "show no roles": this spec reads that as "no role names anywhere except the accounts screen", where the role picker needs labels. | The role picker and the list show them. | Build |
-| U11 | HTTPS in 1.1.0, or with the QR page in 1.2.0? Every phone and PC must trust the office PC's certificate once, which is hardest for factory phones scanning the QR code. | Decides whether 1.1.0 carries certificate work and a README change. | Build |
 | U8 | The daily read cap: 100 a day? What happens at the cap: refuse uploads, or queue them unread until the next day? | 1.2.0 design. | 1.2.0 |
 | U9 | Where the trưởng ca of each shift comes from: a fixed person per shift that the admin sets, or a roster per date? | 1.2.0 attribution. | 1.2.0 |
 | U10 | Does the QR link carry a secret the admin can change, so a link that leaks outside the factory can be cut off? | 1.2.0 security. | 1.2.0 |
