@@ -71,7 +71,12 @@ class TestEndToEndFlow(unittest.TestCase):
         # 1. Enforce no network and no real reader use
         self._orig_socket_connect = socket.socket.connect
 
-        def _forbidden_connect(*args, **kwargs):
+        orig_connect = self._orig_socket_connect
+
+        def _forbidden_connect(sock, address, *args, **kwargs):
+            # Loopback stays allowed: on Windows asyncio builds its internal socket pair over 127.0.0.1.
+            if isinstance(address, tuple) and address[0] in ("127.0.0.1", "::1"):
+                return orig_connect(sock, address, *args, **kwargs)
             raise RuntimeError("Network use is strictly forbidden in e2e tests")
 
         socket.socket.connect = _forbidden_connect
@@ -314,7 +319,12 @@ class TestNegativeChecks(unittest.TestCase):
         # Enforce no network and no real reader use
         self._orig_socket_connect = socket.socket.connect
 
-        def _forbidden_connect(*args, **kwargs):
+        orig_connect = self._orig_socket_connect
+
+        def _forbidden_connect(sock, address, *args, **kwargs):
+            # Loopback stays allowed: on Windows asyncio builds its internal socket pair over 127.0.0.1.
+            if isinstance(address, tuple) and address[0] in ("127.0.0.1", "::1"):
+                return orig_connect(sock, address, *args, **kwargs)
             raise RuntimeError("Network use is strictly forbidden in e2e tests")
 
         socket.socket.connect = _forbidden_connect
