@@ -34,7 +34,7 @@ $Db = Join-Path $Data "hasc.db"
 $Py = Join-Path $InstallDir "python\python.exe"
 $Code = Join-Path $InstallDir "HASC-OCR"
 $Nssm = Join-Path $InstallDir "bin\nssm.exe"
-$ToolFiles = @("common.ps1", "install.ps1", "update.ps1", "delete.ps1", "update.cmd", "delete.cmd")
+$ToolFiles = @("common.ps1", "install.ps1", "update.ps1", "delete.ps1", "check_update.ps1", "update.cmd", "delete.cmd")
 
 function Set-Folder([string]$Path, [string]$HascRights) {
     if (-not (Test-Path $Path)) { New-Item -ItemType Directory -Path $Path | Out-Null }
@@ -261,7 +261,8 @@ function Install-Hasc {
         if (Get-Service $s -ErrorAction SilentlyContinue) { Invoke-Native $Nssm @("remove", $s, "confirm") }
     }
     Invoke-Native $Nssm @("install", "hasc-web", $Py, "-m uvicorn hasc.web:create_app --factory --host 0.0.0.0 --port 443 --ssl-keyfile `"$Config\server.key`" --ssl-certfile `"$Config\server.crt`"")
-    Invoke-Native $Nssm @("set", "hasc-web", "AppEnvironmentExtra", "HASC_DB_PATH=$Db", "HASC_HTTPS=1")
+    Invoke-Native $Nssm @("set", "hasc-web", "AppEnvironmentExtra", "HASC_DB_PATH=$Db", "HASC_HTTPS=1",
+        "HASC_VERSION=$version", "HASC_UPDATE_STATUS=$Tools\update-status.json")
     # Port 8080 only sends browsers on to HTTPS and hands out the authority (hasc/web/redirect.py).
     Invoke-Native $Nssm @("install", "hasc-redirect", $Py, "-m uvicorn hasc.web.redirect:app --host 0.0.0.0 --port 8080")
     Invoke-Native $Nssm @("set", "hasc-redirect", "AppEnvironmentExtra", "HASC_CA_CERT=$Config\ca.crt")
@@ -322,10 +323,24 @@ function Install-Hasc {
         New-Shortcut (Join-Path $menu "HASC delete.lnk") (Join-Path $Tools "delete.cmd") "Remove HASC from this PC"
     }
 
+    # --- Update check -----------------------------------------------------------------------------
+    # Daily and at startup, as SYSTEM: asks GitHub for a newer release and tells admins on the website.
+    # It never installs anything (P146).
+    Step "Daily update check"
+    $checkAction = New-ScheduledTaskAction -Execute "powershell.exe" `
+        -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$Tools\check_update.ps1`" -InstallDir `"$InstallDir`""
+    $atStartup = New-ScheduledTaskTrigger -AtStartup
+    $atStartup.Delay = "PT5M"
+    Register-ScheduledTask -TaskName "HASC update check" -Action $checkAction -Trigger @($atStartup, (New-ScheduledTaskTrigger -Daily -At "12:00")) `
+        -Principal (New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest) `
+        -Settings (New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 5)) -Force | Out-Null
+
     # --- Start and check --------------------------------------------------------------------------
     Step "Starting the services"
     foreach ($s in $Services) { Start-Service $s }
     Wait-Website
+    # Fill the admins' update banner now rather than at the next noon.
+    Start-ScheduledTask -TaskName "HASC update check"
     Start-Sleep -Seconds 5
     foreach ($s in $Services) {
         $status = (Get-Service $s).Status

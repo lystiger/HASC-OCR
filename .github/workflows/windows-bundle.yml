@@ -115,12 +115,21 @@ jobs:
           $efs = cipher /c C:\HASC\data\hasc.db | Out-String
           Check "database encrypted to hasc" ($efs -cmatch '(?ms)^E hasc\.db.*Users who can decrypt:\s+(\S+\\)?hasc\b')
           Check "tools installed" (Test-Path C:\HASC\tools\delete.ps1)
+          # Job C: the daily check task exists, and a run writes the latest release for the admins' banner.
+          Check "update check task registered" ([bool](Get-ScheduledTask -TaskName "HASC update check" -ErrorAction SilentlyContinue))
+          Run { & C:\HASC\tools\check_update.ps1 -Token $env:GH_TOKEN }
+          $latest = gh api "repos/$env:GITHUB_REPOSITORY/releases/latest" --jq .tag_name
+          $upd = Get-Content C:\HASC\tools\update-status.json -Raw | ConvertFrom-Json
+          Check "update check found the latest release ($($upd.latest), installed $($upd.installed))" (($upd.latest -eq $latest) -and $upd.available -and -not $upd.error)
+          $caBefore = (Get-ChildItem Cert:\LocalMachine\Root | Where-Object { $_.Subject -eq "CN=HASC local CA" }).Thumbprint
 
           # 2. Update from a local zip through update.ps1, and ask GitHub for the latest release.
           Run { & C:\HASC\tools\update.ps1 -NonInteractive -ZipPath $zip -HascPassword $pw }
           Check "admin can log in after the update" ((Login "ci-admin-pass-2") -eq 200)
           CheckHttps "after the update"
           CheckFirewall "after the update"
+          $caAfter = (Get-ChildItem Cert:\LocalMachine\Root | Where-Object { $_.Subject -eq "CN=HASC local CA" }).Thumbprint
+          Check "the update keeps the authority phones trust" ($caBefore -and ($caAfter -eq $caBefore))
           Check "database backed up before the update" ([bool](Get-ChildItem C:\HASC\data\backups\before-* -Directory -ErrorAction SilentlyContinue))
           Run { & C:\HASC\tools\update.ps1 -NonInteractive -CheckOnly -Token $env:GH_TOKEN }
 
@@ -134,6 +143,7 @@ jobs:
           Check "firewall rule removed" (-not (Get-NetFirewallRule -DisplayName "HASC website" -ErrorAction SilentlyContinue))
           Check "HASC authority no longer trusted" (-not (Get-ChildItem Cert:\LocalMachine\Root | Where-Object { $_.Subject -eq "CN=HASC local CA" }))
           Check "hasc-redirect service removed" (-not (Get-Service hasc-redirect -ErrorAction SilentlyContinue))
+          Check "update check task removed" (-not (Get-ScheduledTask -TaskName "HASC update check" -ErrorAction SilentlyContinue))
           Check "profile removed, or a startup task will remove it" ((-not (Get-CimInstance Win32_UserProfile | Where-Object { $_.LocalPath -like "*\hasc" })) -or [bool](Get-ScheduledTask -TaskName "HASC remove profile *" -ErrorAction SilentlyContinue))
           $users = & "$b\python\python.exe" -c "import sqlite3; print(sqlite3.connect(r'C:\hasc-keep\hasc.db').execute('select count(*) from users').fetchone()[0])"
           Check "kept database readable by an administrator ($users users)" ([int]$users -ge 1)

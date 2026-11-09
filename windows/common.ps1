@@ -54,6 +54,48 @@ function Protect-TokenFile {
     }
 }
 
+function Invoke-GitHub([string]$Url, [string]$Accept, [string]$OutFile, [string]$Token, [string[]]$ForgetOn401 = @()) {
+    # Used by update.ps1 and check_update.ps1. A 401 deletes the saved token files named in $ForgetOn401.
+    # GitHub answers a release download with a redirect to its file store, which must be fetched
+    # without the token: so redirects are followed by hand.
+    $headers = @{ "Authorization" = "Bearer $Token"; "User-Agent" = "hasc-update"; "Accept" = $Accept }
+    $request = [System.Net.HttpWebRequest]::Create($Url)
+    $request.AllowAutoRedirect = $false
+    foreach ($k in $headers.Keys) {
+        if ($k -eq "Accept") { $request.Accept = $headers[$k] }
+        elseif ($k -eq "User-Agent") { $request.UserAgent = $headers[$k] }
+        else { $request.Headers.Add($k, $headers[$k]) }
+    }
+    try { $response = $request.GetResponse() }
+    catch [System.Net.WebException] {
+        $code = [int]$_.Exception.Response.StatusCode
+        if ($code -eq 401) {
+            foreach ($f in $ForgetOn401) { Remove-Item $f -Force -ErrorAction SilentlyContinue }
+            throw "GitHub refused the token (expired or wrong). Run HASC update and paste a new read-only token."
+        }
+        if ($code -eq 403) { throw "GitHub refused the request (HTTP 403): the token may lack Contents read on HASC-OCR, or GitHub is limiting requests. Try again later." }
+        if ($code -eq 404) { throw "GitHub found no release (HTTP 404), or the token cannot see HASC-OCR." }
+        throw
+    }
+    $status = [int]$response.StatusCode
+    if ($status -ge 300 -and $status -lt 400) {
+        $location = $response.Headers["Location"]
+        $response.Close()
+        Invoke-WebRequest $location -OutFile $OutFile -UseBasicParsing
+        return
+    }
+    try {
+        if ($OutFile) {
+            $file = [System.IO.File]::Create($OutFile)
+            try { $response.GetResponseStream().CopyTo($file) } finally { $file.Close() }
+            return
+        }
+        return (New-Object System.IO.StreamReader($response.GetResponseStream())).ReadToEnd()
+    } finally {
+        $response.Close()
+    }
+}
+
 function Step([string]$Text) { Write-Host ""; Write-Host "==> $Text" -ForegroundColor Cyan }
 
 function Invoke-Native {

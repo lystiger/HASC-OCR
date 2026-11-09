@@ -296,6 +296,22 @@ input[type="file"] {
   border-color: #BBF7D0;
 }
 
+.alert--update {
+  background: #EFF6FF;
+  color: #1E3A8A;
+  border-color: #BFDBFE;
+}
+
+.update-note,
+.office-version {
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+
+.office-version {
+  margin: 1rem 0.75rem 0;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
