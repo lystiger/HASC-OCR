@@ -133,6 +133,10 @@ jobs:
           Check "update check task (SYSTEM) found the latest release (result $result, $($upd.latest), installed $($upd.installed), error $($upd.error))" (($result -eq 0) -and ($upd.latest -eq $latest) -and $upd.available -and -not $upd.error)
           $office = (Invoke-WebRequest "https://127.0.0.1/office" -UseBasicParsing -WebSession $web).Content
           Check "admins see the update banner" ($office -match [regex]::Escape("phi$([char]0x00EA)n b$([char]0x1EA3)n m$([char]0x1EDB)i $latest"))
+          $version = (Get-Content C:\HASC\VERSION.txt -Raw).Trim()
+          $raw = Get-Content C:\HASC\tools\update-status.json -Raw
+          Check "status file names the installed version as text ($version)" ($raw -match ('"installed":\s*"' + [regex]::Escape($version) + '"'))
+          Check "the banner shows the installed version" ($office -match [regex]::Escape("($([char]0x0111)ang d$([char]0x00F9)ng $version)"))
           $caBefore = (Get-ChildItem Cert:\LocalMachine\Root | Where-Object { $_.Subject -eq "CN=HASC local CA" }).Thumbprint
 
           # 2. Update from a local zip through update.ps1, and ask GitHub for the latest release.

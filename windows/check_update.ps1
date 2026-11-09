@@ -17,7 +17,8 @@ $now = (Get-Date).ToUniversalTime().ToString("o")
 
 $previous = $null
 try { $previous = Get-Content $StatusFile -Raw | ConvertFrom-Json } catch { }
-$installed = (Get-Content (Join-Path $InstallDir "VERSION.txt") -ErrorAction SilentlyContinue | Select-Object -First 1)
+# [string]: Get-Content adds PSPath and other properties, which ConvertTo-Json would write out.
+$installed = [string](Get-Content (Join-Path $InstallDir "VERSION.txt") -ErrorAction SilentlyContinue | Select-Object -First 1)
 $status = [ordered]@{ installed = $installed; latest = $null; available = $false; checked_at = $now; ok_at = $null; error = $null }
 
 try {
