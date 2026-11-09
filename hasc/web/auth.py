@@ -103,6 +103,17 @@ def get_authenticated_user(
             message="Chưa đăng nhập hoặc phiên làm việc đã hết hạn",
             status_code=401,
         )
+    # A temporary password works for at most 72 hours, also in a session opened before it ran out.
+    if (
+        user.get("must_change_password")
+        and user.get("temp_password_expires_at")
+        and is_session_expired(user["temp_password_expires_at"])
+    ):
+        raise AppError(
+            code="temp_password_expired",
+            message="Mật khẩu tạm đã hết hạn. Hãy nhờ Quản trị đặt lại.",
+            status_code=401,
+        )
     return user
 
 

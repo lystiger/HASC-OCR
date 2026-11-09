@@ -149,6 +149,25 @@ class TestAccountsMigration(unittest.TestCase):
         finally:
             conn.close()
 
+    def test_vietnamese_letters_are_not_a_case_collision(self):
+        """NOCASE folds A-Z only, so Đức and đức do not stop 003_accounts.sql."""
+        custom_mig_dir = Path(self.temp_dir.name) / "migs"
+        custom_mig_dir.mkdir()
+        shutil.copy(get_migrations_dir() / "001_initial_schema.sql", custom_mig_dir)
+        shutil.copy(get_migrations_dir() / "002_sheet_layout.sql", custom_mig_dir)
+
+        conn = get_connection(self.db_path, auto_migrate=False)
+        try:
+            migrate(conn, migrations_dir=custom_mig_dir)
+            create_user(conn, "Đức", "hash1", "admin", active=1)
+            create_user(conn, "đức", "hash2", "employee", active=1)
+
+            shutil.copy(get_migrations_dir() / "003_accounts.sql", custom_mig_dir)
+            applied = migrate(conn, migrations_dir=custom_mig_dir)
+            self.assertEqual(applied, ["003_accounts.sql"])
+        finally:
+            conn.close()
+
     def test_pre_check_does_not_run_for_other_migrations(self):
         """The case-insensitivity pre-check runs only for 003_accounts.sql, not others."""
         custom_mig_dir = Path(self.temp_dir.name) / "migs"

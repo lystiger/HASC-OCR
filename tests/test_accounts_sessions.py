@@ -200,6 +200,31 @@ class TestAccountsSessions(unittest.TestCase):
         self.assertEqual(u2["must_change_password"], 0)
         self.assertIsNone(u2["temp_password_expires_at"])
 
+    def test_criterion_4_expired_temporary_password_ends_an_open_session(self):
+        """Criterion 4: a session opened just before the 72 hours end cannot be used after them."""
+        t0 = datetime(2026, 11, 6, 12, 0, 0, tzinfo=timezone.utc)
+        with patch("hasc.web.security.now", return_value=t0):
+            admin_client = TestClient(self.app)
+            admin_client.post("/api/login", json={"username": "admin_user", "password": "admin_pass"})
+            res_create = admin_client.post(
+                "/api/admin/users",
+                json={"username": "emp_open_session", "role": "employee"},
+            )
+            temp_pwd = res_create.json()["temporary_password"]
+
+        emp_client = TestClient(self.app)
+        with patch("hasc.web.security.now", return_value=t0 + timedelta(hours=71, minutes=59)):
+            res_login = emp_client.post(
+                "/api/login",
+                json={"username": "emp_open_session", "password": temp_pwd},
+            )
+            self.assertEqual(res_login.status_code, 200)
+
+        with patch("hasc.web.security.now", return_value=t0 + timedelta(hours=72, seconds=1)):
+            res = emp_client.post("/api/password", json={"old": temp_pwd, "new": "NewPass12345"})
+            self.assertEqual(res.status_code, 401)
+            self.assertEqual(res.json()["error"]["code"], "temp_password_expired")
+
     def test_criterion_4_temporary_password_expires_after_72_hours(self):
         """Criterion 4: A temporary password not used within 72 hours fails at login;
         a reset makes a new one that works.

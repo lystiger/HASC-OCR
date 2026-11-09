@@ -116,7 +116,7 @@ def validate_username(username: str) -> str:
             message="Tên đăng nhập phải có từ 3 đến 32 ký tự",
             status_code=400,
         )
-    if not USERNAME_REGEX.match(username):
+    if not USERNAME_REGEX.fullmatch(username):
         raise AppError(
             code="invalid_username",
             message="Tên đăng nhập chỉ được chứa các ký tự a-z, 0-9, dấu chấm và gạch dưới",

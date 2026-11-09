@@ -694,6 +694,7 @@ class TestCriteriaCoverageHardening(unittest.TestCase):
             ("hùng", "Tên đăng nhập chỉ được chứa các ký tự a-z, 0-9, dấu chấm và gạch dưới"),
             ("ab", "Tên đăng nhập phải có từ 3 đến 32 ký tự"),
             ("a" * 33, "Tên đăng nhập phải có từ 3 đến 32 ký tự"),
+            ("hung\n", "Tên đăng nhập chỉ được chứa các ký tự a-z, 0-9, dấu chấm và gạch dưới"),
         ]
 
         for uname, expected_msg in invalid_cases:

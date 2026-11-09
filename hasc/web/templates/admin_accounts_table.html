@@ -52,7 +52,7 @@
         <td>
           <div class="action-buttons-cell" style="display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center;">
             {% if a.can_reset %}
-            <form method="post" action="/admin/accounts" class="inline-form" onsubmit="return confirm('Bạn có chắc chắn muốn đặt lại mật khẩu cho tài khoản {{ a.username }} không?');">
+            <form method="post" action="/admin/accounts" class="inline-form" onsubmit="return confirm(this.querySelector('[data-confirm]').dataset.confirm);">
               <input type="hidden" name="action" value="reset" />
               <input type="hidden" name="user_id" value="{{ a.id }}" />
               <button type="submit" class="btn btn--secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; min-height: 28px;"
@@ -68,7 +68,7 @@
             {% endif %}
 
             {% if a.can_change_role and a.available_roles %}
-            <form method="post" action="/admin/accounts" class="inline-form" onsubmit="return confirm('Bạn có chắc chắn muốn thay đổi vai trò tài khoản {{ a.username }} không?');">
+            <form method="post" action="/admin/accounts" class="inline-form" onsubmit="return confirm(this.querySelector('[data-confirm]').dataset.confirm);">
               <input type="hidden" name="action" value="role" />
               <input type="hidden" name="user_id" value="{{ a.id }}" />
               <select name="role" aria-label="Vai trò mới cho {{ a.username }}" style="padding: 0.2rem 0.4rem; font-size: 0.8rem; height: 28px; border-radius: var(--radius-md); border: 1px solid var(--color-border);">
@@ -88,7 +88,7 @@
             {% endif %}
 
             {% if a.can_deactivate %}
-            <form method="post" action="/admin/accounts" class="inline-form" onsubmit="return confirm('Bạn có chắc chắn muốn vô hiệu hóa tài khoản {{ a.username }} không?');">
+            <form method="post" action="/admin/accounts" class="inline-form" onsubmit="return confirm(this.querySelector('[data-confirm]').dataset.confirm);">
               <input type="hidden" name="action" value="deactivate" />
               <input type="hidden" name="user_id" value="{{ a.id }}" />
               <button type="submit" class="btn btn--danger" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; min-height: 28px;"
@@ -104,7 +104,7 @@
             {% endif %}
 
             {% if a.can_reactivate %}
-            <form method="post" action="/admin/accounts" class="inline-form" onsubmit="return confirm('Bạn có chắc chắn muốn kích hoạt lại tài khoản {{ a.username }} không?');">
+            <form method="post" action="/admin/accounts" class="inline-form" onsubmit="return confirm(this.querySelector('[data-confirm]').dataset.confirm);">
               <input type="hidden" name="action" value="reactivate" />
               <input type="hidden" name="user_id" value="{{ a.id }}" />
               <button type="submit" class="btn btn--secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; min-height: 28px;"
@@ -120,7 +120,7 @@
             {% endif %}
 
             {% if a.can_logout %}
-            <form method="post" action="/admin/accounts" class="inline-form" onsubmit="return confirm('Bạn có chắc chắn muốn đăng xuất tài khoản {{ a.username }} không?');">
+            <form method="post" action="/admin/accounts" class="inline-form" onsubmit="return confirm(this.querySelector('[data-confirm]').dataset.confirm);">
               <input type="hidden" name="action" value="logout" />
               <input type="hidden" name="user_id" value="{{ a.id }}" />
               <button type="submit" class="btn btn--secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; min-height: 28px;"

@@ -8,6 +8,9 @@ class MigrationError(ValueError, RuntimeError):
     pass
 
 
+_ASCII_LOWER = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
+
+
 def _check_003_case_insensitive_usernames(conn: sqlite3.Connection) -> None:
     table_exists = conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name='users'"
@@ -18,7 +21,8 @@ def _check_003_case_insensitive_usernames(conn: sqlite3.Connection) -> None:
     cursor = conn.execute("SELECT username FROM users ORDER BY id ASC")
     seen: dict[str, list[str]] = {}
     for (username,) in cursor.fetchall():
-        seen.setdefault(username.lower(), []).append(username)
+        # SQLite NOCASE folds A-Z only, so Vietnamese letters such as Đ/đ are not a collision.
+        seen.setdefault(username.translate(_ASCII_LOWER), []).append(username)
 
     duplicates = [names for names in seen.values() if len(names) > 1]
     if duplicates:
