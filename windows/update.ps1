@@ -38,13 +38,6 @@ function Get-Token {
     return $plain
 }
 
-function Protect-TokenFile {
-    # Administrators only. Runs again after an update, whose installer resets the tools folder.
-    foreach ($f in Get-ChildItem (Join-Path $InstallDir "tools") -Filter "github-token*.dat" -ErrorAction SilentlyContinue) {
-        Invoke-Native icacls.exe @($f.FullName, "/inheritance:r", "/grant:r", "${AdminsSid}:F", "${SystemSid}:F", "/Q") | Out-Null
-    }
-}
-
 function Invoke-GitHub([string]$Url, [string]$Accept, [string]$OutFile) {
     # GitHub answers a release download with a redirect to its file store, which must be fetched
     # without the token: so redirects are followed by hand.

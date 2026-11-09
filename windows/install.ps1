@@ -157,6 +157,9 @@ function Install-Hasc {
             if (Test-Path "$Db$suffix") { $copy += " && copy /y `"$Db$suffix`" `"$backup`" >nul" }
         }
         Invoke-AsHasc $copy
+        # Only the last 5 are kept, so the disk does not fill up over the years.
+        Get-ChildItem (Join-Path $Data "backups") -Directory -Filter "before-*" | Sort-Object Name -Descending |
+            Select-Object -Skip 5 | Remove-Item -Recurse -Force
     }
 
     Step "Copying Python, the code and NSSM into $InstallDir"
@@ -178,6 +181,7 @@ function Install-Hasc {
     Set-Folder $Config "F"
     Set-Folder $Logs "F"
     foreach ($part in @("python", "HASC-OCR", "bin", "tools")) { Set-Folder (Join-Path $InstallDir $part) "RX" }
+    Protect-TokenFile
 
     # --- Settings and data (first install) --------------------------------------------------------
     if ($needSettings) {

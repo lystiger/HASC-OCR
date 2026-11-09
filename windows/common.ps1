@@ -27,6 +27,8 @@ function Get-ForwardArguments($Bound) {
     $list = @()
     foreach ($k in $Bound.Keys) {
         $v = $Bound[$k]
+        # Plain-text secrets stay off the command line, which other processes can read.
+        if ($k -in @("Token", "AdminPassword")) { continue }
         if ($v -is [System.Management.Automation.SwitchParameter]) { if ($v.IsPresent) { $list += "-$k" } }
         elseif ($v -isnot [System.Security.SecureString]) {
             # A trailing backslash would escape the closing quote.
@@ -36,6 +38,16 @@ function Get-ForwardArguments($Bound) {
         }
     }
     return $list
+}
+
+function Protect-TokenFile {
+    # The saved GitHub tokens (update.ps1): administrators only. Runs after every install and update,
+    # since the installer resets the tools folder. The old shared token file is no longer used.
+    $tools = Join-Path $InstallDir "tools"
+    Remove-Item (Join-Path $tools "github-token.dat") -Force -ErrorAction SilentlyContinue
+    foreach ($f in Get-ChildItem $tools -Filter "github-token-*.dat" -ErrorAction SilentlyContinue) {
+        Invoke-Native icacls.exe @($f.FullName, "/inheritance:r", "/grant:r", "${AdminsSid}:F", "${SystemSid}:F", "/Q") | Out-Null
+    }
 }
 
 function Step([string]$Text) { Write-Host ""; Write-Host "==> $Text" -ForegroundColor Cyan }
