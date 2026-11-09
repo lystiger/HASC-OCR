@@ -15,6 +15,9 @@ $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "common.ps1")
 
 if (-not (Test-Admin) -and $NonInteractive) { throw "Run this as Administrator." }
+# The whole folder is deleted, so it must never be a drive root.
+$InstallDir = [IO.Path]::GetFullPath($InstallDir).TrimEnd("\")
+if ($InstallDir -eq [IO.Path]::GetPathRoot($InstallDir).TrimEnd("\")) { throw "-InstallDir may not be a drive root: $InstallDir" }
 
 # Run from a copy outside C:\HASC, since C:\HASC is about to be deleted: no process of ours may keep
 # a file or its working folder inside it.
@@ -39,7 +42,7 @@ if ($here.StartsWith($InstallDir.TrimEnd("\"), [StringComparison]::OrdinalIgnore
     exit
 }
 if (-not (Test-Admin)) {
-    Restart-Elevated $PSCommandPath @()
+    Restart-Elevated $PSCommandPath (Get-ForwardArguments $PSBoundParameters)
     exit
 }
 if ($HascPasswordSaved) { $HascPassword = ConvertTo-SecureString $HascPasswordSaved }
@@ -62,11 +65,22 @@ function Remove-Hasc {
     }
     $keep = $hasData -and -not $erase
     if ($keep -and -not $KeepDataTo) { $KeepDataTo = "C:\HASC-backup-" + (Get-Date -Format "yyyyMMdd-HHmm") }
+    if ($keep) {
+        $KeepDataTo = [IO.Path]::GetFullPath($KeepDataTo).TrimEnd("\")
+        # A backup inside the install folder would be deleted with it; one on top of an old backup would overwrite it.
+        if (($KeepDataTo + "\").StartsWith($InstallDir + "\", [StringComparison]::OrdinalIgnoreCase)) { throw "Keep the data outside $InstallDir, not in $KeepDataTo. Nothing was removed." }
+        if ((Test-Path $KeepDataTo) -and (Get-ChildItem $KeepDataTo -Force | Select-Object -First 1)) { throw "$KeepDataTo is not empty: pick a new folder for the backup. Nothing was removed." }
+    }
 
     # The data is encrypted to hasc, so decrypting it needs hasc's password, before the account goes.
     if ($keep -and $userExists) {
         Step "Checking the '$Account' password"
         Test-HascPassword
+    }
+    # Without hasc nobody can decrypt it any more: moving it would give a backup no one can read.
+    if ($keep -and -not $userExists) {
+        $locked = Get-ChildItem $Data -Recurse -File -Force | Where-Object { $_.Attributes -band [IO.FileAttributes]::Encrypted } | Select-Object -First 1
+        if ($locked) { throw "The '$Account' account is gone, so the encrypted data in $Data cannot be decrypted (for example $($locked.FullName)). Import the EFS key backup (hasc-efs-key.pfx) as an administrator first, or erase the data. Nothing was removed." }
     }
 
     Step "Stopping the services"
@@ -82,7 +96,7 @@ function Remove-Hasc {
         # cipher /d leaves files that are not encrypted alone, so it runs whenever hasc exists.
         if ($userExists) { Invoke-AsHasc "cipher /d /s:`"$Data`" >nul" }
         & robocopy.exe $Data $KeepDataTo /E /MOVE /R:2 /W:2 /NFL /NDL /NJH /NJS /NP | Out-Null
-        if ($LASTEXITCODE -ge 8) { throw "Moving the data failed (robocopy exit code $LASTEXITCODE). Nothing was removed: the data is still in $Data. Start the services again with install.cmd, or try delete again." }
+        if ($LASTEXITCODE -ge 8) { throw "Moving the data stopped part way (robocopy exit code $LASTEXITCODE). Nothing else was removed, but the data is now split between $Data and $KeepDataTo, and the website and worker are stopped. Move the files from $KeepDataTo back into $Data, then run install.cmd to start HASC again, or run delete again." }
         Invoke-Native icacls.exe @("$KeepDataTo\*", "/reset", "/T", "/C", "/Q")
     }
 
@@ -119,9 +133,10 @@ function Remove-Hasc {
             } catch { Start-Sleep -Seconds 3 }
         }
         if (-not $removed) {
-            # A task that runs once as SYSTEM at the next start, removes the profile, then deletes itself.
+            # A task that runs as SYSTEM at each start until it removes the profile, then deletes itself.
+            # A failed removal stops the command before the unregister, so the next start tries again.
             $task = "HASC remove profile $sid"
-            $cmd = "Get-CimInstance Win32_UserProfile | Where-Object { `$_.SID -eq '$sid' } | Remove-CimInstance; Unregister-ScheduledTask -TaskName '$task' -Confirm:`$false"
+            $cmd = "`$ErrorActionPreference = 'Stop'; Get-CimInstance Win32_UserProfile | Where-Object { `$_.SID -eq '$sid' } | Remove-CimInstance; Unregister-ScheduledTask -TaskName '$task' -Confirm:`$false"
             $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -Command `"$cmd`""
             Register-ScheduledTask -TaskName $task -Action $action -Trigger (New-ScheduledTaskTrigger -AtStartup) `
                 -Principal (New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest) -Force | Out-Null
@@ -143,3 +158,5 @@ try {
 } catch {
     Exit-WithError $_
 }
+# A caller reads $LASTEXITCODE; without this it would be the last native command's (robocopy's 1 is success).
+exit 0

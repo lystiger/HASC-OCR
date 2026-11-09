@@ -17,17 +17,18 @@ $ErrorActionPreference = "Stop"
 
 if (-not (Test-Admin)) {
     if ($NonInteractive) { throw "Run this as Administrator." }
-    Restart-Elevated $PSCommandPath @()
+    Restart-Elevated $PSCommandPath (Get-ForwardArguments $PSBoundParameters)
     exit
 }
 
-$TokenFile = Join-Path $InstallDir "tools\github-token.dat"
+# One file per Windows user, since each is encrypted to the user who saved it.
+$TokenFile = Join-Path $InstallDir "tools\github-token-$env:USERNAME.dat"
 
 function Get-Token {
     if ($Token) { return $Token }
     if (Test-Path $TokenFile) {
         try { return Get-Plain (Get-Content $TokenFile | ConvertTo-SecureString) }
-        catch { Remove-Item $TokenFile -Force }  # saved by another Windows user: ask again
+        catch { Remove-Item $TokenFile -Force }  # unreadable (this user's key changed): ask again
     }
     $help = "Updates come from GitHub. Paste a read-only GitHub token (asked once).`n`nTo make one: github.com, Settings, Developer settings, Fine-grained tokens, Generate. Repository access: only HASC-OCR. Permissions: Contents, Read-only."
     $plain = (Get-Plain (Read-Text $help -Secret)).Trim()
@@ -39,8 +40,8 @@ function Get-Token {
 
 function Protect-TokenFile {
     # Administrators only. Runs again after an update, whose installer resets the tools folder.
-    if (Test-Path $TokenFile) {
-        Invoke-Native icacls.exe @($TokenFile, "/inheritance:r", "/grant:r", "${AdminsSid}:F", "${SystemSid}:F", "/Q") | Out-Null
+    foreach ($f in Get-ChildItem (Join-Path $InstallDir "tools") -Filter "github-token*.dat" -ErrorAction SilentlyContinue) {
+        Invoke-Native icacls.exe @($f.FullName, "/inheritance:r", "/grant:r", "${AdminsSid}:F", "${SystemSid}:F", "/Q") | Out-Null
     }
 }
 
@@ -104,9 +105,17 @@ function Update-Hasc {
             return
         }
         if (-not (Confirm-Choice "Update HASC from $installed to $($release.tag_name)?`n`nThe website stops for about a minute. The data and settings are kept.")) { return }
+        # The zip runs as Administrator, so it must match the checksum CI published next to it.
+        $sum = $release.assets | Where-Object { $_.name -eq "$($asset.name).sha256" } | Select-Object -First 1
+        if (-not $sum) { throw "Release $($release.tag_name) has no checksum ($($asset.name).sha256), so it cannot be checked. Nothing was changed." }
         Step "Downloading $($asset.name)"
         $ZipPath = Join-Path $work $asset.name
         Invoke-GitHub $asset.url "application/octet-stream" $ZipPath
+        $sumPath = Join-Path $work $sum.name
+        Invoke-GitHub $sum.url "application/octet-stream" $sumPath
+        $expected = ((Get-Content $sumPath -Raw).Trim() -split "\s+")[0]
+        $actual = (Get-FileHash $ZipPath -Algorithm SHA256).Hash
+        if ($actual -ne $expected) { throw "The downloaded $($asset.name) does not match its checksum (expected $expected, got $actual). Nothing was changed." }
     }
 
     Step "Unpacking"
@@ -130,3 +139,5 @@ try {
 } catch {
     Exit-WithError $_
 }
+# A caller reads $LASTEXITCODE; without this it would be the last native command's.
+exit 0

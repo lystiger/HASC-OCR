@@ -266,7 +266,7 @@ The office PC (Intel i3-8100, 8 GB RAM, Windows) hosts the website and the worke
 
 ### Quick install: the bundle (recommended)
 
-Each release has a zip, `hasc-<version>-win64.zip`, on the GitHub **Releases** page. It holds the code, a portable Python with every library installed, `nssm.exe`, and three tools: `install.cmd`, `update.cmd` and `delete.cmd`. The PC needs no git, no Python installer and no `pip`. CI installs, updates, deletes and reinstalls every bundle on a clean Windows machine before it is published.
+Each release has a zip, `hasc-<version>-win64.zip`, on the GitHub **Releases** page. It holds the code, a portable Python with every library installed, `nssm.exe`, and three tools: `install.cmd`, `update.cmd` and `delete.cmd`. The PC needs no git, no Python installer and no `pip`. Before a bundle is published, CI runs its tools without the windows (with parameters instead) on a clean Windows machine: install, update from the local zip, delete keeping the data, reinstall from that data, and delete erasing it. CI does not test the download from GitHub or the windows themselves.
 
 Each tool is a double-click: Windows asks to allow it to make changes (choose **Yes**), and small windows ask the questions.
 
@@ -280,9 +280,9 @@ Each tool is a double-click: Windows asks to allow it to make changes (choose **
 
 The installer adds **HASC website** and **HASC update** to the desktop, and both plus **HASC delete** to the Start menu.
 
-**Update:** double-click **HASC update**. It asks GitHub for the latest release, says what will change, downloads the bundle and installs it, keeping the data, settings and firewall rule. It asks for the `hasc` password. The first time it asks for a read-only GitHub token (github.com, Settings, Developer settings, Fine-grained tokens: repository HASC-OCR only, Contents read-only) and keeps it encrypted to your Windows user. Without internet, unzip a newer bundle and double-click its `install.cmd` instead.
+**Update:** double-click **HASC update**. It asks GitHub for the latest release, says what will change, downloads the bundle, checks it against the checksum published with it, and installs it, keeping the data, settings and firewall rule. Before the new code starts, the database is copied to `C:\HASC\data\backups\before-<date>`. It asks for the `hasc` password. The first time it asks for a read-only GitHub token (github.com, Settings, Developer settings, Fine-grained tokens: repository HASC-OCR only, Contents read-only) and keeps it encrypted to your Windows user (each administrator who runs the update has their own). Without internet, unzip a newer bundle and double-click its `install.cmd` instead.
 
-**Delete:** **HASC delete** in the Start menu (or `C:\HASC\tools\delete.cmd`). It asks whether to keep the database and photos: kept, they are moved, readable by administrators only, to `C:\HASC-backup-<date>`, and `install.cmd` can bring them back; otherwise they are erased. Everything else goes: the services, the firewall rule, `C:\HASC`, the shortcuts, and the `hasc` account with its profile and encryption key (the profile at the next start, by a one-time task, if Windows still holds it).
+**Delete:** **HASC delete** in the Start menu (or `C:\HASC\tools\delete.cmd`). It asks whether to keep the database and photos: kept, they are moved, readable by administrators only, to `C:\HASC-backup-<date>`, and `install.cmd` can bring them back; otherwise they are erased. Keeping needs the `hasc` account: if it is already gone, delete stops and asks you to import the EFS key backup first. Everything else goes: the services, the firewall rule, `C:\HASC`, the shortcuts, and the `hasc` account with its profile and encryption key (the profile at the next start, by a task that retries at each start until it succeeds, if Windows still holds it).
 
 **Warning:** never reset the `hasc` password from another account. Windows then throws away the encryption keys and the data can no longer be read.
 

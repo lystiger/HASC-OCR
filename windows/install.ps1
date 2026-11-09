@@ -21,7 +21,7 @@ $ErrorActionPreference = "Stop"
 
 if (-not (Test-Admin)) {
     if ($NonInteractive) { throw "Run this as Administrator." }
-    Restart-Elevated $PSCommandPath @()
+    Restart-Elevated $PSCommandPath (Get-ForwardArguments $PSBoundParameters)
     exit
 }
 
@@ -147,6 +147,17 @@ function Install-Hasc {
     foreach ($s in $Services) {
         if (Get-Service $s -ErrorAction SilentlyContinue) { Stop-Service $s -Force }
     }
+    if ($update) {
+        # The new code migrates the database when it starts: keep a copy to go back to if that fails.
+        # Copied as hasc, since the database is encrypted to it; the copy stays encrypted in $Data.
+        $backup = Join-Path $Data ("backups\before-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
+        Step "Backing up the database to $backup"
+        $copy = "mkdir `"$backup`""
+        foreach ($suffix in @("", "-wal", "-shm")) {
+            if (Test-Path "$Db$suffix") { $copy += " && copy /y `"$Db$suffix`" `"$backup`" >nul" }
+        }
+        Invoke-AsHasc $copy
+    }
 
     Step "Copying Python, the code and NSSM into $InstallDir"
     if (-not (Test-Path $InstallDir)) { New-Item -ItemType Directory -Path $InstallDir | Out-Null }
@@ -268,7 +279,8 @@ function Install-Hasc {
     if (-not $update) {
         foreach ($net in Get-NetConnectionProfile) {
             if ($net.NetworkCategory -eq "Public") {
-                if (Confirm-Choice "Windows treats the network '$($net.Name)' as Public, so phones cannot reach the website.`n`nSet it to Private? (Choose Yes for the office network.)") {
+                # No by default: a network that is not the office's should stay Public.
+                if (Confirm-Choice "Windows treats the network '$($net.Name)' as Public, so phones cannot reach the website.`n`nSet it to Private? (Choose Yes for the office network.)" $false) {
                     Set-NetConnectionProfile -InterfaceIndex $net.InterfaceIndex -NetworkCategory Private
                 }
             }
@@ -314,3 +326,5 @@ try {
 } catch {
     Exit-WithError $_ "The log of each service is in $Logs."
 }
+# update.ps1 and CI read $LASTEXITCODE; without this it would be the last native command's.
+exit 0

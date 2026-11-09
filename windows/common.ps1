@@ -21,6 +21,23 @@ function Restart-Elevated([string]$ScriptPath, [string[]]$Arguments) {
     Start-Process powershell.exe -Verb RunAs -ArgumentList $list
 }
 
+function Get-ForwardArguments($Bound) {
+    # The script's own parameters ($PSBoundParameters), for Restart-Elevated. Secure strings are left
+    # out: they are encrypted to this window's user, so the elevated run asks for them again.
+    $list = @()
+    foreach ($k in $Bound.Keys) {
+        $v = $Bound[$k]
+        if ($v -is [System.Management.Automation.SwitchParameter]) { if ($v.IsPresent) { $list += "-$k" } }
+        elseif ($v -isnot [System.Security.SecureString]) {
+            # A trailing backslash would escape the closing quote.
+            $s = "$v"
+            if ($s.EndsWith("\")) { $s += "\" }
+            $list += @("-$k", "`"$s`"")
+        }
+    }
+    return $list
+}
+
 function Step([string]$Text) { Write-Host ""; Write-Host "==> $Text" -ForegroundColor Cyan }
 
 function Invoke-Native {

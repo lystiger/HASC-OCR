@@ -58,15 +58,20 @@ jobs:
           Run { & "$b\install.ps1" -NonInteractive -SkipKeyExport -FreshStart -HascPassword $pw -OpenRouterKey $key `
             -KnownNames "$env:RUNNER_TEMP\known_names.json" -AdminPassword "ci-admin-pass" -Subnet "10.0.0.0/8" }
           Check "admin can log in" ((Login "ci-admin-pass") -eq 200)
-          Check "database encrypted to hasc" ((cipher /c C:\HASC\data\hasc.db | Out-String) -match "\\hasc")
+          # cipher /c lists "E hasc.db" when encrypted, then the accounts that can decrypt it.
+          $efs = cipher /c C:\HASC\data\hasc.db | Out-String
+          Check "database encrypted to hasc" ($efs -cmatch '(?ms)^E hasc\.db.*Users who can decrypt:\s+(\S+\\)?hasc\b')
           Check "tools installed" (Test-Path C:\HASC\tools\delete.ps1)
 
           # 2. Update from a local zip through update.ps1, and ask GitHub for the latest release.
           Run { & C:\HASC\tools\update.ps1 -NonInteractive -ZipPath $zip -HascPassword $pw }
           Check "admin can log in after the update" ((Login "ci-admin-pass") -eq 200)
+          Check "database backed up before the update" ([bool](Get-ChildItem C:\HASC\data\backups\before-* -Directory -ErrorAction SilentlyContinue))
           Run { & C:\HASC\tools\update.ps1 -NonInteractive -CheckOnly -Token $env:GH_TOKEN }
 
-          # 3. Delete, keeping the data.
+          # 3. Delete refuses a backup folder inside C:\HASC (it would be deleted with it), then deletes keeping the data.
+          & C:\HASC\tools\delete.ps1 -NonInteractive -HascPassword $pw -KeepDataTo C:\HASC\keep
+          Check "delete refuses a backup inside C:\HASC" (($LASTEXITCODE -ne 0) -and (Test-Path C:\HASC\data\hasc.db) -and ((Get-Service hasc-web).Status -eq "Running"))
           Run { & C:\HASC\tools\delete.ps1 -NonInteractive -HascPassword $pw -KeepDataTo C:\hasc-keep }
           Check "services removed" (-not (Get-Service hasc-web -ErrorAction SilentlyContinue))
           Check "account removed" (-not (Get-LocalUser hasc -ErrorAction SilentlyContinue))
@@ -128,4 +133,5 @@ jobs:
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
             gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" \
               --notes "Windows bundle: unzip, then double-click install.cmd. Installed PCs update with the HASC update shortcut."
-          gh release upload "$TAG" "hasc-$TAG-win64.zip" --repo "$GITHUB_REPOSITORY" --clobber
+          sha256sum "hasc-$TAG-win64.zip" > "hasc-$TAG-win64.zip.sha256"
+          gh release upload "$TAG" "hasc-$TAG-win64.zip" "hasc-$TAG-win64.zip.sha256" --repo "$GITHUB_REPOSITORY" --clobber
