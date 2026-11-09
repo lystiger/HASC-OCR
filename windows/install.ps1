@@ -157,9 +157,10 @@ function Install-Hasc {
             if (Test-Path "$Db$suffix") { $copy += " && copy /y `"$Db$suffix`" `"$backup`" >nul" }
         }
         Invoke-AsHasc $copy
-        # Only the last 5 are kept, so the disk does not fill up over the years.
+        # Only the last 5 are kept, so the disk does not fill up over the years. A locked old backup is
+        # left for the next update rather than stopping this one with the website down.
         Get-ChildItem (Join-Path $Data "backups") -Directory -Filter "before-*" | Sort-Object Name -Descending |
-            Select-Object -Skip 5 | Remove-Item -Recurse -Force
+            Select-Object -Skip 5 | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
     }
 
     Step "Copying Python, the code and NSSM into $InstallDir"
