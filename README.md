@@ -276,9 +276,19 @@ Each tool is a double-click: Windows asks to allow it to make changes (choose **
 2. Unzip it anywhere except `C:\HASC` (for example `Downloads\hasc-bundle`) and double-click `install.cmd`.
 3. Answer the windows: a password for the `hasc` Windows account (at least 8 characters; keep it, updates ask for it), `known_names.json`, the OpenRouter key, existing data or a fresh start, and the office network. A fresh start shows the admin's first password once: write it down.
 4. On Windows Pro a black window opens as `hasc` to back up the encryption key: type a password for the key file there. Then copy the selected `hasc-efs-key.pfx` to a USB stick before pressing OK.
-5. The website opens when it is done. The last window lists what to do by hand: BIOS power-on after power loss, a fixed address in the router, Windows Update paused.
+5. The website opens when it is done. The last window lists the phone addresses, where each device gets the certificate (see HTTPS below), and what to do by hand: BIOS power-on after power loss, a fixed address in the router, Windows Update paused.
 
 The installer adds **HASC website** and **HASC update** to the desktop, and both plus **HASC delete** to the Start menu.
+
+**HTTPS: trusting the website once on each device**
+
+The website runs on HTTPS at `https://<PC-IP>/login`. The installer makes its own certificate authority, `HASC local CA`, and trusts it on the office PC itself. Every other device trusts it once; until then the browser shows a security warning. Plain `http://<PC-IP>:8080/...` addresses keep working: they send the browser on to HTTPS.
+
+- **Windows PC or laptop:** open `http://<PC-IP>:8080/ca.crt`, open the downloaded `hasc-ca.crt`, choose **Install Certificate**, **Local Machine**, **Place all certificates in the following store**, **Trusted Root Certification Authorities**, then **Finish**. Restart the browser.
+- **Android:** open `http://<PC-IP>:8080/ca.crt` in Chrome. Then **Settings**, **Security** (or **Security & privacy**), **More security settings**, **Encryption & credentials**, **Install a certificate**, **CA certificate**, **Install anyway**, and pick `hasc-ca.crt`. The menu names differ a little between phone makers.
+- **iPhone:** open `http://<PC-IP>:8080/ca.crt` in Safari and allow the download. Then **Settings**, **Profile Downloaded**, **Install**. Then **Settings**, **General**, **About**, **Certificate Trust Settings**, and turn on **HASC local CA**.
+
+The certificate names the PC's addresses at the time of the install or update, so give the PC a fixed address in every router it serves (the office and the factory Wi-Fi). If an address changes, run the update again (or `install.cmd`): it makes a new certificate for the new address, and phones keep trusting it, since the authority stays the same. Delete removes the authority from the PC; a reinstall makes a new one, which each device trusts again. The PC's certificate lasts about two years and is renewed by any update or install in its last year, so update at least once a year.
 
 **Update:** double-click **HASC update**. It asks GitHub for the latest release, says what will change, downloads the bundle, checks it against the checksum published with it, and installs it, keeping the data, settings and firewall rule. Before the new code starts, the database is copied to `C:\HASC\data\backups\before-<date>` (the last 5 are kept). It asks for the `hasc` password. The first time it asks for a read-only GitHub token (github.com, Settings, Developer settings, Fine-grained tokens: repository HASC-OCR only, Contents read-only) and keeps it encrypted to your Windows user (each administrator who runs the update has their own). Without internet, unzip a newer bundle and double-click its `install.cmd` instead.
 
@@ -286,7 +296,7 @@ The installer adds **HASC website** and **HASC update** to the desktop, and both
 
 **Warning:** never reset the `hasc` password from another account. Windows then throws away the encryption keys and the data can no longer be read.
 
-The numbered steps below do the same by hand, for when the installer cannot be used.
+The numbered steps below do the same by hand, for when the installer cannot be used. They set up the website on plain HTTP (port 8080) only; HTTPS, with its certificates, third service and trusted authority, comes with the bundle installer.
 
 ### 1. Check the Windows edition
 
@@ -444,7 +454,7 @@ NSSM restarts either service if it stops. If a service will not start with error
 - **After a power cut:** in the BIOS, set "Restore on AC power loss" (sometimes "AC Recovery") to **Power On**. The services start at boot, before anyone logs in, so nothing needs to be started by hand.
 - **Windows Update:** the shifts cover all 24 hours, longer than Windows' 18-hour active hours, so updates could restart the PC during a shift. Pause updates (Settings, Windows Update, Pause), install them during a planned shutdown, then pause again.
 - **Fixed address:** give the PC a DHCP reservation in the router, so phones keep reaching `http://<pc-ip>:8080/login`.
-- The site is plain HTTP until 1.1.0 adds HTTPS: keep it on the office network and never forward port 8080 from the router to the internet.
+- A PC set up by hand runs plain HTTP: keep it on the office network and never forward port 8080 from the router to the internet. The bundle installer sets up HTTPS.
 
 ### 10. Check it works
 

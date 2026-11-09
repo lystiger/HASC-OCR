@@ -2,13 +2,17 @@
 # Dot-source it; the caller sets $NonInteractive (CI) before calling the dialogs.
 
 $Account = "hasc"
-$Services = @("hasc-web", "hasc-worker")
-$WebsiteUrl = "http://localhost:8080/login"
+$Services = @("hasc-web", "hasc-worker", "hasc-redirect")
+$WebsiteUrl = "https://localhost/login"
+# The authority the installer makes for the website's HTTPS (hasc/certs.py), trusted on this PC.
+$CaSubject = "CN=HASC local CA"
 # Well-known SIDs, so the scripts work whatever language Windows is in.
 $AdminsSid = "*S-1-5-32-544"
 $SystemSid = "*S-1-5-18"
 # Windows PowerShell 5.1 downloads very slowly while it draws a progress bar.
 $ProgressPreference = "SilentlyContinue"
+# Windows PowerShell 5.1 may still offer only old TLS versions, which the HTTPS website refuses.
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
 function Test-Admin {
     return ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(

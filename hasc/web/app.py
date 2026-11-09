@@ -135,7 +135,9 @@ def create_app(
     effective_db_path = db_path if db_path is not None else os.environ.get("HASC_DB_PATH")
     app.state.db_path = effective_db_path
     app.state.photos_dir = get_default_photos_dir(photos_dir=photos_dir, db_path=effective_db_path)
-    app.state.secure_cookies = secure_cookies
+    # On the office PC the website runs on HTTPS (HASC_HTTPS=1, set by the installer), so session
+    # cookies are only ever sent over TLS.
+    app.state.secure_cookies = secure_cookies or os.environ.get("HASC_HTTPS") == "1"
     app.state.enforce_https = enforce_https
 
     if enforce_https:

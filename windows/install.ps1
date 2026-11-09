@@ -54,12 +54,12 @@ function Test-Encrypted([string]$Path) {
 function Wait-Website {
     for ($i = 0; $i -lt 60; $i++) {
         try {
-            $r = Invoke-WebRequest "http://127.0.0.1:8080/login" -UseBasicParsing -TimeoutSec 5
+            $r = Invoke-WebRequest "https://127.0.0.1/login" -UseBasicParsing -TimeoutSec 5
             if ($r.StatusCode -eq 200) { return }
         } catch { }
         Start-Sleep -Seconds 2
     }
-    throw "The website did not answer on http://127.0.0.1:8080/login. See $Logs\web.log"
+    throw "The website did not answer on https://127.0.0.1/login. See $Logs\web.log"
 }
 
 function New-Shortcut([string]$Path, [string]$Target, [string]$Description) {
@@ -212,7 +212,7 @@ function Install-Hasc {
             Invoke-Native $Py @("-c", "import os, re, sqlite3; c = sqlite3.connect(os.environ['HASC_DB']); new = os.environ['HASC_NEW']; fix = lambda p: p and (new + re.split(r'(?i)(?:^|[\\/])photos[\\/]', p)[-1].replace('/', '\\') if re.search(r'(?i)(?:^|[\\/])photos[\\/]', p) else p); rows = c.execute('SELECT id, path, small_copy_path FROM photos').fetchall(); [c.execute('UPDATE photos SET path = ?, small_copy_path = ? WHERE id = ?', (fix(p), fix(s), i)) for i, p, s in rows]; c.commit(); print(len(rows), 'photo paths updated'); c.close()")
         } else {
             Step "Creating the database and the first admin account"
-            $cliArgs = @("$Code\scripts\create_user.py", "--db", $Db, "--username", "admin", "--role", "admin")
+            $cliArgs = @("$Code\scripts\create_user.py", "--db", $Db, "--username", "admin", "--owner")
             if ($AdminPassword) { $cliArgs += @("--password", $AdminPassword) }
             $out = (& $Py @cliArgs 2>&1) | Out-String
             if ($LASTEXITCODE -ne 0) { throw "Creating the admin account failed." }
@@ -243,14 +243,28 @@ function Install-Hasc {
         }
     }
 
+    # --- HTTPS certificates -------------------------------------------------------------------------
+    # Made as hasc, so on Pro the keys are encrypted to it like the rest of the config folder. The two
+    # certificates are public, so they are decrypted for administrators to trust the authority. An
+    # update keeps the authority (phones trust it) and renews the PC's certificate only if needed.
+    Step "HTTPS certificates"
+    $ips = @(Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike "127.*" -and $_.IPAddress -notlike "169.254.*" }).IPAddress
+    $certs = "$Py -m hasc.certs --dir `"$Config`" --name $env:COMPUTERNAME" + (($ips | ForEach-Object { " --ip $_" }) -join "")
+    if ($hasEfs) { $certs += " && cipher /d /a `"$Config\ca.crt`" `"$Config\server.crt`" >nul" }
+    Invoke-AsHasc $certs $Code
+    Import-Certificate -FilePath (Join-Path $Config "ca.crt") -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
+
     # --- Services ---------------------------------------------------------------------------------
     Step "Installing the services"
     $plain = Get-Plain (Get-HascCredential).Password
     foreach ($s in $Services) {
         if (Get-Service $s -ErrorAction SilentlyContinue) { Invoke-Native $Nssm @("remove", $s, "confirm") }
     }
-    Invoke-Native $Nssm @("install", "hasc-web", $Py, "-m uvicorn hasc.web:create_app --factory --host 0.0.0.0 --port 8080")
-    Invoke-Native $Nssm @("set", "hasc-web", "AppEnvironmentExtra", "HASC_DB_PATH=$Db")
+    Invoke-Native $Nssm @("install", "hasc-web", $Py, "-m uvicorn hasc.web:create_app --factory --host 0.0.0.0 --port 443 --ssl-keyfile `"$Config\server.key`" --ssl-certfile `"$Config\server.crt`"")
+    Invoke-Native $Nssm @("set", "hasc-web", "AppEnvironmentExtra", "HASC_DB_PATH=$Db", "HASC_HTTPS=1")
+    # Port 8080 only sends browsers on to HTTPS and hands out the authority (hasc/web/redirect.py).
+    Invoke-Native $Nssm @("install", "hasc-redirect", $Py, "-m uvicorn hasc.web.redirect:app --host 0.0.0.0 --port 8080")
+    Invoke-Native $Nssm @("set", "hasc-redirect", "AppEnvironmentExtra", "HASC_CA_CERT=$Config\ca.crt")
     Invoke-Native $Nssm @("install", "hasc-worker", $Py, "-u -m hasc.worker")
     Invoke-Native $Nssm @("set", "hasc-worker", "AppEnvironmentExtra", "HASC_DB_PATH=$Db", "HASC_WORKER_ENV=$workerEnv")
     foreach ($s in $Services) {
@@ -270,6 +284,8 @@ function Install-Hasc {
     $rule = Get-NetFirewallRule -DisplayName "HASC website" -ErrorAction SilentlyContinue
     if ($rule -and -not $Subnet) {
         Write-Host "Keeping the firewall rule for $(($rule | Get-NetFirewallAddressFilter).RemoteAddress)"
+        # 1.0.x opened 8080 only; HTTPS adds 443.
+        Set-NetFirewallRule -DisplayName "HASC website" -LocalPort 443, 8080
     } else {
         if (-not $Subnet) {
             $ip = Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.PrefixOrigin -ne "WellKnown" -and $_.IPAddress -notlike "169.254.*" } | Select-Object -First 1
@@ -278,7 +294,7 @@ function Install-Hasc {
             $Subnet = Read-Text "Which network may open the website? The guess below is this PC's own office network; keep it unless you know better." $guess
         }
         if ($rule) { $rule | Remove-NetFirewallRule }
-        New-NetFirewallRule -DisplayName "HASC website" -Direction Inbound -Protocol TCP -LocalPort 8080 `
+        New-NetFirewallRule -DisplayName "HASC website" -Direction Inbound -Protocol TCP -LocalPort 443, 8080 `
             -RemoteAddress $Subnet -Profile Private, Domain -Action Allow | Out-Null
     }
     if (-not $update) {
@@ -317,8 +333,9 @@ function Install-Hasc {
     }
 
     $addresses = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike "127.*" -and $_.IPAddress -notlike "169.254.*" }).IPAddress
-    $phones = ($addresses | ForEach-Object { "  http://${_}:8080/login" }) -join "`n"
-    $done = "HASC $version is running.`n`nPhones on the office network open:`n$phones"
+    $phones = ($addresses | ForEach-Object { "  https://${_}/login" }) -join "`n"
+    $trust = ($addresses | ForEach-Object { "  http://${_}:8080/ca.crt" }) -join "`n"
+    $done = "HASC $version is running.`n`nPhones on the office network open:`n$phones`n`nEach phone trusts the website once, from (see the README):`n$trust"
     if (-not $update) {
         $done += "`n`nStill to do by hand:`n- BIOS: set 'Restore on AC power loss' to Power On.`n- Router: give this PC a fixed address.`n- Windows Update: pause it; install updates in planned shutdowns."
     }
