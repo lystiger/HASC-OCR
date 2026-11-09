@@ -45,10 +45,33 @@ jobs:
           $zip = "$env:RUNNER_TEMP\dist\hasc-$env:VERSION-win64.zip"
           function Check([string]$what, [bool]$ok) { if (-not $ok) { throw "FAILED: $what" } ; Write-Host "ok: $what" }
           function Run([scriptblock]$block) { & $block; if ($LASTEXITCODE) { throw "exit code $LASTEXITCODE" } }
+          [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
           function Login([string]$pass) {
-            $r = Invoke-WebRequest "http://127.0.0.1:8080/api/login" -Method Post -UseBasicParsing `
+            $r = Invoke-WebRequest "https://127.0.0.1/api/login" -Method Post -UseBasicParsing -SessionVariable s `
               -ContentType "application/json" -Body ('{"username": "admin", "password": "' + $pass + '"}')
+            $script:web = $s
             return $r.StatusCode
+          }
+          function Fetch([string]$url) {
+            # One request, redirects not followed; returns the status, Location and the TLS certificate's issuer.
+            $q = [Net.HttpWebRequest]::Create($url)
+            $q.AllowAutoRedirect = $false
+            try { $r = $q.GetResponse() } catch [Net.WebException] { $r = $_.Exception.Response; if (-not $r) { throw } }
+            $out = @{ Status = [int]$r.StatusCode; Location = $r.Headers["Location"]; Issuer = $null }
+            if ($q.ServicePoint.Certificate) { $out.Issuer = $q.ServicePoint.Certificate.Issuer }
+            $r.Close()
+            return $out
+          }
+          function CheckHttps([string]$when) {
+            # Criterion 18: HTTPS with a certificate from the authority the installer made and trusted,
+            # port 8080 only redirecting, and the authority downloadable for phones.
+            $page = Fetch "https://127.0.0.1/login"
+            Check "${when}: https://127.0.0.1/login answers over TLS from the HASC authority ($($page.Status), $($page.Issuer))" (($page.Status -eq 200) -and ($page.Issuer -eq "CN=HASC local CA"))
+            $plain = Fetch "http://127.0.0.1:8080/login?next=x"
+            Check "${when}: http://127.0.0.1:8080/login redirects to HTTPS ($($plain.Status) $($plain.Location))" (($plain.Status -eq 308) -and ($plain.Location -eq "https://127.0.0.1/login?next=x"))
+            Invoke-WebRequest "http://127.0.0.1:8080/ca.crt" -UseBasicParsing -OutFile "$env:RUNNER_TEMP\ca.crt"
+            $ca = New-Object Security.Cryptography.X509Certificates.X509Certificate2 "$env:RUNNER_TEMP\ca.crt"
+            Check "${when}: /ca.crt is the authority this PC trusts ($($ca.Subject))" (($ca.Subject -eq "CN=HASC local CA") -and (Test-Path "Cert:\LocalMachine\Root\$($ca.Thumbprint)"))
           }
           '{"customers": {}, "products": {}}' | Set-Content "$env:RUNNER_TEMP\known_names.json"
           $pw = ConvertTo-SecureString "Ci-Pw-$(Get-Random)-Aa1!" -AsPlainText -Force
@@ -58,6 +81,14 @@ jobs:
           Run { & "$b\install.ps1" -NonInteractive -SkipKeyExport -FreshStart -HascPassword $pw -OpenRouterKey $key `
             -KnownNames "$env:RUNNER_TEMP\known_names.json" -AdminPassword "ci-admin-pass" -Subnet "10.0.0.0/8" }
           Check "admin can log in" ((Login "ci-admin-pass") -eq 200)
+          CheckHttps "fresh install"
+          # The first admin's password is temporary: set a real one, then the account list shows it as the owner.
+          Invoke-WebRequest "https://127.0.0.1/api/password" -Method Post -UseBasicParsing -WebSession $web `
+            -ContentType "application/json" -Body '{"old": "ci-admin-pass", "new": "ci-admin-pass-2"}' | Out-Null
+          Check "admin logs in with the new password" ((Login "ci-admin-pass-2") -eq 200)
+          $accounts = (Invoke-WebRequest "https://127.0.0.1/api/admin/users" -UseBasicParsing -WebSession $web).Content | ConvertFrom-Json
+          $listed = $accounts | ForEach-Object { $_ } | Where-Object { $_.username -eq "admin" } | Select-Object -First 1
+          Check "fresh install makes admin the owner" ([bool]$listed.is_owner)
           # cipher /c lists "E hasc.db" when encrypted, then the accounts that can decrypt it.
           $efs = cipher /c C:\HASC\data\hasc.db | Out-String
           Check "database encrypted to hasc" ($efs -cmatch '(?ms)^E hasc\.db.*Users who can decrypt:\s+(\S+\\)?hasc\b')
@@ -65,7 +96,8 @@ jobs:
 
           # 2. Update from a local zip through update.ps1, and ask GitHub for the latest release.
           Run { & C:\HASC\tools\update.ps1 -NonInteractive -ZipPath $zip -HascPassword $pw }
-          Check "admin can log in after the update" ((Login "ci-admin-pass") -eq 200)
+          Check "admin can log in after the update" ((Login "ci-admin-pass-2") -eq 200)
+          CheckHttps "after the update"
           Check "database backed up before the update" ([bool](Get-ChildItem C:\HASC\data\backups\before-* -Directory -ErrorAction SilentlyContinue))
           Run { & C:\HASC\tools\update.ps1 -NonInteractive -CheckOnly -Token $env:GH_TOKEN }
 
@@ -77,6 +109,8 @@ jobs:
           Check "account removed" (-not (Get-LocalUser hasc -ErrorAction SilentlyContinue))
           Check "C:\HASC removed" (-not (Test-Path C:\HASC))
           Check "firewall rule removed" (-not (Get-NetFirewallRule -DisplayName "HASC website" -ErrorAction SilentlyContinue))
+          Check "HASC authority no longer trusted" (-not (Get-ChildItem Cert:\LocalMachine\Root | Where-Object { $_.Subject -eq "CN=HASC local CA" }))
+          Check "hasc-redirect service removed" (-not (Get-Service hasc-redirect -ErrorAction SilentlyContinue))
           Check "profile removed, or a startup task will remove it" ((-not (Get-CimInstance Win32_UserProfile | Where-Object { $_.LocalPath -like "*\hasc" })) -or [bool](Get-ScheduledTask -TaskName "HASC remove profile *" -ErrorAction SilentlyContinue))
           $users = & "$b\python\python.exe" -c "import sqlite3; print(sqlite3.connect(r'C:\hasc-keep\hasc.db').execute('select count(*) from users').fetchone()[0])"
           Check "kept database readable by an administrator ($users users)" ([int]$users -ge 1)
@@ -85,7 +119,8 @@ jobs:
           $pw2 = ConvertTo-SecureString "Ci-Pw-$(Get-Random)-Bb2!" -AsPlainText -Force
           Run { & "$b\install.ps1" -NonInteractive -SkipKeyExport -HascPassword $pw2 -OpenRouterKey $key `
             -KnownNames "$env:RUNNER_TEMP\known_names.json" -ImportDb C:\hasc-keep\hasc.db -ImportPhotos C:\hasc-keep\photos -Subnet "10.0.0.0/8" }
-          Check "kept admin password works after reinstall" ((Login "ci-admin-pass") -eq 200)
+          Check "kept admin password works after reinstall" ((Login "ci-admin-pass-2") -eq 200)
+          CheckHttps "reinstall from kept data"
 
           # 5. Delete and erase the data.
           Run { & C:\HASC\tools\delete.ps1 -NonInteractive -EraseData }
