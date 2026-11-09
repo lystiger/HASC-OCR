@@ -5,7 +5,7 @@
 Makes a certificate authority once (ca.crt, ca.key; kept across updates, since every phone trusts it)
 and a server certificate for the PC's name, localhost, 127.0.0.1 and the given addresses (server.crt,
 server.key). A later run makes a new server certificate only when the names or addresses changed, it
-was not signed by this authority, or it runs out within 60 days. The installer runs this as hasc, so
+was not signed by this authority, or it runs out within a year. The installer runs this as hasc, so
 the keys are encrypted to it like the rest of the config folder.
 """
 import argparse
@@ -24,7 +24,8 @@ CA_NAME = "HASC local CA"
 CA_DAYS = 20 * 365
 # Apple refuses TLS server certificates valid for more than 825 days, even under a private authority.
 SERVER_DAYS = 800
-RENEW_BEFORE = datetime.timedelta(days=60)
+# Renewed in its last year, so an update at least once a year always lands in the window.
+RENEW_BEFORE = datetime.timedelta(days=365)
 
 
 def _now() -> datetime.datetime:
@@ -59,6 +60,8 @@ def load_or_create_ca(folder: Path) -> tuple[x509.Certificate, rsa.RSAPrivateKey
     if crt_path.is_file() and key_path.is_file():
         cert = x509.load_pem_x509_certificate(crt_path.read_bytes())
         key = serialization.load_pem_private_key(key_path.read_bytes(), password=None)
+        if key.public_key().public_numbers() != cert.public_key().public_numbers():
+            raise ValueError(f"ca.key does not belong to ca.crt in {folder}; restore the pair from a backup")
         return cert, key, False
 
     key = _new_key()

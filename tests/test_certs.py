@@ -61,6 +61,21 @@ class TestCerts(unittest.TestCase):
         self.assertEqual(result, {"ca_created": False, "server_created": True})
         self.assertEqual((self.folder / "ca.crt").read_bytes(), ca_before)
 
+    def test_certs_yearly_update_renews_in_time(self):
+        certs.ensure_certificates(self.folder, "OFFICE-PC", ["192.168.1.10"])
+        start = datetime.datetime.now(datetime.timezone.utc)
+        for days, renewed in ((365, False), (450, True)):
+            with self.subTest(days=days), patch.object(certs, "_now", return_value=start + datetime.timedelta(days=days)):
+                self.assertEqual(certs.ensure_certificates(self.folder, "OFFICE-PC", ["192.168.1.10"])["server_created"], renewed)
+
+    def test_certs_mismatched_authority_key_stops(self):
+        certs.ensure_certificates(self.folder, "OFFICE-PC", [])
+        other = Path(self.temp_dir.name) / "other"
+        certs.ensure_certificates(other, "OFFICE-PC", [])
+        (self.folder / "ca.key").write_bytes((other / "ca.key").read_bytes())
+        with self.assertRaises(ValueError):
+            certs.ensure_certificates(self.folder, "OFFICE-PC", [])
+
     def test_certs_server_certificate_renewed_before_it_runs_out(self):
         certs.ensure_certificates(self.folder, "OFFICE-PC", ["192.168.1.10"])
         later = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=certs.SERVER_DAYS - 30)

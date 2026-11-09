@@ -62,6 +62,10 @@ jobs:
             $r.Close()
             return $out
           }
+          function CheckFirewall([string]$when) {
+            $ports = @((Get-NetFirewallRule -DisplayName "HASC website" | Get-NetFirewallPortFilter).LocalPort)
+            Check "${when}: firewall opens 443 and 8080 ($($ports -join ','))" (($ports -contains "443") -and ($ports -contains "8080"))
+          }
           function CheckHttps([string]$when) {
             # Criterion 18: HTTPS with a certificate from the authority the installer made and trusted,
             # port 8080 only redirecting, and the authority downloadable for phones.
@@ -77,11 +81,29 @@ jobs:
           $pw = ConvertTo-SecureString "Ci-Pw-$(Get-Random)-Aa1!" -AsPlainText -Force
           $key = ConvertTo-SecureString "sk-or-ci-dummy" -AsPlainText -Force
 
+          # 0. The office PC's real path: v1.0.3 (HTTP on 8080, two services) updated by its own update.ps1.
+          gh release download v1.0.3 --repo $env:GITHUB_REPOSITORY --pattern "hasc-v1.0.3-win64.zip" --dir "$env:RUNNER_TEMP\old"
+          if ($LASTEXITCODE) { throw "downloading v1.0.3 failed" }
+          Expand-Archive "$env:RUNNER_TEMP\old\hasc-v1.0.3-win64.zip" "$env:RUNNER_TEMP\old\bundle"
+          Run { & "$env:RUNNER_TEMP\old\bundle\install.ps1" -NonInteractive -SkipKeyExport -FreshStart -HascPassword $pw -OpenRouterKey $key `
+            -KnownNames "$env:RUNNER_TEMP\known_names.json" -AdminPassword "ci-old-pass" -Subnet "10.0.0.0/8" }
+          $old = Invoke-WebRequest "http://127.0.0.1:8080/api/login" -Method Post -UseBasicParsing `
+            -ContentType "application/json" -Body '{"username": "admin", "password": "ci-old-pass"}'
+          Check "v1.0.3 runs on plain HTTP" ($old.StatusCode -eq 200)
+          Run { & C:\HASC\tools\update.ps1 -NonInteractive -ZipPath $zip -HascPassword $pw }
+          Check "admin from v1.0.3 logs in over HTTPS after the update" ((Login "ci-old-pass") -eq 200)
+          CheckHttps "update from v1.0.3"
+          CheckFirewall "update from v1.0.3"
+          Check "firewall addresses kept from v1.0.3" (((Get-NetFirewallRule -DisplayName "HASC website" | Get-NetFirewallAddressFilter).RemoteAddress -join ",") -match "^10\.0\.0\.0/")
+          Run { & C:\HASC\tools\delete.ps1 -NonInteractive -EraseData }
+          Check "C:\HASC removed after the v1.0.3 round" (-not (Test-Path C:\HASC))
+
           # 1. First install.
           Run { & "$b\install.ps1" -NonInteractive -SkipKeyExport -FreshStart -HascPassword $pw -OpenRouterKey $key `
             -KnownNames "$env:RUNNER_TEMP\known_names.json" -AdminPassword "ci-admin-pass" -Subnet "10.0.0.0/8" }
           Check "admin can log in" ((Login "ci-admin-pass") -eq 200)
           CheckHttps "fresh install"
+          CheckFirewall "fresh install"
           # The first admin's password is temporary: set a real one, then the account list shows it as the owner.
           Invoke-WebRequest "https://127.0.0.1/api/password" -Method Post -UseBasicParsing -WebSession $web `
             -ContentType "application/json" -Body '{"old": "ci-admin-pass", "new": "ci-admin-pass-2"}' | Out-Null
@@ -98,6 +120,7 @@ jobs:
           Run { & C:\HASC\tools\update.ps1 -NonInteractive -ZipPath $zip -HascPassword $pw }
           Check "admin can log in after the update" ((Login "ci-admin-pass-2") -eq 200)
           CheckHttps "after the update"
+          CheckFirewall "after the update"
           Check "database backed up before the update" ([bool](Get-ChildItem C:\HASC\data\backups\before-* -Directory -ErrorAction SilentlyContinue))
           Run { & C:\HASC\tools\update.ps1 -NonInteractive -CheckOnly -Token $env:GH_TOKEN }
 
