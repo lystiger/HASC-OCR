@@ -111,6 +111,7 @@ function Remove-Hasc {
     Step "Removing the firewall rule and $InstallDir"
     Get-NetFirewallRule -DisplayName "HASC website" -ErrorAction SilentlyContinue | Remove-NetFirewallRule
     Get-ChildItem Cert:\LocalMachine\Root | Where-Object { $_.Subject -eq $CaSubject } | Remove-Item
+    Unregister-ScheduledTask -TaskName "HASC update check" -Confirm:$false -ErrorAction SilentlyContinue
     if (Test-Path $InstallDir) {
         Remove-Item $InstallDir -Recurse -Force
     }

@@ -50,6 +50,7 @@ from hasc.web.auth import (
 from hasc.web.errors import AppError
 from hasc.web.roles import require_role
 from hasc.web import security
+from hasc.web.update_status import read_update_status
 from hasc.web.security import (
     generate_session_id,
     generate_temporary_password,
@@ -157,6 +158,9 @@ def create_app(
     digest = hashlib.sha256(b"".join(a.read_bytes() for a in assets if a.is_file()))
     templates.env.globals["css_version"] = digest.hexdigest()[:10]
     templates.env.filters["vndate"] = vn_date
+    # Admin pages: the installed version and, when the daily check found one, a newer release.
+    templates.env.globals["update_status"] = read_update_status
+    templates.env.globals["app_version"] = os.environ.get("HASC_VERSION", "")
     app.state.templates = templates
 
     # Exception handlers conforming to spec error shape:
