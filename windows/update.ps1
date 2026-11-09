@@ -28,22 +28,25 @@ $CheckTokenFile = Join-Path $InstallDir "tools\github-token-check.dat"
 function Save-CheckToken([string]$Plain) {
     # The daily update check runs as SYSTEM, which cannot read a token encrypted to this user: it gets
     # a copy encrypted to this PC, readable by administrators and SYSTEM only (Protect-TokenFile).
+    # Any account that can read it could decrypt it, so the file is locked down before the token goes in.
     Add-Type -AssemblyName System.Security
     $bytes = [Security.Cryptography.ProtectedData]::Protect([Text.Encoding]::UTF8.GetBytes($Plain), $null, "LocalMachine")
-    Set-Content $CheckTokenFile -Value ([Convert]::ToBase64String($bytes)) -Encoding ASCII
+    Set-Content $CheckTokenFile -Value "" -Encoding ASCII
     Protect-TokenFile
+    Set-Content $CheckTokenFile -Value ([Convert]::ToBase64String($bytes)) -Encoding ASCII
 }
 
 function Get-Token {
     if ($Token) { return $Token }
     if (Test-Path $TokenFile) {
-        try {
-            $saved = Get-Plain (Get-Content $TokenFile | ConvertTo-SecureString)
+        $saved = $null
+        try { $saved = Get-Plain (Get-Content $TokenFile | ConvertTo-SecureString) }
+        catch { Remove-Item $TokenFile -Force }  # unreadable (this user's key changed): ask again
+        if ($saved) {
             # Installs from before the update check have no copy for it yet.
             if (-not (Test-Path $CheckTokenFile)) { Save-CheckToken $saved }
             return $saved
         }
-        catch { Remove-Item $TokenFile -Force }  # unreadable (this user's key changed): ask again
     }
     $help = "Updates come from GitHub. Paste a read-only GitHub token (asked once).`n`nTo make one: github.com, Settings, Developer settings, Fine-grained tokens, Generate. Repository access: only HASC-OCR. Permissions: Contents, Read-only."
     $plain = (Get-Plain (Read-Text $help -Secret)).Trim()

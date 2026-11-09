@@ -117,10 +117,22 @@ jobs:
           Check "tools installed" (Test-Path C:\HASC\tools\delete.ps1)
           # Job C: the daily check task exists, and a run writes the latest release for the admins' banner.
           Check "update check task registered" ([bool](Get-ScheduledTask -TaskName "HASC update check" -ErrorAction SilentlyContinue))
-          Run { & C:\HASC\tools\check_update.ps1 -Token $env:GH_TOKEN }
+          $task = Get-ScheduledTask -TaskName "HASC update check"
+          Check "update check runs as SYSTEM, at startup and daily ($($task.Principal.UserId), $($task.Triggers.Count) triggers)" (($task.Principal.UserId -eq "SYSTEM") -and ($task.Triggers.Count -eq 2))
+          # Save the check's token as HASC update does (DPAPI LocalMachine), then run the real task as SYSTEM.
+          Add-Type -AssemblyName System.Security
+          $blob = [Security.Cryptography.ProtectedData]::Protect([Text.Encoding]::UTF8.GetBytes($env:GH_TOKEN), $null, "LocalMachine")
+          Set-Content C:\HASC\tools\github-token-check.dat -Value ([Convert]::ToBase64String($blob)) -Encoding ASCII
+          Remove-Item C:\HASC\tools\update-status.json -Force -ErrorAction SilentlyContinue
+          Start-ScheduledTask -TaskName "HASC update check"
+          for ($i = 0; $i -lt 60 -and -not (Test-Path C:\HASC\tools\update-status.json); $i++) { Start-Sleep -Seconds 2 }
+          for ($i = 0; $i -lt 30 -and (Get-ScheduledTask -TaskName "HASC update check").State -eq "Running"; $i++) { Start-Sleep -Seconds 2 }
+          $result = (Get-ScheduledTaskInfo -TaskName "HASC update check").LastTaskResult
           $latest = gh api "repos/$env:GITHUB_REPOSITORY/releases/latest" --jq .tag_name
           $upd = Get-Content C:\HASC\tools\update-status.json -Raw | ConvertFrom-Json
-          Check "update check found the latest release ($($upd.latest), installed $($upd.installed))" (($upd.latest -eq $latest) -and $upd.available -and -not $upd.error)
+          Check "update check task (SYSTEM) found the latest release (result $result, $($upd.latest), installed $($upd.installed), error $($upd.error))" (($result -eq 0) -and ($upd.latest -eq $latest) -and $upd.available -and -not $upd.error)
+          $office = (Invoke-WebRequest "https://127.0.0.1/office" -UseBasicParsing -WebSession $web).Content
+          Check "admins see the update banner" ($office -match [regex]::Escape("phi$([char]0x00EA)n b$([char]0x1EA3)n m$([char]0x1EDB)i $latest"))
           $caBefore = (Get-ChildItem Cert:\LocalMachine\Root | Where-Object { $_.Subject -eq "CN=HASC local CA" }).Thumbprint
 
           # 2. Update from a local zip through update.ps1, and ask GitHub for the latest release.

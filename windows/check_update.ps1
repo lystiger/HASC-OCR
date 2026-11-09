@@ -42,6 +42,7 @@ try {
 }
 
 # UTF-8 without a byte order mark, which Windows PowerShell 5.1's Set-Content would add.
-[IO.File]::WriteAllText($StatusFile, ($status | ConvertTo-Json), (New-Object Text.UTF8Encoding $false))
+try { [IO.File]::WriteAllText($StatusFile, ($status | ConvertTo-Json), (New-Object Text.UTF8Encoding $false)) }
+catch { Write-Host "Could not write $($StatusFile): $($_.Exception.Message)" }
 Write-Host "installed $($status.installed), latest $($status.latest), available $($status.available)$(if ($status.error) { ", error: $($status.error)" })"
 exit 0

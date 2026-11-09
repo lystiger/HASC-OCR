@@ -53,6 +53,8 @@ class TestReadUpdateStatus(unittest.TestCase):
         self.assertIsNone(read_update_status(str(self.path), now=self.now))
         self._write("[1, 2]")
         self.assertIsNone(read_update_status(str(self.path), now=self.now))
+        self._write("[" * 100000)  # nested past Python's recursion limit
+        self.assertIsNone(read_update_status(str(self.path), now=self.now))
         self.assertIsNone(read_update_status("", now=self.now))
 
     def test_byte_order_mark_is_tolerated(self):

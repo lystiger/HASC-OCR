@@ -30,7 +30,7 @@ def read_update_status(path: str | None = None, now: datetime | None = None) -> 
         # utf-8-sig: tolerate a byte order mark if a Windows tool ever adds one.
         with open(path, encoding="utf-8-sig") as f:
             data = json.load(f)
-    except (OSError, ValueError):
+    except Exception:  # unreadable, not JSON, or absurdly nested: the page goes on without a banner
         return None
     if not isinstance(data, dict):
         return None
