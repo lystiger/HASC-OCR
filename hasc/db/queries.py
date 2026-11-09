@@ -20,18 +20,33 @@ def create_user(
     active: int = 1,
     must_change_password: int = 0,
     created_at: str | None = None,
+    is_owner: int = 0,
+    temp_password_expires_at: str | None = None,
+    last_seen_at: str | None = None,
 ) -> int:
     if created_at is None:
         created_at = now_iso()
     with conn:
-        cursor = conn.execute(
-            """
-            INSERT INTO users (username, password_hash, role, active, must_change_password, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (username, password_hash, role, active, must_change_password, created_at),
-        )
-        return cursor.lastrowid
+        try:
+            cursor = conn.execute(
+                """
+                INSERT INTO users (username, password_hash, role, active, must_change_password, created_at, is_owner, temp_password_expires_at, last_seen_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (username, password_hash, role, active, must_change_password, created_at, is_owner, temp_password_expires_at, last_seen_at),
+            )
+            return cursor.lastrowid
+        except sqlite3.OperationalError as e:
+            if "no column named" in str(e):
+                cursor = conn.execute(
+                    """
+                    INSERT INTO users (username, password_hash, role, active, must_change_password, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (username, password_hash, role, active, must_change_password, created_at),
+                )
+                return cursor.lastrowid
+            raise
 
 
 def get_user_by_id(conn: sqlite3.Connection, user_id: int) -> sqlite3.Row | None:
@@ -40,7 +55,9 @@ def get_user_by_id(conn: sqlite3.Connection, user_id: int) -> sqlite3.Row | None
 
 
 def get_user_by_username(conn: sqlite3.Connection, username: str) -> sqlite3.Row | None:
-    cursor = conn.execute("SELECT * FROM users WHERE username = ?", (username,))
+    cursor = conn.execute(
+        "SELECT * FROM users WHERE username = ? COLLATE NOCASE", (username,)
+    )
     return cursor.fetchone()
 
 
@@ -49,21 +66,52 @@ def update_user_password(
     user_id: int,
     password_hash: str,
     must_change_password: int = 0,
+    temp_password_expires_at: str | None = None,
+) -> None:
+    with conn:
+        try:
+            conn.execute(
+                """
+                UPDATE users
+                SET password_hash = ?, must_change_password = ?, temp_password_expires_at = ?
+                WHERE id = ?
+                """,
+                (password_hash, must_change_password, temp_password_expires_at, user_id),
+            )
+        except sqlite3.OperationalError as e:
+            if "no column named" in str(e):
+                conn.execute(
+                    """
+                    UPDATE users
+                    SET password_hash = ?, must_change_password = ?
+                    WHERE id = ?
+                    """,
+                    (password_hash, must_change_password, user_id),
+                )
+            else:
+                raise
+
+
+def update_user_last_seen(
+    conn: sqlite3.Connection,
+    user_id: int,
+    last_seen_at: str,
 ) -> None:
     with conn:
         conn.execute(
-            """
-            UPDATE users
-            SET password_hash = ?, must_change_password = ?
-            WHERE id = ?
-            """,
-            (password_hash, must_change_password, user_id),
+            "UPDATE users SET last_seen_at = ? WHERE id = ?",
+            (last_seen_at, user_id),
         )
 
 
 def set_user_active(conn: sqlite3.Connection, user_id: int, active: int) -> None:
     with conn:
         conn.execute("UPDATE users SET active = ? WHERE id = ?", (active, user_id))
+
+
+def update_user_role(conn: sqlite3.Connection, user_id: int, role: str) -> None:
+    with conn:
+        conn.execute("UPDATE users SET role = ? WHERE id = ?", (role, user_id))
 
 
 def list_users(conn: sqlite3.Connection) -> list[sqlite3.Row]:

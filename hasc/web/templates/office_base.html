@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block nav %}
+<div class="office-header-controls">
+  <label for="menu-toggle" class="menu-toggle-btn" aria-label="Thực đơn">☰ Menu</label>
+  <span class="user-name">{{ user.username }}</span>
+  <a href="/logout" class="btn-logout">Đăng xuất</a>
+</div>
+{% endblock %}
+
+{% block frame %}
+<div class="office-frame">
+  <!-- Checkbox hack for mobile phone menu folding (zero JS required) -->
+  <input type="checkbox" id="menu-toggle" class="menu-toggle" aria-label="Mở thực đơn" />
+
+  <aside class="office-sidebar" aria-label="Thực đơn thanh bên">
+    <nav class="office-nav" aria-label="Thực đơn chức năng">
+      <a href="/office" class="office-nav__item {% block nav_office_active %}{% endblock %}">Hồ sơ</a>
+      <a href="/office/report" class="office-nav__item {% block nav_report_active %}{% endblock %}" data-no-loading>Báo cáo ngày</a>
+      <a href="/operator" class="office-nav__item {% block nav_upload_active %}{% endblock %}">Tải ảnh lên</a>
+      {% if user.role == 'admin' %}
+      <a href="/admin/accounts" class="office-nav__item {% block nav_accounts_active %}{% endblock %}">Tài khoản</a>
+      {% endif %}
+    </nav>
+  </aside>
+
+  <section class="office-content">
+    {% block content %}{% endblock %}
+  </section>
+</div>
+{% endblock %}

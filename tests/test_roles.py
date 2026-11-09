@@ -58,24 +58,18 @@ class TestSection4RoleTable(unittest.TestCase):
         self.assertEqual(data["error"]["code"], "forbidden")
 
     def test_role_table_row_1_upload_photo_and_limits(self):
-        """Action 1: Upload a photo, see printed limits: Operator=Yes, Employee=No, Boss=No, Admin=No"""
+        """Action 1: Upload a photo, see printed limits: Operator=Yes, Employee=Yes, Boss=Yes, Admin=Yes (spec 1.1.0 P128, P145)"""
         for role in ["operator", "employee", "boss", "admin"]:
             client = self.clients[role]
             res = client.get("/api/limits")
-            if role == "operator":
-                self._assert_allowed(role, res, "GET /api/limits")
-            else:
-                self._assert_forbidden(role, res, "GET /api/limits")
+            self._assert_allowed(role, res, "GET /api/limits")
 
     def test_role_table_row_2_see_own_uploads(self):
-        """Action 2: See status of own uploads: Operator=Yes, others=No/n/a"""
+        """Action 2: See status of own uploads: Operator=Yes, Employee=Yes, Boss=Yes, Admin=Yes (spec 1.1.0 section 6)"""
         for role in ["operator", "employee", "boss", "admin"]:
             client = self.clients[role]
             res = client.get("/api/uploads/mine")
-            if role == "operator":
-                self._assert_allowed(role, res, "GET /api/uploads/mine")
-            else:
-                self._assert_forbidden(role, res, "GET /api/uploads/mine")
+            self._assert_allowed(role, res, "GET /api/uploads/mine")
 
     def test_role_table_row_3_see_all_sheets_and_photos(self):
         """Action 3: See status of all sheets and photos: Operator=No, Employee=Yes, Boss=Yes, Admin=Yes"""
@@ -152,7 +146,7 @@ class TestSection4RoleTable(unittest.TestCase):
         """Action 9: Add or deactivate accounts, reset passwords, log out any account: Admin=Yes, others=No"""
         for role in ["operator", "employee", "boss", "admin"]:
             client = self.clients[role]
-            res = client.post("/api/admin/users", json={"username": f"user_by_{role}", "role": "operator"})
+            res = client.post("/api/admin/users", json={"username": f"user_by_{role}", "role": "employee"})
             if role == "admin":
                 self._assert_allowed(role, res, "POST /api/admin/users")
             else:

@@ -3,6 +3,37 @@ from pathlib import Path
 import sqlite3
 
 
+class MigrationError(ValueError, RuntimeError):
+    """Raised when a migration pre-check or execution fails."""
+    pass
+
+
+_ASCII_LOWER = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
+
+
+def _check_003_case_insensitive_usernames(conn: sqlite3.Connection) -> None:
+    table_exists = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='users'"
+    ).fetchone()
+    if not table_exists:
+        return
+
+    cursor = conn.execute("SELECT username FROM users ORDER BY id ASC")
+    seen: dict[str, list[str]] = {}
+    for (username,) in cursor.fetchall():
+        # SQLite NOCASE folds A-Z only, so Vietnamese letters such as Đ/đ are not a collision.
+        seen.setdefault(username.translate(_ASCII_LOWER), []).append(username)
+
+    duplicates = [names for names in seen.values() if len(names) > 1]
+    if duplicates:
+        conflicting_names = [name for group in duplicates for name in group]
+        names_str = ", ".join(conflicting_names)
+        raise MigrationError(
+            f"Usernames differ only by case: {names_str}. "
+            f"Tên đăng nhập trùng nhau khi không phân biệt chữ hoa chữ thường: {names_str}."
+        )
+
+
 def get_migrations_dir() -> Path:
     return Path(__file__).resolve().parent / "migrations"
 
@@ -46,6 +77,8 @@ def migrate(
     for file in migration_files:
         version = file.name
         if version not in applied:
+            if version == "003_accounts.sql":
+                _check_003_case_insensitive_usernames(conn)
             sql = file.read_text(encoding="utf-8")
             with conn:
                 conn.executescript(sql)

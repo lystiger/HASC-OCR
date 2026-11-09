@@ -27,7 +27,9 @@
     </header>
 
     <main class="container">
+      {% block frame %}
       {% block content %}{% endblock %}
+      {% endblock %}
     </main>
   </body>
 </html>

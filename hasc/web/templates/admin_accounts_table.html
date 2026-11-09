@@ -1,0 +1,147 @@
+<div class="table-wrap">
+  <table class="accounts-table">
+    <thead>
+      <tr>
+        <th>Tên đăng nhập</th>
+        <th>Vai trò</th>
+        <th>Trạng thái</th>
+        <th>Trực tuyến</th>
+        <th>Lần cuối</th>
+        <th>Ngày tạo</th>
+        <th>Thao tác</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in accounts %}
+      <tr class="account-row {% if a.active == 0 %}row-deactivated{% endif %}" data-user-id="{{ a.id }}" data-username="{{ a.username }}">
+        <td>
+          <strong>{{ a.username }}</strong>
+          {% if a.is_owner %}
+          <span class="badge badge--owner" style="background: #FEF3C7; color: #92400E; border: 1px solid #FCD34D; font-weight: 600; font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; margin-left: 4px;">
+            Chủ sở hữu
+          </span>
+          {% endif %}
+        </td>
+        <td>
+          <span class="role-label role-label--{{ a.role }}">{{ a.role_label }}</span>
+        </td>
+        <td>
+          {% if a.active == 1 %}
+          <span class="badge badge--success" style="color: var(--color-success); font-weight: 500;">Hoạt động</span>
+          {% else %}
+          <span class="badge badge--danger" style="color: var(--color-error); font-weight: 500;">Đã vô hiệu hóa</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if a.online %}
+          <span class="badge badge--online" style="color: var(--color-success); font-weight: 600;">● Trực tuyến</span>
+          {% else %}
+          <span class="badge badge--offline" style="color: var(--color-muted); font-size: 0.85rem;">Ngoại tuyến</span>
+          {% endif %}
+        </td>
+        <td>
+          <span class="num" style="font-size: 0.85rem; color: var(--color-muted);">
+            {% if a.last_seen_at %}{{ a.last_seen_at|vntime }}{% else %}-{% endif %}
+          </span>
+        </td>
+        <td>
+          <span class="num" style="font-size: 0.85rem; color: var(--color-muted);">
+            {% if a.created_at %}{{ a.created_at|vntime }}{% else %}-{% endif %}
+          </span>
+        </td>
+        <td>
+          <div class="action-buttons-cell" style="display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center;">
+            {% if a.can_reset %}
+            <form method="post" action="/admin/accounts" class="inline-form" onsubmit="return confirm(this.querySelector('[data-confirm]').dataset.confirm);">
+              <input type="hidden" name="action" value="reset" />
+              <input type="hidden" name="user_id" value="{{ a.id }}" />
+              <button type="submit" class="btn btn--secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; min-height: 28px;"
+                      data-confirm="Bạn có chắc chắn muốn đặt lại mật khẩu cho tài khoản {{ a.username }} không?"
+                      hx-post="/admin/accounts"
+                      hx-vals='{"action": "reset", "user_id": {{ a.id }}}'
+                      hx-confirm="Bạn có chắc chắn muốn đặt lại mật khẩu cho tài khoản {{ a.username }} không?"
+                      hx-target="#accounts-content"
+                      hx-select="#accounts-content">
+                Đặt lại MK
+              </button>
+            </form>
+            {% endif %}
+
+            {% if a.can_change_role and a.available_roles %}
+            <form method="post" action="/admin/accounts" class="inline-form" onsubmit="return confirm(this.querySelector('[data-confirm]').dataset.confirm);">
+              <input type="hidden" name="action" value="role" />
+              <input type="hidden" name="user_id" value="{{ a.id }}" />
+              <select name="role" aria-label="Vai trò mới cho {{ a.username }}" style="padding: 0.2rem 0.4rem; font-size: 0.8rem; height: 28px; border-radius: var(--radius-md); border: 1px solid var(--color-border);">
+                {% for r_code, r_label in a.available_roles %}
+                <option value="{{ r_code }}">{{ r_label }}</option>
+                {% endfor %}
+              </select>
+              <button type="submit" class="btn btn--secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; min-height: 28px;"
+                      data-confirm="Bạn có chắc chắn muốn thay đổi vai trò tài khoản {{ a.username }} không?"
+                      hx-post="/admin/accounts"
+                      hx-confirm="Bạn có chắc chắn muốn thay đổi vai trò tài khoản {{ a.username }} không?"
+                      hx-target="#accounts-content"
+                      hx-select="#accounts-content">
+                Đổi vai trò
+              </button>
+            </form>
+            {% endif %}
+
+            {% if a.can_deactivate %}
+            <form method="post" action="/admin/accounts" class="inline-form" onsubmit="return confirm(this.querySelector('[data-confirm]').dataset.confirm);">
+              <input type="hidden" name="action" value="deactivate" />
+              <input type="hidden" name="user_id" value="{{ a.id }}" />
+              <button type="submit" class="btn btn--danger" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; min-height: 28px;"
+                      data-confirm="Bạn có chắc chắn muốn vô hiệu hóa tài khoản {{ a.username }} không?"
+                      hx-post="/admin/accounts"
+                      hx-vals='{"action": "deactivate", "user_id": {{ a.id }}}'
+                      hx-confirm="Bạn có chắc chắn muốn vô hiệu hóa tài khoản {{ a.username }} không?"
+                      hx-target="#accounts-content"
+                      hx-select="#accounts-content">
+                Vô hiệu hóa
+              </button>
+            </form>
+            {% endif %}
+
+            {% if a.can_reactivate %}
+            <form method="post" action="/admin/accounts" class="inline-form" onsubmit="return confirm(this.querySelector('[data-confirm]').dataset.confirm);">
+              <input type="hidden" name="action" value="reactivate" />
+              <input type="hidden" name="user_id" value="{{ a.id }}" />
+              <button type="submit" class="btn btn--secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; min-height: 28px;"
+                      data-confirm="Bạn có chắc chắn muốn kích hoạt lại tài khoản {{ a.username }} không?"
+                      hx-post="/admin/accounts"
+                      hx-vals='{"action": "reactivate", "user_id": {{ a.id }}}'
+                      hx-confirm="Bạn có chắc chắn muốn kích hoạt lại tài khoản {{ a.username }} không?"
+                      hx-target="#accounts-content"
+                      hx-select="#accounts-content">
+                Kích hoạt lại
+              </button>
+            </form>
+            {% endif %}
+
+            {% if a.can_logout %}
+            <form method="post" action="/admin/accounts" class="inline-form" onsubmit="return confirm(this.querySelector('[data-confirm]').dataset.confirm);">
+              <input type="hidden" name="action" value="logout" />
+              <input type="hidden" name="user_id" value="{{ a.id }}" />
+              <button type="submit" class="btn btn--secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; min-height: 28px;"
+                      data-confirm="Bạn có chắc chắn muốn đăng xuất tài khoản {{ a.username }} không?"
+                      hx-post="/admin/accounts"
+                      hx-vals='{"action": "logout", "user_id": {{ a.id }}}'
+                      hx-confirm="Bạn có chắc chắn muốn đăng xuất tài khoản {{ a.username }} không?"
+                      hx-target="#accounts-content"
+                      hx-select="#accounts-content">
+                Đăng xuất
+              </button>
+            </form>
+            {% endif %}
+
+            {% if not a.can_reset and not a.can_change_role and not a.can_deactivate and not a.can_reactivate and not a.can_logout %}
+            <span style="color: var(--color-muted); font-size: 0.85rem;">—</span>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

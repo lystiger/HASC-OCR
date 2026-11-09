@@ -27,6 +27,19 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 # Office (Employee, Boss) & Admin: 8 hours
 OPERATOR_SESSION_DURATION = timedelta(days=30)
 OFFICE_SESSION_DURATION = timedelta(hours=8)
+TEMP_PASSWORD_DURATION = timedelta(hours=72)
+ONLINE_THRESHOLD = timedelta(minutes=5)
+
+
+def now() -> datetime:
+    """Current UTC time helper, used for sessions, temporary-password expiry and last seen."""
+    return datetime.now(timezone.utc)
+
+
+def temp_password_expires_at(from_time: datetime | None = None) -> str:
+    """Return ISO string for temporary password expiry (now + 72 h)."""
+    base = from_time if from_time is not None else now()
+    return (base + TEMP_PASSWORD_DURATION).isoformat()
 
 
 def get_session_duration(role: str) -> timedelta:
@@ -39,7 +52,7 @@ def get_session_duration(role: str) -> timedelta:
 def is_session_expired(expires_at: str | datetime, current_time: datetime | None = None) -> bool:
     """Check whether a session timestamp is in the past."""
     if current_time is None:
-        current_time = datetime.now(timezone.utc)
+        current_time = now()
     elif current_time.tzinfo is None:
         current_time = current_time.replace(tzinfo=timezone.utc)
 
@@ -54,6 +67,37 @@ def is_session_expired(expires_at: str | datetime, current_time: datetime | None
         exp_dt = exp_dt.replace(tzinfo=timezone.utc)
 
     return exp_dt < current_time
+
+
+def is_temp_password_expired(expires_at: str | datetime | None, current_time: datetime | None = None) -> bool:
+    """Check whether a temporary password has expired."""
+    if not expires_at:
+        return False
+    return is_session_expired(expires_at, current_time=current_time)
+
+
+def is_online(last_seen_at: str | datetime | None, current_time: datetime | None = None) -> bool:
+    """Check whether an account was seen within the last 5 minutes."""
+    if not last_seen_at:
+        return False
+    if current_time is None:
+        current_time = now()
+    elif current_time.tzinfo is None:
+        current_time = current_time.replace(tzinfo=timezone.utc)
+
+    if isinstance(last_seen_at, str):
+        iso_str = last_seen_at.replace("Z", "+00:00")
+        try:
+            seen_dt = datetime.fromisoformat(iso_str)
+        except ValueError:
+            return False
+    else:
+        seen_dt = last_seen_at
+
+    if seen_dt.tzinfo is None:
+        seen_dt = seen_dt.replace(tzinfo=timezone.utc)
+
+    return (current_time - seen_dt) <= ONLINE_THRESHOLD
 
 
 def generate_session_id() -> str:
