@@ -53,6 +53,9 @@ def _key_pem(key: rsa.RSAPrivateKey) -> bytes:
 def load_or_create_ca(folder: Path) -> tuple[x509.Certificate, rsa.RSAPrivateKey, bool]:
     """Return the authority and its key, making them only if either file is missing."""
     crt_path, key_path = folder / "ca.crt", folder / "ca.key"
+    if crt_path.is_file() != key_path.is_file():
+        # Making a new authority would make every phone trust the website again: stop instead.
+        raise ValueError(f"only one of ca.crt and ca.key is in {folder}; restore the other from a backup")
     if crt_path.is_file() and key_path.is_file():
         cert = x509.load_pem_x509_certificate(crt_path.read_bytes())
         key = serialization.load_pem_private_key(key_path.read_bytes(), password=None)
@@ -117,6 +120,10 @@ def server_cert_is_current(folder: Path, ca: x509.Certificate, dns: set[str], ip
     except (ValueError, TypeError, InvalidSignature):
         return False
     if cert.not_valid_after_utc - _now() < RENEW_BEFORE:
+        return False
+    # The key is written before the certificate, so a cut between the two leaves a pair that differs.
+    key = serialization.load_pem_private_key(key_path.read_bytes(), password=None)
+    if key.public_key().public_numbers() != cert.public_key().public_numbers():
         return False
     return _covered(cert) == (dns, ips)
 

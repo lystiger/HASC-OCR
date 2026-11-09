@@ -38,6 +38,8 @@ def _to_https(request: Request):
 app = Starlette(
     routes=[
         Route("/ca.crt", _ca_cert, methods=["GET", "HEAD"]),
-        Route("/{path:path}", _to_https, methods=["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"]),
+        # Only reads: a form posted to plain HTTP has already crossed the network unencrypted, and
+        # answering it would invite the browser to send it again.
+        Route("/{path:path}", _to_https, methods=["GET", "HEAD"]),
     ]
 )

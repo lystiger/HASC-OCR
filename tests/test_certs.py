@@ -73,6 +73,21 @@ class TestCerts(unittest.TestCase):
         server = _load(self.folder / "server.crt")
         self.assertLessEqual((server.not_valid_after_utc - server.not_valid_before_utc).days, 825)
 
+    def test_certs_half_missing_authority_is_not_replaced(self):
+        certs.ensure_certificates(self.folder, "OFFICE-PC", [])
+        (self.folder / "ca.key").unlink()
+        with self.assertRaises(ValueError):
+            certs.ensure_certificates(self.folder, "OFFICE-PC", [])
+        self.assertFalse((self.folder / "ca.key").exists())
+
+    def test_certs_mismatched_server_key_is_renewed(self):
+        certs.ensure_certificates(self.folder, "OFFICE-PC", ["192.168.1.10"])
+        other = Path(self.temp_dir.name) / "other"
+        certs.ensure_certificates(other, "OFFICE-PC", ["192.168.1.10"])
+        (self.folder / "server.key").write_bytes((other / "server.key").read_bytes())
+        result = certs.ensure_certificates(self.folder, "OFFICE-PC", ["192.168.1.10"])
+        self.assertTrue(result["server_created"])
+
     def test_certs_cli_rejects_a_bad_address(self):
         self.assertEqual(certs.main(["--dir", str(self.folder), "--ip", "not-an-ip"]), 1)
 

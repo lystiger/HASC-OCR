@@ -29,11 +29,11 @@ class TestRedirectApp(unittest.TestCase):
         self.assertEqual(res.status_code, 308)
         self.assertEqual(res.headers["location"], "https://192.168.1.10/login")
 
-    def test_criterion_17_post_is_redirected_and_never_reaches_a_login_form(self):
-        for method, path in (("get", "/login"), ("post", "/login"), ("post", "/api/login"), ("get", "/")):
+    def test_criterion_17_never_reaches_a_login_form(self):
+        for method, path, status in (("get", "/login", 308), ("get", "/", 308), ("post", "/login", 405), ("post", "/api/login", 405)):
             with self.subTest(method=method, path=path):
                 res = getattr(self.client, method)(path, follow_redirects=False)
-                self.assertEqual(res.status_code, 308)
+                self.assertEqual(res.status_code, status)
                 self.assertNotIn("Mật khẩu", res.text)
                 self.assertNotIn("<form", res.text)
 
