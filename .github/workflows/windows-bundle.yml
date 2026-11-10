@@ -2,8 +2,15 @@ name: Windows bundle
 
 # Builds the USB bundle for the office PC, installs it on a clean Windows runner and checks that the
 # website and worker run. On a version tag the zip is attached to the GitHub release.
+# It takes about 10 minutes, so pull requests run it only when they touch the installer or the
+# packages it bundles; every version tag runs it in full before the release gets its zip.
+# The unit tests run on Windows in the CI workflow, so this one does not repeat them.
 on:
   pull_request:
+    paths:
+      - "windows/**"
+      - "requirements.txt"
+      - ".github/workflows/windows-bundle.yml"
   push:
     tags:
       - "v*"
@@ -27,12 +34,12 @@ jobs:
           "VERSION=$version" >> $env:GITHUB_ENV
           .\windows\build_bundle.ps1 -Version $version -OutDir "$env:RUNNER_TEMP\dist"
 
-      - name: Run the test suite with the bundled Python
+      - name: Unpack the bundle
         shell: pwsh
         run: |
           Expand-Archive "$env:RUNNER_TEMP\dist\hasc-$env:VERSION-win64.zip" "$env:RUNNER_TEMP\bundle"
-          cd "$env:RUNNER_TEMP\bundle\HASC-OCR"
-          & ..\python\python.exe -m unittest discover -s tests
+          # The bundled Python must load the app and its packages; the install step then runs it as services.
+          & "$env:RUNNER_TEMP\bundle\python\python.exe" -c "import sys; sys.path.insert(0, r'$env:RUNNER_TEMP\bundle\HASC-OCR'); import hasc.web.app, hasc.worker.jobs, openpyxl, PIL"
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
       - name: Install, update, delete and reinstall as on the office PC (Windows PowerShell 5.1)
