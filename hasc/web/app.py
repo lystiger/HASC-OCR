@@ -50,6 +50,7 @@ from hasc.web.auth import (
 from hasc.web.errors import AppError
 from hasc.web.roles import require_role
 from hasc.web import security
+from hasc.web.ai_stats import budget_alert, vnd
 from hasc.web.update_status import read_update_status
 from hasc.web.security import (
     generate_session_id,
@@ -160,6 +161,8 @@ def create_app(
     templates.env.filters["vndate"] = vn_date
     # Admin pages: the installed version and, when the daily check found one, a newer release.
     templates.env.globals["update_status"] = read_update_status
+    templates.env.globals["ai_budget"] = budget_alert
+    templates.env.filters["vnd"] = vnd
     templates.env.globals["app_version"] = os.environ.get("HASC_VERSION", "")
     app.state.templates = templates
 
@@ -529,12 +532,14 @@ def create_app(
     from hasc.web.account_pages import router as account_pages_router
     from hasc.web.self_account import router as self_account_router
     from hasc.web.corrections import router as corrections_router
+    from hasc.web.ai_stats import router as ai_router
 
     app.include_router(operator_router)
     app.include_router(office_router)
     app.include_router(account_pages_router)
     app.include_router(self_account_router)
     app.include_router(corrections_router)
+    app.include_router(ai_router)
 
     # -------------------------------------------------------------------------
     # API Routes: Section 4 Role Table Endpoints

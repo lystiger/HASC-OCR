@@ -1,0 +1,46 @@
+{% extends "office_base.html" %}
+
+{% block nav_ai_active %}is-active{% endblock %}
+
+{% block title %}AI – HASC VN{% endblock %}
+
+{% block content %}
+<div class="page">
+  <div class="page-header">
+    <div>
+      <h1>AI đọc biểu mẫu</h1>
+      <p class="page-header__sub">Số lượt đọc, thời gian, độ chính xác theo bản sửa của văn phòng và chi phí. Tự cập nhật mỗi 10 giây.</p>
+    </div>
+  </div>
+
+  {% if saved %}
+  <div class="alert alert--success" role="status" data-toast="success">Đã lưu ngân sách.</div>
+  {% endif %}
+
+  <div id="ai-stats" hx-get="/ai/partial" hx-trigger="every 10s" hx-swap="innerHTML">
+    {% include "ai_stats_partial.html" %}
+  </div>
+
+  <section class="card">
+    <h2 class="card__title">Ngân sách AI hằng tháng</h2>
+    {% if user.role == 'admin' %}
+    <form method="post" action="/ai/settings" data-loading="Đang lưu...">
+      <div class="form-row">
+        <div class="form-field">
+          <label for="budget-vnd">Ngân sách mỗi tháng (₫, 0 = không giới hạn)</label>
+          <input type="number" id="budget-vnd" name="budget_vnd" min="0" step="1000" value="{{ settings.budget_vnd }}" required />
+        </div>
+        <div class="form-field">
+          <label for="usd-rate">Tỷ giá (₫ cho 1 USD)</label>
+          <input type="number" id="usd-rate" name="rate" min="1000" max="1000000" step="1" value="{{ settings.rate }}" required />
+        </div>
+        <button type="submit" class="btn">Lưu ngân sách</button>
+      </div>
+      <p class="muted">Cảnh báo hiện cho quản trị viên và ban giám đốc khi chi phí đạt 80% và 100% ngân sách. AI không tự dừng, để không mất biểu mẫu nào.</p>
+    </form>
+    {% else %}
+    <p>Ngân sách: <strong class="num">{{ settings.budget_vnd|vnd if settings.budget_vnd else "không giới hạn" }}</strong> · Tỷ giá <span class="num">{{ settings.rate|vnd }}</span>/USD. Quản trị viên đặt ngân sách.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

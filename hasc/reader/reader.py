@@ -40,9 +40,10 @@ Example row line: customer=AB film_type=GT roll_code=1 thickness_mic=50 width_mm
 
 
 class ReaderError(Exception):
-    def __init__(self, kind, message):
+    def __init__(self, kind, message, usage=None):
         super().__init__(message)
         self.kind = kind
+        self.usage = usage or {}  # what the failed attempts still cost
 
 
 class TransportError(Exception):
@@ -84,6 +85,8 @@ class CloudReader:
         self.prompt = PROMPT.format(customers=listing("customers"), products=listing("products"))
 
     def read(self, image, effort="low"):
+        # Every reply is paid for, including ones that fail to parse and the main model's before a fallback.
+        self.spent = {"cost": 0.0, "prompt_tokens": 0, "completion_tokens": 0, "tries": 0}
         try:
             return self._read_with(self.model, image, effort)
         except ReaderError as error:
@@ -99,19 +102,28 @@ class CloudReader:
         for attempt in range(TRIES):
             if attempt:
                 self.sleep(2 ** attempt)
+            self.spent["tries"] += 1
             try:
                 reply = self.transport(self._body(model, image, effort))
+                self._count(reply)
                 result = self._parse(reply)
             except (TransportError, InvalidReply) as error:
                 last = error
                 continue
             if result["layout"] == "other":
-                raise ReaderError("not_form_a", "photo is neither form A nor its back side")
+                raise ReaderError("not_form_a", "photo is neither form A nor its back side", dict(self.spent))
             result["reader_name"] = model
-            result["usage"] = {"cost": (reply.get("usage") or {}).get("cost"), "tries": attempt + 1}
+            result["usage"] = dict(self.spent)
             return result
         kind = "timeout" if getattr(last, "timeout", False) else "other"
-        raise ReaderError(kind, f"{model}: {last}")
+        raise ReaderError(kind, f"{model}: {last}", dict(self.spent))
+
+    def _count(self, reply):
+        usage = (reply.get("usage") if isinstance(reply, dict) else None) or {}
+        for key, name in (("cost", "cost"), ("prompt_tokens", "prompt_tokens"), ("completion_tokens", "completion_tokens")):
+            value = usage.get(name)
+            if isinstance(value, int | float) and not isinstance(value, bool):
+                self.spent[key] += value
 
     def _body(self, model, image, effort):
         data = base64.b64encode(image).decode()

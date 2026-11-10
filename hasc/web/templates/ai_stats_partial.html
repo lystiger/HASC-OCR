@@ -1,0 +1,79 @@
+{% macro pct(value) %}{% if value is none %}—{% else %}{{ "%.1f"|format(value * 100) }}%{% endif %}{% endmacro %}
+{% macro secs(value) %}{% if value is none %}—{% elif value < 90 %}{{ value|round|int }} giây{% else %}{{ (value / 60)|round(1) }} phút{% endif %}{% endmacro %}
+{% set b = ai.budget %}
+<div class="stat-grid">
+  <div class="card stat">
+    <p class="stat__label">Lượt đọc tháng {{ ai.month_label }}</p>
+    <p class="stat__value num">{{ ai.reads }}</p>
+    <p class="muted">{{ ai.failed }} lỗi · {{ ai.waiting }} đang chờ</p>
+  </div>
+  <div class="card stat">
+    <p class="stat__label">Thời gian đọc trung bình</p>
+    <p class="stat__value num">{{ secs(ai.read_s) }}</p>
+    <p class="muted">Từ lúc tải lên đến khi xong: {{ secs(ai.total_s) }}</p>
+  </div>
+  <div class="card stat">
+    <p class="stat__label">Độ chính xác (giá trị)</p>
+    <p class="stat__value num">{{ pct(ai.quality.accuracy) }}</p>
+    <p class="muted">{{ ai.quality.corrected }} / {{ ai.quality["values"] }} giá trị bị sửa · {{ ai.quality.sheets }} biểu mẫu đã kiểm tra</p>
+  </div>
+  <div class="card stat">
+    <p class="stat__label">Cờ đúng (precision)</p>
+    <p class="stat__value num">{{ pct(ai.quality.precision) }}</p>
+    <p class="muted">{{ ai.quality.flagged }} giá trị được AI đánh dấu</p>
+  </div>
+  <div class="card stat">
+    <p class="stat__label">Dự đoán sai</p>
+    <p class="stat__value num">{{ ai.quality.missed }} <span class="stat__unit">bỏ sót</span></p>
+    <p class="muted">{{ ai.quality.false_alarms }} báo động giả · bỏ sót {{ pct(ai.quality.missed_share) }} (mục tiêu ≤ 0,5%)</p>
+  </div>
+  <div class="card stat stat--money {% if b.level %}stat--{{ b.level }}{% endif %}">
+    <p class="stat__label">Chi phí tháng {{ ai.month_label }}</p>
+    <p class="stat__value num">{{ ai.cost_vnd|vnd }}</p>
+    {% if b.budget_vnd %}
+    <div class="meter" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ (b.share * 100)|round|int }}" aria-label="Đã dùng ngân sách">
+      <span style="width: {{ [b.share * 100, 100]|min }}%"></span>
+    </div>
+    <p class="muted">{{ (b.share * 100)|round|int }}% của {{ b.budget_vnd|vnd }} · {{ ai.cost_per_read_vnd|vnd }}/lượt</p>
+    {% else %}
+    <p class="muted">Chưa đặt ngân sách · {{ ai.cost_per_read_vnd|vnd }}/lượt · {{ "{:,}".format(ai.tokens).replace(",", ".") }} token</p>
+    {% endif %}
+  </div>
+</div>
+
+<section class="card">
+  <h2 class="card__title">Lượt đọc mỗi ngày (26 tuần)</h2>
+  <div class="heatmap-wrap">
+    <div class="heatmap" role="img" aria-label="Lượt đọc AI mỗi ngày trong 26 tuần">
+      {% for week in ai.weeks %}
+      <div class="heatmap__week">
+        {% for d in week %}
+        <span class="heatmap__day lv{{ d.level }}{% if d.future %} is-future{% endif %}"
+              title="{{ d.day.strftime('%d/%m/%Y') }}: {{ d.reads }} lượt · {{ d.cost_vnd|vnd }}"></span>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  <p class="heatmap__legend muted">Ít <span class="heatmap__day lv0"></span><span class="heatmap__day lv1"></span><span class="heatmap__day lv2"></span><span class="heatmap__day lv3"></span><span class="heatmap__day lv4"></span> Nhiều</p>
+</section>
+
+<section class="card">
+  <h2 class="card__title">14 ngày gần đây</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Ngày</th><th>Lượt đọc</th><th>Lỗi</th><th>Thời gian TB</th><th>Chi phí</th></tr></thead>
+      <tbody>
+        {% for d in ai.recent %}
+        <tr>
+          <td class="num">{{ d.day.strftime('%d/%m/%Y') }}</td>
+          <td class="num">{{ d.reads or 0 }}</td>
+          <td class="num">{{ d.failed or 0 }}</td>
+          <td class="num">{{ secs(d.read_s) }}</td>
+          <td class="num">{{ d.cost_vnd|vnd }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
