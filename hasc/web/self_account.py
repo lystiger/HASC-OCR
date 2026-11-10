@@ -34,8 +34,12 @@ _forgot_lock = threading.Lock()
 
 
 def _forgot_allowed(address: str) -> bool:
+    """Per client address: the site is served by uvicorn directly, with no proxy in front."""
     now = time.monotonic()
     with _forgot_lock:
+        if len(_forgot_seen) > 1000:  # drop addresses whose window has passed
+            for key in [k for k, times in _forgot_seen.items() if now - times[-1] >= FORGOT_WINDOW_S]:
+                del _forgot_seen[key]
         recent = [t for t in _forgot_seen.get(address, []) if now - t < FORGOT_WINDOW_S]
         if len(recent) >= FORGOT_LIMIT:
             _forgot_seen[address] = recent

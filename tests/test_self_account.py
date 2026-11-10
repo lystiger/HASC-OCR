@@ -162,6 +162,12 @@ class TestSelfAccount(unittest.TestCase):
         self.assertIn("Đã gửi yêu cầu", res.text)  # same answer, but nothing recorded
         self.assertEqual(self._events("account_reset_request"), [])
 
+    def test_forgot_limiter_forgets_old_addresses(self):
+        for i in range(1001):
+            self_account._forgot_seen[f"10.0.{i // 256}.{i % 256}"] = [-10_000.0]
+        self.assertTrue(self_account._forgot_allowed("10.9.9.9"))
+        self.assertEqual(list(self_account._forgot_seen), ["10.9.9.9"])
+
     def test_owner_request_says_how_to_reset_on_the_server(self):
         conn = get_connection(self.db_path)
         conn.execute("UPDATE users SET is_owner = 0")
