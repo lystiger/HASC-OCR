@@ -1255,3 +1255,8 @@ body.app-body {
     padding: 0.5rem 0.4rem;
   }
 }
+
+/* On the dark sidebar the darker action orange is under 3:1; the brand orange is 5.6:1. */
+.office-sidebar :focus-visible {
+  outline-color: #FF7900;
+}
