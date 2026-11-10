@@ -5,7 +5,6 @@ from typing import Any, Optional
 from hasc.db import (
     create_event,
     create_user,
-    delete_user,
     delete_user_sessions,
     get_user_by_id,
     get_user_by_username,
@@ -538,25 +537,26 @@ def delete_account(
 
     validate_owner_rules(actor, target, action="delete")
 
-    if account_was_used(conn, target_user_id):
-        raise AppError(
-            code="account_used",
-            message="Tài khoản đã được sử dụng nên không thể xóa. Hãy vô hiệu hóa để giữ lịch sử.",
-            status_code=400,
-        )
-
-    with conn:
-        delete_user(conn, target_user_id)
+    # One write transaction: no login can slip in between the check and the delete, and the delete
+    # and its event land together. (create_event commits on its own, so the event is inserted here.)
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        if account_was_used(conn, target_user_id):
+            raise AppError(
+                code="account_used",
+                message="Tài khoản đã được sử dụng nên không thể xóa. Hãy vô hiệu hóa để giữ lịch sử.",
+                status_code=400,
+            )
+        conn.execute("DELETE FROM users WHERE id = ?", (target_user_id,))
         # The username goes in the event, since the history page can no longer look it up.
-        create_event(
-            conn,
-            user_id=actor["id"],
-            action="account_delete",
-            field=f"user:{target_user_id}",
-            old_value=target["username"],
-            new_value=None,
-            at=security.now().isoformat(),
+        conn.execute(
+            "INSERT INTO events (at, user_id, action, field, old_value) VALUES (?, ?, 'account_delete', ?, ?)",
+            (security.now().isoformat(), actor["id"], f"user:{target_user_id}", target["username"]),
         )
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
     return target["username"]
 
 

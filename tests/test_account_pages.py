@@ -9,7 +9,7 @@ import unittest
 from fastapi.testclient import TestClient
 
 from hasc.db import create_user, get_connection
-from hasc.web.accounts import ROLE_LABELS, set_or_create_owner
+from hasc.web.accounts import ROLE_LABELS, USER_REFERENCES, set_or_create_owner
 from hasc.web.app import create_app
 from hasc.web.security import hash_password
 
@@ -518,7 +518,7 @@ class TestAccountPages(unittest.TestCase):
 
         history = owner.get("/admin/accounts/history").text
         self.assertIn("Xóa tài khoản", history)
-        self.assertNotIn(f"#{typo_id}", history)
+        self.assertIn("<strong>nguyen_vna</strong>", history)
         self._add(owner, "nguyen_vna", "employee")  # the name can be used again
 
     def test_used_account_cannot_be_deleted(self):
@@ -568,7 +568,22 @@ class TestAccountPages(unittest.TestCase):
         self.assertEqual(normal.post("/admin/accounts", data={"action": "delete", "user_id": new_admin_id}).status_code, 403)
         self.assertEqual(normal.post("/admin/accounts", data={"action": "delete", "user_id": self.owner_id}).status_code, 403)
         self.assertEqual(owner.post("/admin/accounts", data={"action": "delete", "user_id": self.owner_id}).status_code, 403)
+        self.assertEqual(normal.post("/admin/accounts", data={"action": "delete", "user_id": self.admin_id}).status_code, 403)
         for role in ("employee", "boss", "operator"):
-            res = self.clients[role].post(f"/admin/accounts/{new_emp_id}/delete")
-            self.assertIn(res.status_code, (401, 403))
+            self.assertEqual(self.clients[role].post(f"/admin/accounts/{new_emp_id}/delete").status_code, 403)
         self.assertEqual(owner.post(f"/admin/accounts/{new_admin_id}/delete").status_code, 200)
+
+    def test_every_reference_to_users_counts_as_use(self):
+        """A future table that names a user must be added to USER_REFERENCES, or deleting would lose history."""
+        conn = self._get_conn()
+        try:
+            tables = [r["name"] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")]
+            found = {
+                (table, fk["from"])
+                for table in tables
+                for fk in conn.execute(f"PRAGMA foreign_key_list({table})")
+                if fk["table"] == "users"
+            }
+        finally:
+            conn.close()
+        self.assertEqual(found, set(USER_REFERENCES))

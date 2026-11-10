@@ -58,7 +58,7 @@ Pages other than the accounts screen show no role names ("show no roles", Lystig
 ### Usernames (P127, P133)
 
 - Case-insensitive and unique: `Hung` and `hung` are the same account, and login accepts either (the username lookup compares with `COLLATE NOCASE`).
-- A username is never reused, even after deactivation. The way back is reactivating the old account. The one exception: an account nobody has used (never logged in, and no record names it, such as a mistyped one) can be deleted by whoever may deactivate it, and its name is free again. The deletion is logged as `account_delete` with the username in `old_value`.
+- A username is never reused, even after deactivation. The way back is reactivating the old account. The one exception: an account nobody has used (never logged in, and no record names it, such as a mistyped one) can be deleted under the same rules as deactivating it (not yourself, not the owner, only the owner for an admin), active or not, and its name is free again. The deletion is logged as `account_delete` with the username in `old_value`.
 - 3–32 characters from `a-z`, `0-9`, `.` and `_`; stored in lower case. Refusals are in Vietnamese.
 - The rules apply to new accounts. Existing usernames are kept as they are, even if they break a rule.
 

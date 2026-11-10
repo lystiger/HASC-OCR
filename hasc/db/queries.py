@@ -109,11 +109,6 @@ def set_user_active(conn: sqlite3.Connection, user_id: int, active: int) -> None
         conn.execute("UPDATE users SET active = ? WHERE id = ?", (active, user_id))
 
 
-def delete_user(conn: sqlite3.Connection, user_id: int) -> None:
-    with conn:
-        conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
-
-
 def update_user_role(conn: sqlite3.Connection, user_id: int, role: str) -> None:
     with conn:
         conn.execute("UPDATE users SET role = ? WHERE id = ?", (role, user_id))
