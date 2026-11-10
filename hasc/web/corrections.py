@@ -29,6 +29,15 @@ def _stale() -> AppError:
                     status_code=409)
 
 
+def _stored(field: str, value):
+    """A database value in the form the file is read into. Text the reader kept in a number column
+    (like "?") stays text, so any number typed over it counts as a change."""
+    try:
+        return normalise(field, value)
+    except LayoutError:
+        return value.strip() if isinstance(value, str) else value
+
+
 def apply_correction(conn: sqlite3.Connection, sheet_id: int, user: dict, data: bytes) -> dict:
     """Validate the file, then apply every change in one transaction. Returns {version, status, changed}."""
     sheet = get_sheet_by_id(conn, sheet_id)
@@ -62,12 +71,14 @@ def apply_correction(conn: sqlite3.Connection, sheet_id: int, user: dict, data: 
             new = values[field]
             cell = row["cells"].get(field)
             seen = display["cells"].get(field)
-            seen_value = normalise(field, seen.get("value")) if seen else None
+            seen_value = _stored(field, seen.get("value")) if seen else None
             if field in CARRIED_FIELDS and seen and seen.get("inherited"):
-                if new == seen_value:
-                    # Untouched copied-down value: follow the run's (possibly corrected) first row.
-                    if cell is not None and run.get(field) != normalise(field, cell.get("value")):
-                        updates.append((row["id"], field, stored_text(run.get(field))))
+                # Untouched or cleared copied-down value: it follows the run's (possibly corrected)
+                # first row, as a blank carry-down does on every download (spec 17).
+                if new == seen_value or new is None:
+                    if cell is not None and run.get(field) != _stored(field, cell.get("value")):
+                        updates.append({"row_id": row["id"], "field": field, "new": stored_text(run.get(field)),
+                                        "old": cell.get("value")})
                     continue
             elif new == seen_value:
                 if field in CARRIED_FIELDS and new is not None:
@@ -75,13 +86,23 @@ def apply_correction(conn: sqlite3.Connection, sheet_id: int, user: dict, data: 
                 continue
             changes.append({
                 "row_id": row["id"], "field": field, "new": stored_text(new),
-                "old": cell.get("value") if cell else None,
+                # A value the file showed but the database never stored was copied down for display.
+                "old": cell.get("value") if cell else (seen.get("value") if seen else None),
                 "detail": f"{cell['source'] if cell else 'none'}|{cell['flag'] if cell else 'none'}",
             })
             if field in CARRIED_FIELDS and new is not None:
                 run[field] = new
 
     with conn:
+        # Checked again inside the write: a reader or another upload that changed the sheet since
+        # it was read above has raised its version, so this upload is stale and nothing is written.
+        version = sheet["version"] + (1 if changes or updates else 0)
+        claimed = conn.execute("""
+            UPDATE sheets SET version = ?, status = 'reviewed', status_since = ?,
+                picked_up_by = COALESCE(picked_up_by, ?) WHERE id = ? AND version = ?
+        """, (version, now, user["id"], sheet_id, sheet["version"]))
+        if claimed.rowcount != 1:
+            raise _stale()
         for c in changes:
             conn.execute("""
                 INSERT INTO cells (row_id, field, value, inherited, source, flag, note)
@@ -93,14 +114,15 @@ def apply_correction(conn: sqlite3.Connection, sheet_id: int, user: dict, data: 
                 INSERT INTO events (at, user_id, action, sheet_id, row_id, field, old_value, new_value, detail)
                 VALUES (?, ?, 'value_change', ?, ?, ?, ?, ?, ?)
             """, (now, user["id"], sheet_id, c["row_id"], c["field"], c["old"], c["new"], c["detail"]))
-        for row_id, field, value in updates:
-            conn.execute("UPDATE cells SET value = ? WHERE row_id = ? AND field = ? AND inherited = 1",
-                         (value, row_id, field))
-        version = sheet["version"] + (1 if changes or updates else 0)
-        conn.execute("""
-            UPDATE sheets SET version = ?, status = 'reviewed', status_since = ?,
-                picked_up_by = COALESCE(picked_up_by, ?) WHERE id = ?
-        """, (version, now, user["id"], sheet_id))
+        for u in updates:
+            # A copied-down value now carries a person's first-row value. Logged as "value_carry", not
+            # "value_change": the AI's one error is counted once, on the row where it was written.
+            conn.execute("""UPDATE cells SET value = ?, source = 'person', flag = 'none'
+                            WHERE row_id = ? AND field = ? AND inherited = 1""", (u["new"], u["row_id"], u["field"]))
+            conn.execute("""
+                INSERT INTO events (at, user_id, action, sheet_id, row_id, field, old_value, new_value, detail)
+                VALUES (?, ?, 'value_carry', ?, ?, ?, ?, ?, 'carried')
+            """, (now, user["id"], sheet_id, u["row_id"], u["field"], u["old"], u["new"]))
         conn.execute("UPDATE rows SET reviewed = 1 WHERE sheet_id = ? AND invalid = 0", (sheet_id,))
         conn.execute("""
             INSERT INTO events (at, user_id, action, sheet_id, old_value, new_value, detail)

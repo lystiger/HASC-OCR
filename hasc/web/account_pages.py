@@ -25,6 +25,7 @@ from hasc.web.roles import require_role
 router = APIRouter()
 
 ACTION_LABELS = {
+    "value_carry": "Cập nhật giá trị chép xuống",
     "account_add": "Thêm tài khoản",
     "account_reset": "Đặt lại mật khẩu",
     "account_role": "Thay đổi vai trò",

@@ -4,7 +4,9 @@ The file must be one this system made: the "Báo cáo" tab with the section 6 he
 "_meta" tab. Rows can't be added or removed. Formulas are refused, never executed or stored. The result
 is plain values per row and field, ready to compare with the database.
 """
+from datetime import date, datetime, time
 import io
+import math
 import zipfile
 
 from openpyxl import load_workbook
@@ -33,15 +35,23 @@ def _text(value) -> str:
     return "" if value is None else str(value).strip()
 
 
+def _plain_text(value, where: str) -> str:
+    # Excel turns typed dates and TRUE/FALSE into other types; the database keeps text as written.
+    if isinstance(value, bool | date | datetime | time):
+        raise LayoutError(f"Ô {where} phải là chữ. Hãy định dạng ô là Text rồi nhập lại.")
+    return _text(value)
+
+
 def _number(value, where: str):
     if isinstance(value, bool):
         raise LayoutError(f"Ô {where} phải là số.")
-    if isinstance(value, int | float):
-        return float(value)
     try:
-        return float(str(value).strip().replace(",", "."))
+        number = float(value) if isinstance(value, int | float) else float(str(value).strip().replace(",", "."))
     except ValueError:
         raise LayoutError(f"Ô {where} phải là số, đang có \"{value}\".") from None
+    if not math.isfinite(number):
+        raise LayoutError(f"Ô {where} phải là số, đang có \"{value}\".")
+    return number
 
 
 def normalise(field: str, value, where: str = ""):
@@ -50,7 +60,7 @@ def normalise(field: str, value, where: str = ""):
         return None
     if field in NUMERIC_FIELDS:
         return _number(value, where or field)
-    return _text(value)
+    return _plain_text(value, where or field)
 
 
 def stored_text(value) -> str | None:

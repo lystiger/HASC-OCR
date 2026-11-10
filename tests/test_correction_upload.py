@@ -104,6 +104,28 @@ class TestCorrectionUpload(unittest.TestCase):
         fields = [e["field"] for e in self._db("SELECT field FROM events WHERE action = 'value_change' ORDER BY id")]
         self.assertEqual(fields, ["customer", "thickness_mic"])  # copied-down updates are not separate corrections
 
+    def test_number_over_unreadable_text_is_a_change_and_nan_is_refused(self):
+        conn = get_connection(self.db_path)
+        upsert_cell(conn, self.rows[1], "net_kg", "?", flag="unreadable")
+        conn.close()
+        wb = self._download()
+        self._cell(wb, 1, "net_kg").value = 24.3
+        res = self._upload(wb)
+        self.assertEqual(res.status_code, 200, res.text)
+        self.assertEqual(self._value(1, "net_kg")["value"], "24.3")
+        wb = self._download()
+        self._cell(wb, 0, "gross_kg").value = "nan"
+        self.assertEqual(self._upload(wb).status_code, 422)
+
+    def test_carried_values_are_logged_and_clearing_one_keeps_it_carried(self):
+        wb = self._download()
+        self._cell(wb, 0, "customer").value = "Khach B"
+        self._cell(wb, 1, "customer").value = None
+        self.assertEqual(self._upload(wb).status_code, 200)
+        self.assertEqual(self._value(1, "customer"), {"value": "Khach B", "source": "person", "flag": "none", "inherited": 1})
+        carried = self._db("SELECT field, old_value, new_value FROM events WHERE action = 'value_carry' ORDER BY id")
+        self.assertEqual(carried, [{"field": "customer", "old_value": "Khach A", "new_value": "Khach B"}] * 2)
+
     def test_criterion_35_older_version_is_refused_and_changes_nothing(self):
         old = self._download()
         newer = self._download()
