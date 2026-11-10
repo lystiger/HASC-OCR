@@ -55,6 +55,10 @@
                 <input type="hidden" name="user_id" value="{{ r.id }}" />
                 <button type="submit" class="btn btn--small" data-confirm="Đặt lại mật khẩu cho tài khoản {{ r.username }}?">Đặt lại mật khẩu</button>
               </form>
+              {% elif r.is_owner %}
+              <span class="muted">Chủ sở hữu tự đặt lại trên máy chủ: <code>scripts/create_user.py --owner</code></span>
+              {% else %}
+              <span class="muted">Chỉ chủ sở hữu được đặt lại tài khoản quản trị này</span>
               {% endif %}
             </td>
           </tr>

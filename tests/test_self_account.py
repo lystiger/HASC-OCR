@@ -7,6 +7,7 @@ import unittest
 from fastapi.testclient import TestClient
 
 from hasc.db import create_user, get_connection, get_user_by_id
+from hasc.web import self_account
 from hasc.web.app import create_app
 from hasc.web.security import hash_password
 
@@ -25,6 +26,7 @@ class TestSelfAccount(unittest.TestCase):
         conn.execute("UPDATE users SET is_owner = 1 WHERE id = ?", (self.ids["admin_user"],))
         conn.commit()
         conn.close()
+        self_account._forgot_seen.clear()
 
     def tearDown(self):
         gc.collect()  # Windows cannot delete a database file a leftover connection still holds
@@ -130,6 +132,46 @@ class TestSelfAccount(unittest.TestCase):
         self.assertIn('class="row-menu"', page)
         self.assertIn("Thao tác ▾", page)
         self.assertIn("[!document.querySelector('.row-menu[open]')]", page)  # polling waits while a menu is open
+
+    def test_temporary_password_users_must_change_it_before_using_the_page(self):
+        conn = get_connection(self.db_path)
+        conn.execute("UPDATE users SET must_change_password = 1 WHERE id = ?", (self.ids["emp_user"],))
+        conn.commit()
+        conn.close()
+        client = self._client("emp_user")
+        res = client.get("/account", follow_redirects=False)
+        self.assertEqual(res.status_code, 303)
+        self.assertEqual(res.headers["location"], "/change-password")
+        res = client.post("/account/username", data={"username": "sneaky"}, follow_redirects=False)
+        self.assertNotEqual(res.status_code, 200)
+        self.assertEqual(self._user("emp_user")["username"], "emp_user")
+
+    def test_own_password_change_logs_out_other_sessions_but_not_this_one(self):
+        phone, laptop = self._client("emp_user"), self._client("emp_user")
+        res = laptop.post("/account/password", data={"old_password": "pass", "new_password": "n3w-pass",
+                                                     "confirm_password": "n3w-pass"}, follow_redirects=False)
+        self.assertEqual(res.status_code, 303)
+        self.assertEqual(laptop.get("/account").status_code, 200)
+        self.assertEqual(phone.get("/api/sheets").status_code, 401)
+
+    def test_forgot_password_is_rate_limited_per_address(self):
+        anon = TestClient(self.app)
+        for _ in range(self_account.FORGOT_LIMIT):
+            anon.post("/forgot-password", data={"username": "nobody"})
+        res = anon.post("/forgot-password", data={"username": "op_user"})
+        self.assertIn("Đã gửi yêu cầu", res.text)  # same answer, but nothing recorded
+        self.assertEqual(self._events("account_reset_request"), [])
+
+    def test_owner_request_says_how_to_reset_on_the_server(self):
+        conn = get_connection(self.db_path)
+        conn.execute("UPDATE users SET is_owner = 0")
+        conn.execute("UPDATE users SET is_owner = 1 WHERE id = ?", (self.ids["boss_user"],))
+        conn.execute("UPDATE users SET role = 'admin' WHERE id = ?", (self.ids["boss_user"],))
+        conn.commit()
+        conn.close()
+        self._client("boss_user").post("/account/reset-request")
+        page = self._client("admin_user").get("/admin/accounts").text
+        self.assertIn("scripts/create_user.py --owner", page)
 
 
 if __name__ == "__main__":

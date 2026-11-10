@@ -593,12 +593,16 @@ def pending_reset_requests(conn: sqlite3.Connection) -> dict[int, str]:
 
 def request_password_reset(conn: sqlite3.Connection, user: dict) -> bool:
     """Ask the admins to reset this user's password. Returns False when a request is already waiting."""
-    if user["id"] in pending_reset_requests(conn):
-        return False
+    field = f"user:{user['id']}"
+    # One statement, so two requests at the same moment can't both be added.
     with conn:
-        create_event(conn, user_id=user["id"], action="account_reset_request",
-                     field=f"user:{user['id']}", at=security.now().isoformat())
-    return True
+        cursor = conn.execute("""
+            INSERT INTO events (at, user_id, action, field)
+            SELECT ?, ?, 'account_reset_request', ?
+            WHERE COALESCE((SELECT MAX(id) FROM events WHERE action = 'account_reset_request' AND field = ?), 0)
+                <= COALESCE((SELECT MAX(id) FROM events WHERE action = 'account_reset' AND field = ?), 0)
+        """, (security.now().isoformat(), user["id"], field, field, field))
+    return cursor.rowcount == 1
 
 
 def rename_own_account(conn: sqlite3.Connection, user: dict, new_username: str) -> str:
