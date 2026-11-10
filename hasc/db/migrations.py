@@ -51,6 +51,19 @@ def get_applied_migrations(conn: sqlite3.Connection) -> list[str]:
     return [row[0] for row in cursor.fetchall()]
 
 
+def _statements(sql: str):
+    """Split a migration file into statements, so they can run inside one locked transaction
+    (executescript would commit first and drop the lock)."""
+    buffer = ""
+    for line in sql.splitlines(keepends=True):
+        buffer += line
+        if sqlite3.complete_statement(buffer):
+            yield buffer
+            buffer = ""
+    if any(l.strip() and not l.strip().startswith("--") for l in buffer.splitlines()):
+        raise MigrationError(f"Unfinished SQL statement at the end of a migration: {buffer.strip()[:80]}")
+
+
 def migrate(
     conn: sqlite3.Connection, migrations_dir: Path | None = None
 ) -> list[str]:
@@ -76,17 +89,29 @@ def migrate(
     migration_files = sorted(migrations_dir.glob("*.sql"))
     for file in migration_files:
         version = file.name
-        if version not in applied:
+        if version in applied:
+            continue
+        # The website and the worker start together after an update and both migrate. The write lock
+        # makes the second one wait, and the check inside it sees the first one's work.
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            if conn.execute("SELECT 1 FROM schema_migrations WHERE version = ?", (version,)).fetchone():
+                conn.rollback()
+                applied.add(version)
+                continue
             if version == "003_accounts.sql":
                 _check_003_case_insensitive_usernames(conn)
-            sql = file.read_text(encoding="utf-8")
-            with conn:
-                conn.executescript(sql)
-                conn.execute(
-                    "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)",
-                    (version, datetime.now(timezone.utc).isoformat()),
-                )
-            applied.add(version)
-            applied_now.append(version)
+            for statement in _statements(file.read_text(encoding="utf-8")):
+                conn.execute(statement)
+            conn.execute(
+                "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)",
+                (version, datetime.now(timezone.utc).isoformat()),
+            )
+            conn.commit()
+        except BaseException:
+            conn.rollback()
+            raise
+        applied.add(version)
+        applied_now.append(version)
 
     return applied_now
