@@ -1,0 +1,82 @@
+{% extends frame_template %}
+
+{% block nav_self_active %}is-active{% endblock %}
+
+{% block title %}Tài khoản của tôi – HASC VN{% endblock %}
+
+{% block content %}
+<div class="page">
+  <div class="page-header">
+    <div>
+      <h1>Tài khoản của tôi</h1>
+      <p class="page-header__sub">Đổi tên đăng nhập và mật khẩu. Vai trò do quản trị viên quản lý.</p>
+    </div>
+  </div>
+
+  {% if success_message %}
+  <div class="alert alert--success" role="status" data-toast="success">{{ success_message }}</div>
+  {% endif %}
+  {% if error_message %}
+  <div class="alert alert--error" role="alert" data-toast="error">{{ error_message }}</div>
+  {% endif %}
+
+  <div class="card-columns">
+    <div class="stack">
+    <section class="card">
+      <h2 class="card__title">Thông tin</h2>
+      <dl class="info-list">
+        <dt>Tên đăng nhập</dt><dd><strong>{{ user.username }}</strong></dd>
+        <dt>Vai trò</dt><dd><span class="role-label role-label--{{ user.role }}">{{ role_label }}</span><br /><span class="muted">Chỉ quản trị viên được đổi vai trò</span></dd>
+        {% if user.created_at %}<dt>Ngày tạo</dt><dd class="num">{{ user.created_at|vntime }}</dd>{% endif %}
+      </dl>
+    </section>
+
+    <section class="card">
+      <h2 class="card__title">Đặt lại mật khẩu</h2>
+      {% if reset_pending %}
+      <p><span class="badge badge--warn">Đang chờ</span> Bạn đã gửi yêu cầu lúc <span class="num">{{ reset_pending|vntime }}</span>. Quản trị viên sẽ đưa bạn mật khẩu tạm thời.</p>
+      {% else %}
+      <p class="muted">Không nhớ mật khẩu hiện tại? Gửi yêu cầu, quản trị viên sẽ đặt lại và đưa bạn mật khẩu tạm thời (dùng trong 72 giờ).</p>
+      <form method="post" action="/account/reset-request">
+        <button type="submit" class="btn btn--secondary">Yêu cầu đặt lại mật khẩu</button>
+      </form>
+      {% endif %}
+    </section>
+    </div>
+
+    <div class="stack">
+    <section class="card">
+      <h2 class="card__title">Đổi tên đăng nhập</h2>
+      <form method="post" action="/account/username" data-loading="Đang lưu...">
+        <div class="form-field">
+          <label for="new-username">Tên đăng nhập mới</label>
+          <input type="text" id="new-username" name="username" value="{{ user.username }}" required pattern="[a-zA-Z0-9._]{3,32}" autocomplete="username" />
+        </div>
+        <p class="muted">3–32 ký tự a-z, 0-9, dấu chấm, gạch dưới. Lần đăng nhập sau dùng tên mới.</p>
+        <button type="submit" class="btn">Lưu tên mới</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2 class="card__title">Đổi mật khẩu</h2>
+      <form method="post" action="/account/password" data-loading="Đang đổi mật khẩu...">
+        <div class="form-field">
+          <label for="old_password">Mật khẩu hiện tại</label>
+          <input type="password" id="old_password" name="old_password" required autocomplete="current-password" />
+        </div>
+        <div class="form-field">
+          <label for="new_password">Mật khẩu mới</label>
+          <input type="password" id="new_password" name="new_password" required autocomplete="new-password" />
+        </div>
+        <div class="form-field">
+          <label for="confirm_password">Xác nhận mật khẩu mới</label>
+          <input type="password" id="confirm_password" name="confirm_password" required autocomplete="new-password" />
+        </div>
+        <button type="submit" class="btn">Lưu mật khẩu mới</button>
+      </form>
+    </section>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

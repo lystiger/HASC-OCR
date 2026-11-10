@@ -649,16 +649,23 @@ select.is-invalid {
   font-size: 0.85rem;
 }
 
-/* Office Frame (ERP-style layout for office users: P124) */
-.office-header-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
+/* App shell for office users (P124, P148): a fixed dark sidebar, the workspace beside it. */
+:root {
+  --sidebar-width: 236px;
+  --sidebar-bg: #1E2A33;
+  --sidebar-bg-hover: #2A3A46;
+  --sidebar-text: #E2E8F0;
+  --sidebar-muted: #94A3B8;
+  --color-danger: #B91C1C;
+  --color-danger-hover: #991B1B;
 }
 
-.user-name {
-  font-weight: 500;
-  color: var(--color-text);
+body.app-body {
+  background: var(--color-page);
+}
+
+.app-shell {
+  min-height: 100vh;
 }
 
 .menu-toggle {
@@ -667,10 +674,137 @@ select.is-invalid {
   pointer-events: none;
 }
 
-.menu-toggle-btn {
-  display: none;
+.office-sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 40;
+  width: var(--sidebar-width);
+  display: flex;
+  flex-direction: column;
+  background: var(--sidebar-bg);
+  color: var(--sidebar-text);
+  overflow-y: auto;
+}
+
+.sidebar-brand {
+  display: block;
+  margin: 1rem;
+  padding: 0.5rem 0.75rem;
+  background: #FFFFFF;
+  border-radius: var(--radius-md);
+}
+
+.sidebar-brand img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 56px;
+  object-fit: contain;
+}
+
+.office-nav {
+  display: flex;
+  flex-direction: column;
+  padding: 0 0.5rem;
+}
+
+.office-nav__group {
+  margin: 1rem 0.75rem 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sidebar-muted);
+}
+
+.office-nav__item {
+  display: block;
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 2px;
+  color: var(--sidebar-text);
+  font-weight: 500;
+  text-decoration: none;
+  border-left: 3px solid transparent;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.office-nav__item:hover,
+.office-nav__item:focus-visible {
+  background: var(--sidebar-bg-hover);
+  color: #FFFFFF;
+}
+
+.office-nav__item.is-active {
+  background: var(--sidebar-bg-hover);
+  color: #FFFFFF;
+  border-left-color: var(--color-action);
+  font-weight: 700;
+}
+
+.sidebar-foot {
+  margin-top: auto;
+  padding: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.sidebar-user {
+  font-weight: 600;
+  color: #FFFFFF;
+  overflow-wrap: anywhere;
+}
+
+.btn-logout {
+  color: var(--sidebar-text);
+  font-size: 0.85rem;
+  text-decoration: none;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-md);
+}
+
+.btn-logout:hover {
+  background: var(--sidebar-bg-hover);
+  color: #FFFFFF;
+}
+
+.sidebar-foot .office-version {
+  width: 100%;
+  margin: 0;
+  color: var(--sidebar-muted);
+}
+
+.sidebar-scrim {
+  display: none;
+}
+
+.app-main {
+  margin-left: var(--sidebar-width);
+  min-width: 0;
+}
+
+.app-topbar {
+  display: none;
+}
+
+.office-content {
+  padding: 1.5rem 2rem 3rem;
+  max-width: 1400px;
+}
+
+.user-name {
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.menu-toggle-btn {
+  display: inline-flex;
+  align-items: center;
   gap: 0.35rem;
   padding: 0.35rem 0.65rem;
   min-height: 36px;
@@ -684,82 +818,307 @@ select.is-invalid {
   user-select: none;
 }
 
-.menu-toggle-btn:hover {
-  background: var(--color-page);
+/* Page building blocks: one header line, then aligned cards. */
+.page--narrow {
+  max-width: 760px;
 }
 
-.office-frame {
+.page-header {
   display: flex;
-  gap: 1.5rem;
-  align-items: flex-start;
-  width: 100%;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
 }
 
-.office-sidebar {
-  width: 200px;
-  flex-shrink: 0;
+.page-header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.page-header__sub {
+  margin: 0.25rem 0 0;
+  font-size: 0.9rem;
+  color: var(--color-muted);
+}
+
+.page-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.card__title {
+  margin: 0 0 1rem;
+  font-size: 1.1rem;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.card-grid > .card {
+  margin-bottom: 0;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 1.25rem;
+}
+
+.tabs a {
+  padding: 0.55rem 0.9rem;
+  color: var(--color-muted);
+  font-weight: 500;
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.tabs a.is-active {
+  color: var(--color-action);
+  border-bottom-color: var(--color-action);
+  font-weight: 600;
+}
+
+.form-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem;
+}
+
+.form-row .form-field {
+  margin-bottom: 0;
+  flex: 1 1 180px;
+}
+
+.form-row .btn {
+  min-height: 40px;
+}
+
+.btn--danger {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: #FFFFFF;
+}
+
+.btn--danger:hover {
+  background: var(--color-danger-hover);
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge--ok { background: var(--color-success-bg); color: var(--color-success); }
+.badge--off { background: #F1F5F9; color: var(--color-muted); }
+.badge--danger { background: var(--color-error-bg); color: var(--color-error); }
+.badge--owner { background: #FEF3C7; color: #92400E; }
+.badge--warn { background: #FFF7ED; color: #9A3412; }
+
+.muted {
+  color: var(--color-muted);
+  font-size: 0.85rem;
+}
+
+/* One "Thao tác" menu per table row instead of a row of buttons (no script needed). */
+.row-menu {
+  position: relative;
+  display: inline-block;
+}
+
+.row-menu > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.row-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.row-menu[open] > summary {
+  border-color: var(--color-action);
+  color: var(--color-action);
+}
+
+.row-menu__panel {
+  position: absolute;
+  right: 0;
+  z-index: 20;
+  min-width: 280px;
+  margin-top: 4px;
+  padding: 0.5rem;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-light);
-  overflow: hidden;
-}
-
-.office-nav {
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
   display: flex;
   flex-direction: column;
+  gap: 0.35rem;
 }
 
-.office-nav__item {
-  display: block;
-  padding: 0.7rem 1rem;
-  color: var(--color-text);
-  font-weight: 500;
-  text-decoration: none;
-  border-left: 3px solid transparent;
-  border-bottom: 1px solid var(--color-border);
-  transition: background 0.15s ease, border-color 0.15s ease;
+.row-menu__panel form {
+  margin: 0;
+  display: flex;
+  gap: 0.35rem;
 }
 
-.office-nav__item:last-child {
-  border-bottom: none;
+.row-menu__panel .btn {
+  width: 100%;
+  justify-content: flex-start;
+  min-height: 32px;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.85rem;
 }
 
-.office-nav__item:hover,
-.office-nav__item:focus-visible {
-  background: var(--color-page);
-  color: var(--color-action);
-  border-left-color: var(--color-action);
-}
-
-.office-nav__item.is-active {
-  background: var(--color-page);
-  color: var(--color-action);
-  border-left-color: var(--color-action);
-  font-weight: 700;
-}
-
-.office-content {
+.row-menu__panel select {
   flex: 1;
   min-width: 0;
+  font-size: 0.85rem;
 }
 
-@media (max-width: 768px) {
-  .menu-toggle-btn {
-    display: inline-flex;
-  }
+.row-menu__sep {
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  margin: 0.15rem 0;
+}
 
-  .office-frame {
-    flex-direction: column;
-    gap: 1rem;
-  }
-
+@media (max-width: 900px) {
   .office-sidebar {
-    display: none;
-    width: 100%;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
   }
 
   .menu-toggle:checked ~ .office-sidebar {
+    transform: none;
+  }
+
+  .menu-toggle:checked ~ .sidebar-scrim {
     display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    background: rgba(15, 23, 42, 0.45);
+  }
+
+  .app-main {
+    margin-left: 0;
+  }
+
+  .app-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.6rem 1rem;
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+
+  .office-content {
+    padding: 1rem 1rem 3rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .office-sidebar {
+    transition: none;
+  }
+}
+
+.col-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.temp-password-box {
+  border: 2px solid var(--color-action);
+  background: #FFFDF9;
+  color: var(--color-text);
+}
+
+.temp-password {
+  display: inline-block;
+  margin: 0.25rem 0 0.5rem;
+  padding: 0.35rem 0.85rem;
+  font-family: var(--font-mono);
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  background: #FFFFFF;
+  border: 2px dashed var(--color-action);
+  border-radius: 4px;
+}
+
+.row-deactivated td {
+  color: var(--color-muted);
+}
+
+.info-list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.5rem 1rem;
+  margin: 0;
+}
+
+.info-list dt {
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+.info-list dd {
+  margin: 0;
+}
+
+.card-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
+  max-width: 1100px;
+}
+
+.stack > .card:last-child {
+  margin-bottom: 0;
+}
+
+/* The row menu must not be clipped by the table's scroll box on wide screens. */
+@media (min-width: 901px) {
+  .accounts-card .table-wrap {
+    overflow: visible;
+  }
+}
+
+@media (max-width: 900px) {
+  .card-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .row-menu__panel {
+    position: static;
+    margin-top: 0.4rem;
+    box-shadow: none;
   }
 }

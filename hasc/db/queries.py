@@ -154,9 +154,10 @@ def delete_session(conn: sqlite3.Connection, session_id: str) -> None:
         conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
 
 
-def delete_user_sessions(conn: sqlite3.Connection, user_id: int) -> None:
+def delete_user_sessions(conn: sqlite3.Connection, user_id: int, keep: str | None = None) -> None:
+    """Log the user out everywhere, except the session `keep` (the one changing its own password)."""
     with conn:
-        conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+        conn.execute("DELETE FROM sessions WHERE user_id = ? AND id IS NOT ?", (user_id, keep))
 
 
 def clean_expired_sessions(conn: sqlite3.Connection, now: str | None = None) -> int:

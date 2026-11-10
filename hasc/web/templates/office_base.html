@@ -1,42 +1,57 @@
 {% extends "base.html" %}
 
-{% block nav %}
-<div class="office-header-controls">
-  <label for="menu-toggle" class="menu-toggle-btn" aria-label="Thực đơn">☰ Menu</label>
-  <span class="user-name">{{ user.username }}</span>
-  <a href="/logout" class="btn-logout">Đăng xuất</a>
-</div>
-{% endblock %}
+{% block body_class %}app-body{% endblock %}
 
-{% block frame %}
-<div class="office-frame">
-  <!-- Checkbox hack for mobile phone menu folding (zero JS required) -->
+{% block body %}
+<div class="app-shell">
+  <!-- Phones fold the sidebar away; the checkbox opens it with no script (P124). -->
   <input type="checkbox" id="menu-toggle" class="menu-toggle" aria-label="Mở thực đơn" />
 
   <aside class="office-sidebar" aria-label="Thực đơn thanh bên">
+    <a class="sidebar-brand" href="/" aria-label="HASC VN – Trang chủ">
+      <img src="/static/img/logo.webp" alt="HASC VN" width="240" height="119" />
+    </a>
+
     <nav class="office-nav" aria-label="Thực đơn chức năng">
+      <p class="office-nav__group">Công việc</p>
       <a href="/office" class="office-nav__item {% block nav_office_active %}{% endblock %}">Hồ sơ</a>
       <a href="/office/report" class="office-nav__item {% block nav_report_active %}{% endblock %}" data-no-loading>Báo cáo ngày</a>
       <a href="/operator" class="office-nav__item {% block nav_upload_active %}{% endblock %}">Tải ảnh lên</a>
       {% if user.role == 'admin' %}
-      <a href="/admin/accounts" class="office-nav__item {% block nav_accounts_active %}{% endblock %}">Tài khoản</a>
+      <p class="office-nav__group">Hệ thống</p>
+      <a href="/admin/accounts" class="office-nav__item {% block nav_accounts_active %}{% endblock %}">Quản lý tài khoản</a>
       {% endif %}
+      <p class="office-nav__group">Cá nhân</p>
+      <a href="/account" class="office-nav__item {% block nav_self_active %}{% endblock %}">Tài khoản của tôi</a>
     </nav>
-    {% if user.role == 'admin' and app_version %}
-    <p class="office-version">Phiên bản {{ app_version }}</p>
-    {% endif %}
-  </aside>
 
-  <section class="office-content">
-    {% if user.role == 'admin' %}{% set upd = update_status() %}{% if upd %}
-    {% if upd.available %}
-    <div class="alert alert--update" role="status">Có phiên bản mới {{ upd.latest }} (đang dùng {{ upd.installed or "không rõ" }}). Cập nhật bằng HASC update trên máy chủ.</div>
-    {% endif %}
-    {% if upd.error %}
-    <p class="update-note">Không kiểm tra được bản cập nhật: {{ upd.error }}</p>
-    {% endif %}
-    {% endif %}{% endif %}
-    {% block content %}{% endblock %}
-  </section>
+    <div class="sidebar-foot">
+      <span class="sidebar-user">{{ user.username }}</span>
+      <a href="/logout" class="btn-logout">Đăng xuất</a>
+      {% if user.role == 'admin' and app_version %}
+      <p class="office-version">Phiên bản {{ app_version }}</p>
+      {% endif %}
+    </div>
+  </aside>
+  <label for="menu-toggle" class="sidebar-scrim" aria-hidden="true"></label>
+
+  <div class="app-main">
+    <header class="app-topbar">
+      <label for="menu-toggle" class="menu-toggle-btn" aria-label="Thực đơn">☰ Menu</label>
+      <span class="user-name">{{ user.username }}</span>
+    </header>
+
+    <main class="office-content">
+      {% if user.role == 'admin' %}{% set upd = update_status() %}{% if upd %}
+      {% if upd.available %}
+      <div class="alert alert--update" role="status">Có phiên bản mới {{ upd.latest }} (đang dùng {{ upd.installed or "không rõ" }}). Cập nhật bằng HASC update trên máy chủ.</div>
+      {% endif %}
+      {% if upd.error %}
+      <p class="update-note">Không kiểm tra được bản cập nhật: {{ upd.error }}</p>
+      {% endif %}
+      {% endif %}{% endif %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
 </div>
 {% endblock %}

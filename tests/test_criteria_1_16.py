@@ -19,7 +19,7 @@ Criteria-to-Test Mapping Table
 | Criterion 11 | Each account action writes history entry admin can see; employee/boss gets 403 | test_criterion_11_account_action_history_and_role_access |
 | Criterion 12 | Role picker offers no operator; API refuses operator in create/change role; existing operator logs in and uploads | test_criterion_12_operator_role_refused_in_picker_and_api |
 | Criterion 13 | Employee, boss, admin can upload photo from Tải ảnh lên, sheet records them as uploader | test_criterion_13_employee_boss_and_admin_can_upload_photo |
-| Criterion 14 | Sidebar shows Tài khoản to admins only; non-admin requesting accounts page or GET /api/admin/users gets 403 | test_criterion_14_sidebar_shows_accounts_to_admins_only_and_403_for_others |
+| Criterion 14 (P148) | Sidebar shows Quản lý tài khoản to admins only and Tài khoản của tôi to everyone; non-admin requesting accounts page or GET /api/admin/users gets 403 | test_criterion_14_sidebar_shows_accounts_to_admins_only_and_403_for_others |
 | Criterion 15 | Accounts screen and frame work at phone width (360 px): viewport meta tag and folded menu markup | test_criterion_15_phone_width_viewport_and_folded_menu_markup |
 | Criterion 16 | Fresh DB with create_user.py --owner has one owner; running again moves flag; migration marks oldest active admin; second owner rejected | test_criterion_16_create_user_owner_flag_transfer_and_migration_oldest_admin |
 | Migration | Mixed-case usernames migration without collision succeeds; with collision stops and names both | test_migration_mixed_case_usernames_without_conflicts_and_with_conflicts |
@@ -837,7 +837,7 @@ class TestCriteriaCoverageHardening(unittest.TestCase):
                 conn.close()
 
     def test_criterion_14_sidebar_shows_accounts_to_admins_only_and_403_for_others(self):
-        """Criterion 14: The sidebar shows Tài khoản to admins only;
+        """Criterion 14 (P148): The sidebar shows Quản lý tài khoản to admins only;
         a non-admin requesting the accounts page or GET /api/admin/users gets 403.
         """
         # Admin gets "Tài khoản" in the sidebar

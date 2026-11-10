@@ -14,6 +14,7 @@ from hasc.web.accounts import (
     list_account_events,
     list_accounts_with_status,
     logout_account,
+    pending_reset_requests,
     reset_account_password,
     set_account_active,
 )
@@ -30,6 +31,9 @@ ACTION_LABELS = {
     "account_deactivate": "Vô hiệu hóa",
     "account_reactivate": "Kích hoạt lại",
     "account_logout": "Đăng xuất",
+    "account_rename": "Đổi tên đăng nhập",
+    "account_reset_request": "Yêu cầu đặt lại mật khẩu",
+    "account_password": "Tự đổi mật khẩu",
 }
 
 
@@ -53,17 +57,25 @@ def format_event_detail(e: dict) -> str:
         return "Đặt lại mật khẩu tạm thời"
     elif action == "account_logout":
         return "Đăng xuất các phiên làm việc"
+    elif action == "account_rename":
+        return f"{old_val} → {new_val}"
+    elif action == "account_reset_request":
+        return "Người dùng đề nghị quản trị viên đặt lại mật khẩu"
+    elif action == "account_password":
+        return "Người dùng tự đổi mật khẩu"
     return ""
 
 
 def get_augmented_accounts(conn: sqlite3.Connection, actor: dict) -> list[dict]:
     raw_accounts = list_accounts_with_status(conn)
+    pending = pending_reset_requests(conn)
     augmented = []
     for a in raw_accounts:
         acc = dict(a)
         acc["role_label"] = ROLE_LABELS.get(acc["role"], acc["role"])
         perms = get_account_actions(actor, acc)
         acc.update(perms)
+        acc["reset_requested"] = pending.get(acc["id"])
         augmented.append(acc)
     return augmented
 

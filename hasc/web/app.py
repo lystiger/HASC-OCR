@@ -346,9 +346,10 @@ def create_app(
                 status_code=400,
             )
 
-        # Update password
+        # Update password; any other place this account is logged in is logged out.
         new_hash = hash_password(new_password)
         update_user_password(conn, user["id"], new_hash, must_change_password=0)
+        delete_user_sessions(conn, user["id"], keep=get_session_id_from_request(request))
 
         return RedirectResponse(url="/", status_code=303)
 
@@ -428,6 +429,7 @@ def create_app(
 
     @app.post("/api/password", status_code=204)
     def api_change_password(
+        request: Request,
         payload: PasswordChangeRequest,
         user: dict = Depends(get_authenticated_user),
         conn: sqlite3.Connection = Depends(get_db),
@@ -441,6 +443,7 @@ def create_app(
 
         new_hash = hash_password(payload.new)
         update_user_password(conn, user["id"], new_hash, must_change_password=0)
+        delete_user_sessions(conn, user["id"], keep=get_session_id_from_request(request))
         return Response(status_code=204)
 
     @app.post("/api/logout", status_code=204)
@@ -524,10 +527,12 @@ def create_app(
     from hasc.web.operator import router as operator_router
     from hasc.web.office import router as office_router
     from hasc.web.account_pages import router as account_pages_router
+    from hasc.web.self_account import router as self_account_router
 
     app.include_router(operator_router)
     app.include_router(office_router)
     app.include_router(account_pages_router)
+    app.include_router(self_account_router)
 
     # -------------------------------------------------------------------------
     # API Routes: Section 4 Role Table Endpoints

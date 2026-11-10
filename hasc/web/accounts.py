@@ -574,6 +574,55 @@ def list_accounts_with_status(conn: sqlite3.Connection) -> list[dict]:
     return results
 
 
+def pending_reset_requests(conn: sqlite3.Connection) -> dict[int, str]:
+    """Users whose latest reset request came after their latest reset: {user_id: requested_at} (P148)."""
+    rows = conn.execute("""
+        SELECT CAST(substr(field, 6) AS INTEGER) AS user_id,
+               MAX(CASE WHEN action = 'account_reset_request' THEN id END) AS asked_id,
+               MAX(CASE WHEN action = 'account_reset' THEN id END) AS reset_id
+        FROM events
+        WHERE action IN ('account_reset_request', 'account_reset') AND field LIKE 'user:%'
+        GROUP BY field
+    """).fetchall()
+    pending = {}
+    for r in rows:
+        if r["asked_id"] is not None and (r["reset_id"] is None or r["asked_id"] > r["reset_id"]):
+            pending[r["user_id"]] = conn.execute("SELECT at FROM events WHERE id = ?", (r["asked_id"],)).fetchone()["at"]
+    return pending
+
+
+def request_password_reset(conn: sqlite3.Connection, user: dict) -> bool:
+    """Ask the admins to reset this user's password. Returns False when a request is already waiting."""
+    field = f"user:{user['id']}"
+    # One statement, so two requests at the same moment can't both be added.
+    with conn:
+        cursor = conn.execute("""
+            INSERT INTO events (at, user_id, action, field)
+            SELECT ?, ?, 'account_reset_request', ?
+            WHERE COALESCE((SELECT MAX(id) FROM events WHERE action = 'account_reset_request' AND field = ?), 0)
+                <= COALESCE((SELECT MAX(id) FROM events WHERE action = 'account_reset' AND field = ?), 0)
+        """, (security.now().isoformat(), user["id"], field, field, field))
+    return cursor.rowcount == 1
+
+
+def rename_own_account(conn: sqlite3.Connection, user: dict, new_username: str) -> str:
+    """A user changes their own username; the role is never touched here (P148)."""
+    clean = validate_username(new_username)
+    if clean == user["username"]:
+        return clean
+    existing = get_user_by_username(conn, clean)
+    if existing and existing["id"] != user["id"]:
+        raise AppError(code="duplicate_username", message="Tên đăng nhập đã tồn tại", status_code=400)
+    try:
+        with conn:
+            conn.execute("UPDATE users SET username = ? WHERE id = ?", (clean, user["id"]))
+            create_event(conn, user_id=user["id"], action="account_rename", field=f"user:{user['id']}",
+                         old_value=user["username"], new_value=clean, at=security.now().isoformat())
+    except sqlite3.IntegrityError:
+        raise AppError(code="duplicate_username", message="Tên đăng nhập đã tồn tại", status_code=400)
+    return clean
+
+
 def list_account_events(conn: sqlite3.Connection) -> list[dict]:
     """Return account history events newest first, joining actor and target usernames."""
     cursor = conn.execute("""
