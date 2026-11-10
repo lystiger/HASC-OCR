@@ -126,6 +126,17 @@ class TestCorrectionUpload(unittest.TestCase):
         carried = self._db("SELECT field, old_value, new_value FROM events WHERE action = 'value_carry' ORDER BY id")
         self.assertEqual(carried, [{"field": "customer", "old_value": "Khach A", "new_value": "Khach B"}] * 2)
 
+    def test_blank_stored_carry_records_the_displayed_old_value(self):
+        conn = get_connection(self.db_path)
+        upsert_cell(conn, self.rows[1], "customer", None, inherited=1)
+        conn.close()
+        wb = self._download()
+        self.assertEqual(self._cell(wb, 1, "customer").value, "Khach A")
+        self._cell(wb, 1, "customer").value = "Khach C"
+        self.assertEqual(self._upload(wb).status_code, 200)
+        events = self._db("SELECT old_value, new_value, detail FROM events WHERE action = 'value_change' AND row_id = ? AND field = 'customer'", self.rows[1])
+        self.assertEqual(events, [{"old_value": "Khach A", "new_value": "Khach C", "detail": "carried|none"}])
+
     def test_criterion_35_older_version_is_refused_and_changes_nothing(self):
         old = self._download()
         newer = self._download()

@@ -87,8 +87,8 @@ def apply_correction(conn: sqlite3.Connection, sheet_id: int, user: dict, data: 
             changes.append({
                 "row_id": row["id"], "field": field, "new": stored_text(new),
                 # A value the file showed but the database never stored was copied down for display.
-                "old": cell.get("value") if cell else (seen.get("value") if seen else None),
-                "detail": f"{cell['source'] if cell else 'none'}|{cell['flag'] if cell else 'none'}",
+                "old": seen.get("value") if seen else None,
+                "detail": f"{'carried' if seen and seen.get('inherited') else cell['source'] if cell else 'none'}|{cell['flag'] if cell else 'none'}",
             })
             if field in CARRIED_FIELDS and new is not None:
                 run[field] = new
