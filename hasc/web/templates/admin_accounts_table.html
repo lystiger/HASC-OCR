@@ -40,7 +40,7 @@
         <td class="num muted">{% if a.last_seen_at %}{{ a.last_seen_at|vntime }}{% else %}-{% endif %}</td>
         <td class="num muted">{% if a.created_at %}{{ a.created_at|vntime }}{% else %}-{% endif %}</td>
         <td class="col-actions">
-          {% if a.can_reset or (a.can_change_role and a.available_roles) or a.can_deactivate or a.can_reactivate or a.can_logout %}
+          {% if a.can_reset or (a.can_change_role and a.available_roles) or a.can_deactivate or a.can_reactivate or a.can_logout or a.can_delete %}
           <details class="row-menu">
             <summary aria-label="Thao tác cho {{ a.username }}">Thao tác ▾</summary>
             <div class="row-menu__panel">
@@ -64,9 +64,12 @@
               {% if a.can_reset %}{{ action_form(a, "reset", "Đặt lại mật khẩu", "Bạn có chắc chắn muốn đặt lại mật khẩu cho tài khoản " ~ a.username ~ " không?") }}{% endif %}
               {% if a.can_logout %}{{ action_form(a, "logout", "Đăng xuất mọi phiên", "Bạn có chắc chắn muốn đăng xuất tài khoản " ~ a.username ~ " không?") }}{% endif %}
               {% if a.can_reactivate %}{{ action_form(a, "reactivate", "Kích hoạt lại", "Bạn có chắc chắn muốn kích hoạt lại tài khoản " ~ a.username ~ " không?") }}{% endif %}
+              {% if a.can_deactivate or a.can_delete %}<hr class="row-menu__sep" />{% endif %}
               {% if a.can_deactivate %}
-              <hr class="row-menu__sep" />
               {{ action_form(a, "deactivate", "Vô hiệu hóa", "Bạn có chắc chắn muốn vô hiệu hóa tài khoản " ~ a.username ~ " không?", "btn--danger") }}
+              {% endif %}
+              {% if a.can_delete %}
+              {{ action_form(a, "delete", "Xóa tài khoản", "Xóa hẳn tài khoản " ~ a.username ~ "? Tài khoản chưa từng được sử dụng. Không thể hoàn tác.", "btn--danger") }}
               {% endif %}
             </div>
           </details>

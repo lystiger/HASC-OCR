@@ -9,6 +9,8 @@ from hasc.web.accounts import (
     ROLE_LABELS,
     change_account_role,
     create_account,
+    account_was_used,
+    delete_account,
     get_account_actions,
     get_addable_roles,
     list_account_events,
@@ -32,6 +34,7 @@ ACTION_LABELS = {
     "account_deactivate": "Vô hiệu hóa",
     "account_reactivate": "Kích hoạt lại",
     "account_logout": "Đăng xuất",
+    "account_delete": "Xóa tài khoản",
     "account_rename": "Đổi tên đăng nhập",
     "account_reset_request": "Yêu cầu đặt lại mật khẩu",
     "account_password": "Tự đổi mật khẩu",
@@ -58,6 +61,8 @@ def format_event_detail(e: dict) -> str:
         return "Đặt lại mật khẩu tạm thời"
     elif action == "account_logout":
         return "Đăng xuất các phiên làm việc"
+    elif action == "account_delete":
+        return "Xóa tài khoản chưa từng sử dụng"
     elif action == "account_rename":
         return f"{old_val} → {new_val}"
     elif action == "account_reset_request":
@@ -76,6 +81,7 @@ def get_augmented_accounts(conn: sqlite3.Connection, actor: dict) -> list[dict]:
         acc["role_label"] = ROLE_LABELS.get(acc["role"], acc["role"])
         perms = get_account_actions(actor, acc)
         acc.update(perms)
+        acc["can_delete"] = acc["can_delete"] and not account_was_used(conn, acc["id"])
         acc["reset_requested"] = pending.get(acc["id"])
         augmented.append(acc)
     return augmented
@@ -233,6 +239,12 @@ def admin_accounts_post(
             target_name = target["username"]
             success_message = f"Đã đăng xuất tài khoản {target_name}."
 
+        elif action == "delete":
+            if not user_id:
+                raise AppError(code="bad_request", message="Thiếu mã tài khoản", status_code=400)
+            target_name = delete_account(conn=conn, actor=admin, target_user_id=user_id)
+            success_message = f"Đã xóa tài khoản {target_name}."
+
         else:
             raise AppError(code="bad_request", message=f"Hành động '{action}' không hợp lệ", status_code=400)
 
@@ -383,6 +395,24 @@ def admin_accounts_logout_subroute(
     return admin_accounts_post(
         request=request,
         action="logout",
+        username=None,
+        role=None,
+        user_id=target_id,
+        admin=admin,
+        conn=conn,
+    )
+
+
+@router.post("/admin/accounts/{target_id}/delete", response_class=HTMLResponse)
+def admin_accounts_delete_subroute(
+    request: Request,
+    target_id: int,
+    admin: dict = Depends(require_role("admin")),
+    conn: sqlite3.Connection = Depends(get_db),
+):
+    return admin_accounts_post(
+        request=request,
+        action="delete",
         username=None,
         role=None,
         user_id=target_id,

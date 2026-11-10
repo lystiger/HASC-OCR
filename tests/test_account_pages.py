@@ -9,7 +9,7 @@ import unittest
 from fastapi.testclient import TestClient
 
 from hasc.db import create_user, get_connection
-from hasc.web.accounts import ROLE_LABELS, set_or_create_owner
+from hasc.web.accounts import ROLE_LABELS, USER_REFERENCES, set_or_create_owner
 from hasc.web.app import create_app
 from hasc.web.security import hash_password
 
@@ -474,3 +474,144 @@ class TestAccountPages(unittest.TestCase):
             self.assertIn('class="menu-toggle-btn"', res.text)
             self.assertIn('id="menu-toggle"', res.text)
             self.assertIn('class="table-wrap"', res.text)
+
+    # -------------------------------------------------------------------------
+    # Deleting an account that was never used
+    # -------------------------------------------------------------------------
+
+    def _row(self, html: str, username: str) -> str:
+        match = re.search(rf'data-username="{username}"[\s\S]*?</tr>', html)
+        return match.group(0) if match else ""
+
+    def _add(self, client: TestClient, username: str, role: str) -> int:
+        res = client.post("/admin/accounts", data={"action": "add", "username": username, "role": role})
+        self.assertEqual(res.status_code, 200)
+        conn = self._get_conn()
+        try:
+            return conn.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()["id"]
+        finally:
+            conn.close()
+
+    def test_unused_account_can_be_deleted(self):
+        """A mistyped account nobody has used is deleted; its name is free again and the history keeps it."""
+        owner = self.clients["owner"]
+        typo_id = self._add(owner, "nguyen_vna", "employee")
+
+        html = owner.get("/admin/accounts").text
+        self.assertIn('name="action" value="delete"', self._row(html, "nguyen_vna"))
+
+        res = owner.post("/admin/accounts", data={"action": "delete", "user_id": typo_id})
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("Đã xóa tài khoản nguyen_vna", res.text)
+        self.assertEqual(self._row(res.text, "nguyen_vna"), "")
+
+        conn = self._get_conn()
+        try:
+            self.assertIsNone(conn.execute("SELECT id FROM users WHERE id = ?", (typo_id,)).fetchone())
+            event = conn.execute(
+                "SELECT user_id, old_value FROM events WHERE action = 'account_delete' AND field = ?",
+                (f"user:{typo_id}",),
+            ).fetchone()
+            self.assertEqual((event["user_id"], event["old_value"]), (self.owner_id, "nguyen_vna"))
+        finally:
+            conn.close()
+
+        history = owner.get("/admin/accounts/history").text
+        self.assertIn("Xóa tài khoản", history)
+        self.assertIn("<strong>nguyen_vna</strong>", history)
+        self._add(owner, "nguyen_vna", "employee")  # the name can be used again
+
+    def test_a_login_alone_counts_as_use(self):
+        """An account that only logged in (no request since, session purged) is still not deletable."""
+        owner = self.clients["owner"]
+        for path in ("api", "form"):
+            name = f"login_only_{path}"
+            uid = self._add(owner, name, "employee")
+            conn = self._get_conn()
+            try:
+                conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hash_password("password123"), uid))
+                conn.commit()
+            finally:
+                conn.close()
+            client = TestClient(self.app)
+            if path == "api":
+                res = client.post("/api/login", json={"username": name, "password": "password123"})
+                self.assertEqual(res.status_code, 200)
+            else:
+                res = client.post("/login", data={"username": name, "password": "password123"}, follow_redirects=False)
+                self.assertEqual(res.status_code, 303)
+            conn = self._get_conn()
+            try:
+                conn.execute("DELETE FROM sessions WHERE user_id = ?", (uid,))
+                conn.commit()
+            finally:
+                conn.close()
+            self.assertNotIn('name="action" value="delete"', self._row(owner.get("/admin/accounts").text, name))
+            self.assertEqual(owner.post("/admin/accounts", data={"action": "delete", "user_id": uid}).status_code, 400)
+
+    def test_used_account_cannot_be_deleted(self):
+        """An account that logged in or is named by any record keeps its history: deactivate it instead."""
+        owner = self.clients["owner"]
+        html = owner.get("/admin/accounts").text
+        self.assertNotIn('name="action" value="delete"', self._row(html, "emp_user"))  # has logged in
+
+        res = owner.post("/admin/accounts", data={"action": "delete", "user_id": self.employee_id})
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("đã được sử dụng", res.text)
+
+        quiet_id = self._add(owner, "quiet_user", "employee")
+        conn = self._get_conn()
+        try:
+            conn.execute(
+                "INSERT INTO not_running (machine, production_date, shift, reason, marked_by, marked_at)"
+                " VALUES ('M1', '2026-11-10', 1, 'test', ?, '2026-11-10T00:00:00+00:00')",
+                (quiet_id,),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        self.assertNotIn('name="action" value="delete"', self._row(owner.get("/admin/accounts").text, "quiet_user"))
+        res = owner.post("/admin/accounts", data={"action": "delete", "user_id": quiet_id})
+        self.assertEqual(res.status_code, 400)
+
+        conn = self._get_conn()
+        try:
+            for uid in (self.employee_id, quiet_id):
+                self.assertIsNotNone(conn.execute("SELECT id FROM users WHERE id = ?", (uid,)).fetchone())
+        finally:
+            conn.close()
+
+    def test_delete_follows_the_deactivate_rules(self):
+        """Nobody deletes themselves or the owner; only the owner deletes an admin; non-admins cannot delete."""
+        owner = self.clients["owner"]
+        normal = self.clients["admin"]
+        new_admin_id = self._add(owner, "spare_admin", "admin")
+        new_emp_id = self._add(normal, "spare_emp", "employee")
+
+        html = normal.get("/admin/accounts").text
+        self.assertNotIn('name="action" value="delete"', self._row(html, "spare_admin"))
+        self.assertIn('name="action" value="delete"', self._row(html, "spare_emp"))
+        self.assertNotIn('name="action" value="delete"', self._row(owner.get("/admin/accounts").text, "owner_user"))
+
+        self.assertEqual(normal.post("/admin/accounts", data={"action": "delete", "user_id": new_admin_id}).status_code, 403)
+        self.assertEqual(normal.post("/admin/accounts", data={"action": "delete", "user_id": self.owner_id}).status_code, 403)
+        self.assertEqual(owner.post("/admin/accounts", data={"action": "delete", "user_id": self.owner_id}).status_code, 403)
+        self.assertEqual(normal.post("/admin/accounts", data={"action": "delete", "user_id": self.admin_id}).status_code, 403)
+        for role in ("employee", "boss", "operator"):
+            self.assertEqual(self.clients[role].post(f"/admin/accounts/{new_emp_id}/delete").status_code, 403)
+        self.assertEqual(owner.post(f"/admin/accounts/{new_admin_id}/delete").status_code, 200)
+
+    def test_every_reference_to_users_counts_as_use(self):
+        """A future table that names a user must be added to USER_REFERENCES, or deleting would lose history."""
+        conn = self._get_conn()
+        try:
+            tables = [r["name"] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")]
+            found = {
+                (table, fk["from"])
+                for table in tables
+                for fk in conn.execute(f"PRAGMA foreign_key_list({table})")
+                if fk["table"] == "users"
+            }
+        finally:
+            conn.close()
+        self.assertEqual(found, set(USER_REFERENCES))

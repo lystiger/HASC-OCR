@@ -427,9 +427,10 @@ class TestAccountsSessions(unittest.TestCase):
         )
 
         emp_client = TestClient(self.app)
-        emp_client.post("/api/login", json={"username": "online_user", "password": "secret"})
-
         t0 = datetime(2026, 11, 6, 10, 0, 0, tzinfo=timezone.utc)
+        # Logging in is a request too: it writes last_seen_at, two minutes before t0.
+        with patch("hasc.web.security.now", return_value=t0 - timedelta(minutes=2)):
+            emp_client.post("/api/login", json={"username": "online_user", "password": "secret"})
 
         # 1. First request at t0: writes last_seen_at = t0
         with patch("hasc.web.security.now", return_value=t0):
