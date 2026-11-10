@@ -117,21 +117,20 @@ class TestOfficeFrame(unittest.TestCase):
             self.assertIn("Đã gửi thành công", form_res.text)
 
     def test_criterion_14_sidebar_shows_accounts_to_admins_only(self):
-        """Criterion 14: The sidebar shows Tài khoản to admins only; a non-admin requesting
-        the accounts page or GET /api/admin/users gets 403.
+        """Criterion 14, as changed by P148: the sidebar shows Quản lý tài khoản to admins only, and
+        Tài khoản của tôi to everyone; a non-admin requesting the accounts page gets 403.
         """
-        # Admin gets "Tài khoản" in sidebar
         admin_res = self.clients["admin"].get("/office")
         self.assertEqual(admin_res.status_code, 200)
-        self.assertIn("Tài khoản", admin_res.text)
+        self.assertIn("Quản lý tài khoản", admin_res.text)
         self.assertIn('href="/admin/accounts"', admin_res.text)
 
-        # Non-admins do NOT see "Tài khoản" in sidebar
         for role in ("employee", "boss"):
             res = self.clients[role].get("/office")
             self.assertEqual(res.status_code, 200)
-            self.assertNotIn("Tài khoản", res.text)
+            self.assertNotIn("Quản lý tài khoản", res.text)
             self.assertNotIn("/admin/accounts", res.text)
+            self.assertIn('href="/account"', res.text)
 
         # Non-admin requesting the accounts page gets 403
         for role in ("employee", "boss", "operator"):
@@ -181,14 +180,15 @@ class TestOfficeFrame(unittest.TestCase):
             self.assertNotIn("Quản trị", html)
 
     def test_office_frame_sidebar_items(self):
-        """Sidebar contains Hồ sơ, Báo cáo ngày, Tải ảnh lên (and Tài khoản for admin)."""
+        """Sidebar contains Hồ sơ, Báo cáo ngày, Tải ảnh lên, Tài khoản của tôi (and Quản lý tài khoản for admin)."""
         res = self.clients["employee"].get("/office")
         self.assertEqual(res.status_code, 200)
         html = res.text
         self.assertIn("Hồ sơ", html)
         self.assertIn("Báo cáo ngày", html)
         self.assertIn("Tải ảnh lên", html)
-        self.assertNotIn("Tài khoản", html)
+        self.assertIn("Tài khoản của tôi", html)
+        self.assertNotIn("Quản lý tài khoản", html)
 
         res_admin = self.clients["admin"].get("/office")
         self.assertEqual(res_admin.status_code, 200)
@@ -196,7 +196,7 @@ class TestOfficeFrame(unittest.TestCase):
         self.assertIn("Hồ sơ", html_admin)
         self.assertIn("Báo cáo ngày", html_admin)
         self.assertIn("Tải ảnh lên", html_admin)
-        self.assertIn("Tài khoản", html_admin)
+        self.assertIn("Quản lý tài khoản", html_admin)
 
     def test_office_detail_page_extends_office_frame(self):
         """Existing office detail page /office/sheets/{id} extends the frame."""

@@ -524,10 +524,12 @@ def create_app(
     from hasc.web.operator import router as operator_router
     from hasc.web.office import router as office_router
     from hasc.web.account_pages import router as account_pages_router
+    from hasc.web.self_account import router as self_account_router
 
     app.include_router(operator_router)
     app.include_router(office_router)
     app.include_router(account_pages_router)
+    app.include_router(self_account_router)
 
     # -------------------------------------------------------------------------
     # API Routes: Section 4 Role Table Endpoints

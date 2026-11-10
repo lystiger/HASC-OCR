@@ -5,19 +5,17 @@
 {% block title %}Lịch sử thao tác tài khoản – HASC VN{% endblock %}
 
 {% block content %}
-<div style="max-width: 1040px; margin: 1.5rem auto;">
-  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.25rem;">
+<div class="page">
+  <div class="page-header">
     <div>
-      <h1 style="margin: 0; font-size: 1.5rem;">Lịch sử thao tác tài khoản</h1>
-      <p style="margin: 0.25rem 0 0; font-size: 0.9rem; color: var(--color-muted);">
-        Ghi nhận các sự kiện thêm, đổi vai trò, đặt lại mật khẩu, vô hiệu hóa và đăng xuất
-      </p>
-    </div>
-    <div class="accounts-tabs" style="display: flex; gap: 0.5rem;">
-      <a href="/admin/accounts" class="btn btn--secondary" style="font-weight: 500;">Danh sách tài khoản</a>
-      <a href="/admin/accounts/history" class="btn btn--secondary is-active" style="font-weight: 600; border-color: var(--color-action); color: var(--color-action);">Lịch sử thao tác</a>
+      <h1>Quản lý tài khoản</h1>
+      <p class="page-header__sub">Ghi nhận các sự kiện thêm, đổi vai trò, đổi tên, đặt lại mật khẩu, vô hiệu hóa và đăng xuất</p>
     </div>
   </div>
+  <nav class="tabs accounts-tabs" aria-label="Quản lý tài khoản">
+    <a href="/admin/accounts">Danh sách tài khoản</a>
+    <a href="/admin/accounts/history" class="is-active" aria-current="page">Lịch sử thao tác</a>
+  </nav>
 
   <div class="card" style="padding: 1.25rem;">
     <div id="history-table-container" hx-get="/admin/accounts/history/partial" hx-trigger="every 10s" hx-swap="innerHTML">
