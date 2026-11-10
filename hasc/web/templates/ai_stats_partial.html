@@ -66,7 +66,7 @@
       <tbody>
         {% for d in ai.recent %}
         <tr>
-          <td class="num">{{ d.day.strftime('%d/%m/%Y') }}</td>
+          <td class="num"><time datetime="{{ d.day.isoformat() }}">{{ d.day.strftime('%d/%m') }}<span class="hide-phone">/{{ d.day.year }}</span></time></td>
           <td class="num">{{ d.reads or 0 }}</td>
           <td class="num">{{ d.failed or 0 }}</td>
           <td class="num">{{ secs(d.read_s) }}</td>

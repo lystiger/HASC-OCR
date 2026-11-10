@@ -44,7 +44,7 @@
       <span class="user-name">{{ user.username }}</span>
     </header>
 
-    <main class="office-content">
+    <main class="office-content" id="main" tabindex="-1">
       {% if user.role == 'admin' %}{% set upd = update_status() %}{% if upd %}
       {% if upd.available %}
       <div class="alert alert--update" role="status">Có phiên bản mới {{ upd.latest }} (đang dùng {{ upd.installed or "không rõ" }}). Cập nhật bằng HASC update trên máy chủ.</div>
