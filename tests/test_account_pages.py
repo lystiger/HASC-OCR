@@ -521,6 +521,34 @@ class TestAccountPages(unittest.TestCase):
         self.assertIn("<strong>nguyen_vna</strong>", history)
         self._add(owner, "nguyen_vna", "employee")  # the name can be used again
 
+    def test_a_login_alone_counts_as_use(self):
+        """An account that only logged in (no request since, session purged) is still not deletable."""
+        owner = self.clients["owner"]
+        for path in ("api", "form"):
+            name = f"login_only_{path}"
+            uid = self._add(owner, name, "employee")
+            conn = self._get_conn()
+            try:
+                conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hash_password("password123"), uid))
+                conn.commit()
+            finally:
+                conn.close()
+            client = TestClient(self.app)
+            if path == "api":
+                res = client.post("/api/login", json={"username": name, "password": "password123"})
+                self.assertEqual(res.status_code, 200)
+            else:
+                res = client.post("/login", data={"username": name, "password": "password123"}, follow_redirects=False)
+                self.assertEqual(res.status_code, 303)
+            conn = self._get_conn()
+            try:
+                conn.execute("DELETE FROM sessions WHERE user_id = ?", (uid,))
+                conn.commit()
+            finally:
+                conn.close()
+            self.assertNotIn('name="action" value="delete"', self._row(owner.get("/admin/accounts").text, name))
+            self.assertEqual(owner.post("/admin/accounts", data={"action": "delete", "user_id": uid}).status_code, 400)
+
     def test_used_account_cannot_be_deleted(self):
         """An account that logged in or is named by any record keeps its history: deactivate it instead."""
         owner = self.clients["owner"]

@@ -18,6 +18,7 @@ from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 
 from hasc.db import (
     create_session,
+    update_user_last_seen,
     create_user,
     delete_session,
     delete_user_sessions,
@@ -307,6 +308,8 @@ def create_app(
         duration = get_session_duration(user["role"])
         expires_at = (security.now() + duration).isoformat()
         create_session(conn, session_id, user["id"], expires_at)
+        # A login is use: the account can no longer be deleted, even after the session is purged.
+        update_user_last_seen(conn, user["id"], security.now().isoformat())
 
         target_url = "/change-password" if user["must_change_password"] else "/"
         response = RedirectResponse(url=target_url, status_code=303)
@@ -419,6 +422,8 @@ def create_app(
         duration = get_session_duration(user["role"])
         expires_at = (security.now() + duration).isoformat()
         create_session(conn, session_id, user["id"], expires_at)
+        # A login is use: the account can no longer be deleted, even after the session is purged.
+        update_user_last_seen(conn, user["id"], security.now().isoformat())
 
         response = JSONResponse(
             status_code=200,
