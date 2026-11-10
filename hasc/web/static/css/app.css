@@ -688,10 +688,7 @@ body.app-body {
 
 .sidebar-brand {
   display: block;
-  margin: 1rem;
-  padding: 0.5rem 0.75rem;
-  background: #FFFFFF;
-  border-radius: var(--radius-md);
+  margin: 1rem 1rem 0.5rem;
 }
 
 .sidebar-brand img {
