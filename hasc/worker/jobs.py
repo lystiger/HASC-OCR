@@ -39,7 +39,8 @@ def claim_job(conn):
     with conn:
         rows = conn.execute(
             """
-            UPDATE read_jobs SET status = 'running', attempts = attempts + 1, started_at = ?
+            UPDATE read_jobs SET status = 'running', attempts = attempts + 1,
+                started_at = COALESCE(started_at, ?)  -- the first attempt: read time covers retries
             WHERE id = (SELECT id FROM read_jobs WHERE status = 'queued' ORDER BY queued_at ASC, id ASC LIMIT 1)
             RETURNING *
             """,

@@ -137,6 +137,25 @@ class TestCorrectionUpload(unittest.TestCase):
         events = self._db("SELECT old_value, new_value, detail FROM events WHERE action = 'value_change' AND row_id = ? AND field = 'customer'", self.rows[1])
         self.assertEqual(events, [{"old_value": "Khach A", "new_value": "Khach C", "detail": "carried|none"}])
 
+    def test_unreadable_ai_cell_shown_as_carried_counts_as_the_ais_value(self):
+        # The AI left roll 2's customer blank and flagged; the file shows "Khach A" from above.
+        for keep, typed in ((True, None), (False, "Khach C")):
+            with self.subTest(keep=keep):
+                conn = get_connection(self.db_path)
+                conn.execute("DELETE FROM events")
+                conn.commit()
+                upsert_cell(conn, self.rows[1], "customer", None, inherited=0, flag="unreadable")
+                conn.close()
+                wb = self._download()
+                self.assertEqual(self._cell(wb, 1, "customer").value, "Khach A")
+                if not keep:
+                    self._cell(wb, 1, "customer").value = typed
+                self.assertEqual(self._upload(wb).status_code, 200)
+                expected = "Khach A" if keep else typed
+                self.assertEqual(self._value(1, "customer"), {"value": expected, "source": "person", "flag": "none", "inherited": 0})
+                events = self._db("SELECT action, old_value, new_value, detail FROM events WHERE row_id = ? AND field = 'customer'", self.rows[1])
+                self.assertEqual(events, [{"action": "value_change", "old_value": None, "new_value": expected, "detail": "ai|unreadable"}])
+
     def test_criterion_35_older_version_is_refused_and_changes_nothing(self):
         old = self._download()
         newer = self._download()

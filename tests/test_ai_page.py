@@ -102,6 +102,25 @@ class TestAiStats(unittest.TestCase):
         self.assertEqual((quality["values"], quality["corrected"], quality["missed"]), (1, 0, 0))
         self.assertEqual(quality["accuracy"], 1.0)
 
+    def test_corrections_on_rows_later_marked_invalid_do_not_count(self):
+        sheet = self._reviewed_sheet()
+        self.conn.execute("UPDATE rows SET invalid = 1 WHERE sheet_id = ?", (sheet,))
+        self.conn.commit()
+        q = accuracy(self.conn, "2026-11-01", "2026-12-01")
+        self.assertEqual((q["values"], q["corrected"]), (0, 0))
+
+    def test_read_time_starts_at_the_first_attempt(self):
+        from hasc.worker.jobs import claim_job
+        sheet = create_sheet(self.conn, form="BMMT01-2022/HASC", machine="T1", production_date="2026-11-06",
+                             shift=1, page_no=1, status="reading", version=1)
+        photo = self.conn.execute("INSERT INTO photos (sheet_id, path, sha256, uploaded_at) VALUES (?, 'x.jpg', 'h', 'x')", (sheet,)).lastrowid
+        self.conn.execute("INSERT INTO read_jobs (photo_id, status, queued_at) VALUES (?, 'queued', '2026-11-10T01:00:00+00:00')", (photo,))
+        self.conn.commit()
+        first = claim_job(self.conn)["started_at"]
+        self.conn.execute("UPDATE read_jobs SET status = 'queued'")
+        self.conn.commit()
+        self.assertEqual(claim_job(self.conn)["started_at"], first)
+
     def test_sheets_not_yet_reviewed_do_not_count(self):
         sheet = self._reviewed_sheet()
         self.conn.execute("UPDATE sheets SET status = 'needs_review' WHERE id = ?", (sheet,))

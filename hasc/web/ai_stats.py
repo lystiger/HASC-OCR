@@ -68,8 +68,8 @@ def accuracy(conn: sqlite3.Connection, start_day: str, end_day: str) -> dict:
     """
     # The first correction of each value says what the AI had written and whether it was flagged.
     fixed = f"""
-        SELECT e.detail FROM events e
-        WHERE e.action = 'value_change' AND e.detail LIKE 'ai|%' AND e.sheet_id IN ({sheets})
+        SELECT e.detail FROM events e JOIN rows r ON r.id = e.row_id
+        WHERE e.action = 'value_change' AND e.detail LIKE 'ai|%' AND r.invalid = 0 AND e.sheet_id IN ({sheets})
           AND e.id = (SELECT MIN(id) FROM events f WHERE f.action = 'value_change'
                       AND f.row_id = e.row_id AND f.field = e.field)
     """
