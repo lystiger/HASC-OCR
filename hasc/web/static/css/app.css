@@ -90,8 +90,8 @@
 }
 
 :root {
-  --color-action: #FF7900;
-  --color-action-hover: #E56C00;
+  --color-action: #B85300; /* white text 4.9:1 (WCAG AA); the old #FF7900 was 2.6:1 */
+  --color-action-hover: #9A4600;
   --color-accent: #516572;
   --color-surface: #FFFFFF;
   --color-page: #F8FAFC;
@@ -239,8 +239,8 @@ input[type="file"] {
 }
 
 .num {
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap; /* "2.145 ₫" and "64 giây" stay on one line */
 }
 
 .btn {
@@ -624,6 +624,7 @@ th {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
   .toast { animation: none; }
   .spinner { animation-duration: 2s; }
 }
@@ -707,7 +708,7 @@ body.app-body {
 
 .office-nav__group {
   margin: 1rem 0.75rem 0.35rem;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -990,7 +991,7 @@ body.app-body {
 .row-menu__panel select {
   flex: 1;
   min-width: 0;
-  font-size: 0.85rem;
+  font-size: 1rem;
 }
 
 .row-menu__sep {
@@ -1221,4 +1222,36 @@ body.app-body {
   align-items: center;
   gap: 3px;
   margin: 0.5rem 0 0;
+}
+
+/* Keyboard users can jump past the sidebar and header. */
+.skip-link {
+  position: absolute;
+  left: 0.5rem;
+  top: -100px;
+  z-index: 1000;
+  padding: 0.6rem 1rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-light);
+}
+
+.skip-link:focus {
+  top: 0.5rem;
+}
+
+/* A link on its own line is a target, not text: give it room for a finger. */
+.link-row a {
+  display: inline-block;
+  padding: 0.6rem 0.5rem;
+}
+
+@media (max-width: 600px) {
+  .hide-phone { display: none; }
+
+  th,
+  td {
+    padding: 0.5rem 0.4rem;
+  }
 }

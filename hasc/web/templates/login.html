@@ -5,7 +5,7 @@
 {% block content %}
 <div style="max-width: 420px; margin: 3rem auto;">
   <div class="card">
-    <h2 style="margin-bottom: 1.5rem; text-align: center;">Đăng nhập hệ thống</h2>
+    <h1 style="margin-bottom: 1.5rem; text-align: center; font-size: 1.25rem;">Đăng nhập hệ thống</h1>
 
     {% if error %}
     <div class="alert alert--error" role="alert" data-toast="error">
@@ -32,7 +32,7 @@
 
       <button type="submit" class="btn" style="width: 100%; margin-top: 0.5rem;">Đăng nhập</button>
     </form>
-    <p style="text-align: center; margin: 1rem 0 0;"><a href="/forgot-password">Quên mật khẩu?</a></p>
+    <p class="link-row" style="text-align: center; margin: 0.5rem 0 0;"><a href="/forgot-password">Quên mật khẩu?</a></p>
   </div>
 </div>
 {% endblock %}
