@@ -60,8 +60,11 @@ function Get-Token {
 function Update-CheckStatus {
     # The admins' banner reads tools\update-status.json, which only the "HASC update check" task writes.
     # Run it now, so a token just saved (or just refused by GitHub) shows without waiting for noon.
-    # If the task is already running (the installer starts it), this run is skipped, which is fine.
-    try { Start-ScheduledTask -TaskName "HASC update check" -ErrorAction Stop } catch { }
+    # A start while it runs is ignored, and a run the installer began may predate the token: wait it out.
+    try {
+        for ($i = 0; $i -lt 60 -and (Get-ScheduledTask -TaskName "HASC update check" -ErrorAction Stop).State -eq "Running"; $i++) { Start-Sleep -Seconds 2 }
+        Start-ScheduledTask -TaskName "HASC update check" -ErrorAction Stop
+    } catch { Write-Host "Could not start the update check: $($_.Exception.Message)" }
 }
 
 function Update-Hasc {
@@ -109,7 +112,7 @@ function Update-Hasc {
     Protect-TokenFile
     Set-Location $env:TEMP
     Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
-    if ($code -ne 0 -and $null -ne $code) { exit $code }
+    if ($code -ne 0 -and $null -ne $code) { Update-CheckStatus; exit $code }
 }
 
 try {

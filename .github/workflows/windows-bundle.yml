@@ -160,12 +160,17 @@ jobs:
           $caAfter = (Get-ChildItem Cert:\LocalMachine\Root | Where-Object { $_.Subject -eq "CN=HASC local CA" }).Thumbprint
           Check "the update keeps the authority phones trust" ($caBefore -and ($caAfter -eq $caBefore))
           Check "database backed up before the update" ([bool](Get-ChildItem C:\HASC\data\backups\before-* -Directory -ErrorAction SilentlyContinue))
-          # HASC update refreshes the banner itself: wait out the installer's run, then expect a new status file.
-          for ($i = 0; $i -lt 30 -and (Get-ScheduledTask -TaskName "HASC update check").State -eq "Running"; $i++) { Start-Sleep -Seconds 2 }
-          Remove-Item C:\HASC\tools\update-status.json -Force -ErrorAction SilentlyContinue
+          # HASC update refreshes the banner itself: once the installer's run is over, a check started by
+          # update.ps1 must write a newer checked_at. Compared as text: both are UTC round-trip ("o") times.
+          for ($i = 0; $i -lt 60 -and (Get-ScheduledTask -TaskName "HASC update check").State -eq "Running"; $i++) { Start-Sleep -Seconds 2 }
+          $before = (Get-Date).ToUniversalTime().ToString("o")
           Run { & C:\HASC\tools\update.ps1 -NonInteractive -CheckOnly -Token $env:GH_TOKEN }
-          for ($i = 0; $i -lt 60 -and -not (Test-Path C:\HASC\tools\update-status.json); $i++) { Start-Sleep -Seconds 2 }
-          Check "HASC update runs the update check, so the banner is fresh" (Test-Path C:\HASC\tools\update-status.json)
+          $checked = ""
+          for ($i = 0; $i -lt 60 -and -not ($checked -gt $before); $i++) {
+              Start-Sleep -Seconds 2
+              if ((Get-Content C:\HASC\tools\update-status.json -Raw -ErrorAction SilentlyContinue) -match '"checked_at":\s*"([^"]+)"') { $checked = $Matches[1] }
+          }
+          Check "HASC update runs the update check (checked $checked, after $before)" ($checked -gt $before)
 
           # 3. Delete refuses a backup folder inside C:\HASC (it would be deleted with it), then deletes keeping the data.
           & C:\HASC\tools\delete.ps1 -NonInteractive -HascPassword $pw -KeepDataTo C:\HASC\keep
