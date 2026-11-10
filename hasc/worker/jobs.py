@@ -39,7 +39,8 @@ def claim_job(conn):
     with conn:
         rows = conn.execute(
             """
-            UPDATE read_jobs SET status = 'running', attempts = attempts + 1, started_at = ?
+            UPDATE read_jobs SET status = 'running', attempts = attempts + 1,
+                started_at = COALESCE(started_at, ?)  -- the first attempt: read time covers retries
             WHERE id = (SELECT id FROM read_jobs WHERE status = 'queued' ORDER BY queued_at ASC, id ASC LIMIT 1)
             RETURNING *
             """,
@@ -96,9 +97,11 @@ def process_job(conn, job, reader, scratch_dir, photos_dir=None):
         upright_path.write_bytes(upright(file_path.read_bytes()))
         result = reader.read(str(upright_path))
     except (ReaderError, OSError) as error:
+        _add_usage(conn, job["id"], getattr(error, "usage", None))
         not_a_sheet = getattr(error, "kind", None) == "not_form_a"  # retrying the same photo cannot help
         return _record_failure(conn, job, str(error), not_retryable=not_a_sheet)
 
+    _add_usage(conn, job["id"], result.get("usage"))
     carry_down(result["rows"])
     _write_result(conn, photo, result)
     with conn:
@@ -106,6 +109,19 @@ def process_job(conn, job, reader, scratch_dir, photos_dir=None):
     update_read_job(conn, job["id"], status="done", finished_at=now_iso())
     update_sheet_status(conn, photo["sheet_id"], "needs_review")
     return "done"
+
+
+def _add_usage(conn, job_id, usage):
+    """Add what this attempt cost to the job, for the AI page (P149). Retries add up."""
+    if not usage:
+        return
+    with conn:
+        conn.execute("""
+            UPDATE read_jobs SET cost_usd = COALESCE(cost_usd, 0) + ?,
+                prompt_tokens = COALESCE(prompt_tokens, 0) + ?, completion_tokens = COALESCE(completion_tokens, 0) + ?
+            WHERE id = ?
+        """, (float(usage.get("cost") or 0), int(usage.get("prompt_tokens") or 0),
+              int(usage.get("completion_tokens") or 0), job_id))
 
 
 def carry_down(rows):

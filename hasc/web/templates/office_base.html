@@ -17,9 +17,12 @@
       <a href="/office" class="office-nav__item {% block nav_office_active %}{% endblock %}">Hồ sơ</a>
       <a href="/office/report" class="office-nav__item {% block nav_report_active %}{% endblock %}" data-no-loading>Báo cáo ngày</a>
       <a href="/operator" class="office-nav__item {% block nav_upload_active %}{% endblock %}">Tải ảnh lên</a>
-      {% if user.role == 'admin' %}
+      {% if user.role in ('admin', 'boss') %}
       <p class="office-nav__group">Hệ thống</p>
+      <a href="/ai" class="office-nav__item {% block nav_ai_active %}{% endblock %}">AI</a>
+      {% if user.role == 'admin' %}
       <a href="/admin/accounts" class="office-nav__item {% block nav_accounts_active %}{% endblock %}">Quản lý tài khoản</a>
+      {% endif %}
       {% endif %}
       <p class="office-nav__group">Cá nhân</p>
       <a href="/account" class="office-nav__item {% block nav_self_active %}{% endblock %}">Tài khoản của tôi</a>
@@ -49,6 +52,13 @@
       {% if upd.error %}
       <p class="update-note">Không kiểm tra được bản cập nhật: {{ upd.error }}</p>
       {% endif %}
+      {% endif %}{% endif %}
+      {% if user.role in ('admin', 'boss') %}{% set budget = ai_budget(request) %}{% if budget %}
+      <div class="alert {{ 'alert--error' if budget.level == 'over' else 'alert--warn' }} budget-alert" role="alert">
+        {% if budget.level == 'over' %}Chi phí AI tháng này đã vượt ngân sách{% else %}Chi phí AI tháng này sắp chạm ngân sách{% endif %}:
+        <strong class="num">{{ budget.spent_vnd|vnd }}</strong> / {{ budget.budget_vnd|vnd }} ({{ (budget.share * 100)|round|int }}%).
+        AI vẫn tiếp tục đọc. <a href="/ai">Xem trang AI</a>
+      </div>
       {% endif %}{% endif %}
       {% block content %}{% endblock %}
     </main>

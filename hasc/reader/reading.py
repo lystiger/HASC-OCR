@@ -16,8 +16,15 @@ def read_sheet(reader, image):
         result["rereads"] = 1
         try:
             second = reader.read(image, effort="high")
-        except ReaderError:
+        except ReaderError as error:
             second = None
+            second_usage = error.usage
+        else:
+            second_usage = second.get("usage", {})
+        if second_usage:
+            usage = result.setdefault("usage", {})
+            for key in ("cost", "prompt_tokens", "completion_tokens", "tries"):
+                usage[key] = usage.get(key, 0) + second_usage.get(key, 0)
         if second and len(second["rows"]) == len(rows):
             for i in failing:
                 if not rules.failures(second["rows"][i], layout):

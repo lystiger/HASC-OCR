@@ -72,23 +72,27 @@ def apply_correction(conn: sqlite3.Connection, sheet_id: int, user: dict, data: 
             cell = row["cells"].get(field)
             seen = display["cells"].get(field)
             seen_value = _stored(field, seen.get("value")) if seen else None
-            if field in CARRIED_FIELDS and seen and seen.get("inherited"):
+            # The AI's own blank cell (an unreadable mark) is shown with the value above; whatever the
+            # person enters there, kept or typed, is their reading of the AI's value.
+            own = cell is not None and not cell.get("inherited")
+            if field in CARRIED_FIELDS and seen and seen.get("inherited") and (not own or new is None):
                 # Untouched or cleared copied-down value: it follows the run's (possibly corrected)
                 # first row, as a blank carry-down does on every download (spec 17).
                 if new == seen_value or new is None:
-                    if cell is not None and run.get(field) != _stored(field, cell.get("value")):
+                    if (cell is not None and cell.get("inherited")
+                            and run.get(field) != _stored(field, cell.get("value"))):
                         updates.append({"row_id": row["id"], "field": field, "new": stored_text(run.get(field)),
                                         "old": cell.get("value")})
                     continue
-            elif new == seen_value:
+            elif new == seen_value and not (own and seen and seen.get("inherited")):
                 if field in CARRIED_FIELDS and new is not None:
                     run[field] = new
                 continue
             changes.append({
                 "row_id": row["id"], "field": field, "new": stored_text(new),
                 # A value the file showed but the database never stored was copied down for display.
-                "old": seen.get("value") if seen else None,
-                "detail": f"{'carried' if seen and seen.get('inherited') else cell['source'] if cell else 'none'}|{cell['flag'] if cell else 'none'}",
+                "old": cell.get("value") if own else seen.get("value") if seen else None,
+                "detail": f"{cell['source'] if own else 'carried' if seen and seen.get('inherited') else cell['source'] if cell else 'none'}|{cell['flag'] if cell else 'none'}",
             })
             if field in CARRIED_FIELDS and new is not None:
                 run[field] = new

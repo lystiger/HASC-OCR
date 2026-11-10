@@ -27,6 +27,9 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
     "manage_users": {"admin"},
     # 10. See statistics (Admin full, Boss overdue only)
     "view_stats": {"boss", "admin"},
+    # 11. The AI page: reads, accuracy, cost (P149); only admins set the budget
+    "view_ai": {"boss", "admin"},
+    "manage_ai_budget": {"admin"},
 }
 
 ROLE_GROUPS: dict[str, set[str]] = {
