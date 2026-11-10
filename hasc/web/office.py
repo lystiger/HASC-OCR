@@ -328,6 +328,8 @@ def office_sheet_detail_page(
     request: Request,
     confirmed: Optional[int] = None,
     pickup_success: Optional[int] = None,
+    corrected: Optional[int] = None,
+    upload_error: Optional[str] = None,
     user: dict = Depends(require_role("view_sheet_numbers")),
     conn: sqlite3.Connection = Depends(get_db),
 ):
@@ -387,6 +389,8 @@ def office_sheet_detail_page(
             "photos": photos,
             "confirmed": bool(confirmed),
             "pickup_success": bool(pickup_success),
+            "corrected": corrected,
+            "upload_error": upload_error[:300] if upload_error else None,
             "error": None,
         },
     )

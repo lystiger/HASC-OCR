@@ -528,11 +528,13 @@ def create_app(
     from hasc.web.office import router as office_router
     from hasc.web.account_pages import router as account_pages_router
     from hasc.web.self_account import router as self_account_router
+    from hasc.web.corrections import router as corrections_router
 
     app.include_router(operator_router)
     app.include_router(office_router)
     app.include_router(account_pages_router)
     app.include_router(self_account_router)
+    app.include_router(corrections_router)
 
     # -------------------------------------------------------------------------
     # API Routes: Section 4 Role Table Endpoints
@@ -547,13 +549,6 @@ def create_app(
 
     @app.get("/api/shifts/excel")
     def api_shifts_excel(
-        user: dict = Depends(require_role("review_sheet")),
-    ):
-        raise AppError(code="not_implemented", message="Chức năng này chưa có trong bản S1", status_code=501)
-
-    @app.post("/api/sheets/{sheet_id}/excel")
-    def api_sheet_excel_upload(
-        sheet_id: int,
         user: dict = Depends(require_role("review_sheet")),
     ):
         raise AppError(code="not_implemented", message="Chức năng này chưa có trong bản S1", status_code=501)
