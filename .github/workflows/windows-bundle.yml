@@ -10,6 +10,12 @@ on:
     paths:
       - "windows/**"
       - "requirements.txt"
+      # Python the installer and the services run on their own, outside the unit tests' view
+      - "hasc/db/migrations.py"
+      - "hasc/db/migrations/**"
+      - "hasc/certs.py"
+      - "hasc/web/redirect.py"
+      - "scripts/create_user.py"
       - ".github/workflows/windows-bundle.yml"
   push:
     tags:
@@ -39,7 +45,7 @@ jobs:
         run: |
           Expand-Archive "$env:RUNNER_TEMP\dist\hasc-$env:VERSION-win64.zip" "$env:RUNNER_TEMP\bundle"
           # The bundled Python must load the app and its packages; the install step then runs it as services.
-          & "$env:RUNNER_TEMP\bundle\python\python.exe" -c "import sys; sys.path.insert(0, r'$env:RUNNER_TEMP\bundle\HASC-OCR'); import hasc.web.app, hasc.worker.jobs, openpyxl, PIL"
+          & "$env:RUNNER_TEMP\bundle\python\python.exe" -c "import sys; sys.path.insert(0, r'$env:RUNNER_TEMP\bundle\HASC-OCR'); import hasc.web.app, hasc.worker.jobs, hasc.certs, hasc.web.redirect, openpyxl, PIL"
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
       - name: Install, update, delete and reinstall as on the office PC (Windows PowerShell 5.1)
