@@ -136,7 +136,7 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 3px solid rgba(255, 121, 0, 0.45);
+  outline: 3px solid var(--color-action); /* 4.9:1 on white; the old translucent orange was 1.6:1 */
   outline-offset: 2px;
 }
 
@@ -736,7 +736,7 @@ body.app-body {
 .office-nav__item.is-active {
   background: var(--sidebar-bg-hover);
   color: #FFFFFF;
-  border-left-color: var(--color-action);
+  border-left-color: #FF7900; /* the bright brand orange: 4.5:1 on the dark sidebar, where #B85300 is 2.4:1 */
   font-weight: 700;
 }
 
