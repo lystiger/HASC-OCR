@@ -58,7 +58,7 @@ Pages other than the accounts screen show no role names ("show no roles", Lystig
 ### Usernames (P127, P133)
 
 - Case-insensitive and unique: `Hung` and `hung` are the same account, and login accepts either (the username lookup compares with `COLLATE NOCASE`).
-- A username is never reused, even after deactivation. The way back is reactivating the old account.
+- A username is never reused, even after deactivation. The way back is reactivating the old account. The one exception: an account nobody has used (never logged in, and no record names it, such as a mistyped one) can be deleted by whoever may deactivate it, and its name is free again. The deletion is logged as `account_delete` with the username in `old_value`.
 - 3–32 characters from `a-z`, `0-9`, `.` and `_`; stored in lower case. Refusals are in Vietnamese.
 - The rules apply to new accounts. Existing usernames are kept as they are, even if they break a rule.
 
@@ -116,7 +116,7 @@ An account is **online** when it made a request in the last 5 minutes. The scree
 - **Temporary password:** `temp_password_expires_at` is set (now + 72 h) whenever a temporary password is made (add, reset, `create_user.py` without `--password` or with `--owner`), cleared when the user sets their own password, and checked by both login routes.
 - **Ending sessions:** every action in "Accounts screen" that ends sessions deletes that user's rows in `sessions`, as `POST /api/admin/users/{id}/logout` does today.
 - **Last seen:** the dependency that resolves the logged-in user writes `last_seen_at` at most once a minute per account, so last seen is accurate to one minute. A new `now()` helper becomes the single source of the current time for sessions, temporary-password expiry and last seen (replacing the direct `datetime.now` calls there), so tests replace it and criteria 4, 6 and 7 need no waiting.
-- **Events:** account actions reuse `events`: `user_id` is the admin who acted, `action` is one of `account_add`, `account_reset`, `account_role`, `account_deactivate`, `account_reactivate`, `account_logout`, `field` is `user:<target id>`, and `old_value`/`new_value` hold: the new role on add (`new_value`), the old and new role on a role change, `1`/`0` on deactivate and reactivate, nothing on reset and log-out. `sheet_id` is null. The history page joins `users` to show both usernames. Passwords never appear in an event.
+- **Events:** account actions reuse `events`: `user_id` is the admin who acted, `action` is one of `account_add`, `account_reset`, `account_role`, `account_deactivate`, `account_reactivate`, `account_logout`, `account_delete`, `field` is `user:<target id>`, and `old_value`/`new_value` hold: the new role on add (`new_value`), the old and new role on a role change, `1`/`0` on deactivate and reactivate, nothing on reset and log-out, the deleted username on delete (`old_value`). `sheet_id` is null. The history page joins `users` to show both usernames. Passwords never appear in an event.
 - **Routes:** pages `/admin/accounts` and `/admin/accounts/history`; API `GET /api/admin/users` (the list, each account with `is_owner`, `last_seen_at` and `online`) and `GET /api/admin/users/events` (the history, newest first). `POST` and `PATCH` enforce the owner and username rules and refuse `operator`. `upload_photo`, `view_own_uploads` and `view_limits` extend to employee, boss and admin, so the upload screen works inside the frame.
 - **Pages:** server-rendered with htmx, like the office pages; the frame is a shared base template.
 - **HTTPS (job B):**

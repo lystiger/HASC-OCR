@@ -5,6 +5,7 @@ from typing import Any, Optional
 from hasc.db import (
     create_event,
     create_user,
+    delete_user,
     delete_user_sessions,
     get_user_by_id,
     get_user_by_username,
@@ -24,6 +25,17 @@ from hasc.web.security import (
 
 USERNAME_REGEX = re.compile(r"^[a-zA-Z0-9._]+$")
 ALLOWED_ROLES = {"employee", "boss", "admin"}
+
+# Every column that names a user. A row in any of them is history a deletion would lose (spec P47).
+USER_REFERENCES = (
+    ("sessions", "user_id"),
+    ("events", "user_id"),
+    ("sheets", "picked_up_by"),
+    ("photos", "uploaded_by"),
+    ("photos", "invalid_by"),
+    ("not_running", "marked_by"),
+    ("app_settings", "updated_by"),
+)
 
 ROLE_LABELS: dict[str, str] = {
     "employee": "Văn phòng",
@@ -50,6 +62,7 @@ def get_account_actions(actor: dict, target: dict) -> dict:
             "can_deactivate": False,
             "can_reactivate": False,
             "can_logout": False,
+            "can_delete": False,
             "available_roles": [],
         }
 
@@ -61,6 +74,7 @@ def get_account_actions(actor: dict, target: dict) -> dict:
             "can_deactivate": False,
             "can_reactivate": False,
             "can_logout": False,
+            "can_delete": False,
             "available_roles": [],
         }
 
@@ -78,6 +92,7 @@ def get_account_actions(actor: dict, target: dict) -> dict:
         "can_deactivate": (target_active == 1),
         "can_reactivate": (target_active == 0),
         "can_logout": True,
+        "can_delete": True,  # the page also requires that the account was never used
         "available_roles": [(r, ROLE_LABELS.get(r, r)) for r in available_roles],
     }
 
@@ -175,6 +190,12 @@ def validate_owner_rules(
                     message="Không thể tự đăng xuất qua giao diện quản trị",
                     status_code=403,
                 )
+            elif action == "delete":
+                raise AppError(
+                    code="forbidden",
+                    message="Không thể tự xóa tài khoản của chính mình",
+                    status_code=403,
+                )
 
         # 2. Owner protection: nobody can deactivate, demote, reset or log it out
         if target_is_owner:
@@ -200,6 +221,12 @@ def validate_owner_rules(
                 raise AppError(
                     code="forbidden",
                     message="Không thể đăng xuất chủ sở hữu",
+                    status_code=403,
+                )
+            elif action == "delete":
+                raise AppError(
+                    code="forbidden",
+                    message="Không thể xóa tài khoản chủ sở hữu",
                     status_code=403,
                 )
 
@@ -229,6 +256,12 @@ def validate_owner_rules(
                     raise AppError(
                         code="forbidden",
                         message="Quản trị viên không thể đăng xuất tài khoản quản trị khác",
+                        status_code=403,
+                    )
+                elif action == "delete":
+                    raise AppError(
+                        code="forbidden",
+                        message="Quản trị viên không thể xóa tài khoản quản trị khác",
                         status_code=403,
                     )
 
@@ -478,6 +511,55 @@ def logout_account(
         )
 
 
+def account_was_used(conn: sqlite3.Connection, user_id: int) -> bool:
+    """True once the account has logged in or any record names it."""
+    if conn.execute("SELECT 1 FROM users WHERE id = ? AND last_seen_at IS NOT NULL", (user_id,)).fetchone():
+        return True
+    return any(
+        conn.execute(f"SELECT 1 FROM {table} WHERE {column} = ? LIMIT 1", (user_id,)).fetchone()
+        for table, column in USER_REFERENCES
+    )
+
+
+def delete_account(
+    conn: sqlite3.Connection,
+    actor: dict,
+    target_user_id: int,
+) -> str:
+    """Delete an account nobody has used, such as a mistyped one. A used account is deactivated instead,
+    so its history keeps its name (spec P47). Returns the deleted username."""
+    target = get_user_by_id(conn, target_user_id)
+    if not target:
+        raise AppError(
+            code="not_found",
+            message="Người dùng không tồn tại",
+            status_code=404,
+        )
+
+    validate_owner_rules(actor, target, action="delete")
+
+    if account_was_used(conn, target_user_id):
+        raise AppError(
+            code="account_used",
+            message="Tài khoản đã được sử dụng nên không thể xóa. Hãy vô hiệu hóa để giữ lịch sử.",
+            status_code=400,
+        )
+
+    with conn:
+        delete_user(conn, target_user_id)
+        # The username goes in the event, since the history page can no longer look it up.
+        create_event(
+            conn,
+            user_id=actor["id"],
+            action="account_delete",
+            field=f"user:{target_user_id}",
+            old_value=target["username"],
+            new_value=None,
+            at=security.now().isoformat(),
+        )
+    return target["username"]
+
+
 def patch_account(
     conn: sqlite3.Connection,
     actor: dict,
@@ -646,6 +728,11 @@ def list_account_events(conn: sqlite3.Connection) -> list[dict]:
     rows = cursor.fetchall()
     results = []
     users_cache: dict[int, str | None] = {}
+    deleted = {
+        int(r["field"].split(":", 1)[1]): r["old_value"]
+        for r in rows
+        if r["action"] == "account_delete" and r["field"] and r["field"].startswith("user:")
+    }
     for r in rows:
         item = dict(r)
         target_username = None
@@ -656,7 +743,7 @@ def list_account_events(conn: sqlite3.Connection) -> list[dict]:
                 target_id = int(field.split(":", 1)[1])
                 if target_id not in users_cache:
                     u = get_user_by_id(conn, target_id)
-                    users_cache[target_id] = u["username"] if u else None
+                    users_cache[target_id] = u["username"] if u else deleted.get(target_id)
                 target_username = users_cache[target_id]
             except ValueError:
                 pass

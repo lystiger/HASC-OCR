@@ -61,7 +61,7 @@ A new form goes live after form A has met the P64 targets for 4 weeks, and 20 la
 | Add or deactivate accounts, reset passwords, log out any account | No | No | No | Yes |
 | See statistics | No | No | Overdue count only | Yes |
 
-Employees and bosses together are the 6 office members. Nobody can delete sheets, photos or history through the website (P47). Removing a person deactivates the account and keeps their history.
+Employees and bosses together are the 6 office members. Nobody can delete sheets, photos or history through the website (P47). Removing a person deactivates the account and keeps their history. Only an account nobody has used can be deleted.
 
 **Login (P45, P49)**
 - Username and password. The admin creates the account and a temporary password, and the user must change it on first login.
