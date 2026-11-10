@@ -57,6 +57,16 @@ function Get-Token {
     return $plain
 }
 
+function Update-CheckStatus {
+    # The admins' banner reads tools\update-status.json, which only the "HASC update check" task writes.
+    # Run it now, so a token just saved (or just refused by GitHub) shows without waiting for noon.
+    # A start while it runs is ignored, and a run the installer began may predate the token: wait it out.
+    try {
+        for ($i = 0; $i -lt 60 -and (Get-ScheduledTask -TaskName "HASC update check" -ErrorAction Stop).State -eq "Running"; $i++) { Start-Sleep -Seconds 2 }
+        Start-ScheduledTask -TaskName "HASC update check" -ErrorAction Stop
+    } catch { Write-Host "Could not start the update check: $($_.Exception.Message)" }
+}
+
 function Update-Hasc {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     $installed = (Get-Content (Join-Path $InstallDir "VERSION.txt") -ErrorAction SilentlyContinue)
@@ -102,13 +112,15 @@ function Update-Hasc {
     Protect-TokenFile
     Set-Location $env:TEMP
     Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
-    if ($code -ne 0 -and $null -ne $code) { exit $code }
+    if ($code -ne 0 -and $null -ne $code) { Update-CheckStatus; exit $code }
 }
 
 try {
     Update-Hasc
 } catch {
+    Update-CheckStatus
     Exit-WithError $_
 }
+Update-CheckStatus
 # A caller reads $LASTEXITCODE; without this it would be the last native command's.
 exit 0
