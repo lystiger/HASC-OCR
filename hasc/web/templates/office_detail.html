@@ -18,6 +18,15 @@
   </div>
   {% endif %}
 
+  {% if corrected is not none %}
+  <div class="alert alert--success" role="status" data-toast="success">
+    Đã lưu bản sửa: {{ corrected }} giá trị thay đổi. Biểu mẫu chuyển sang Đã kiểm tra.
+  </div>
+  {% endif %}
+  {% if upload_error %}
+  <div class="alert alert--error" role="alert" data-toast="error">{{ upload_error }}</div>
+  {% endif %}
+
   {% if pickup_success %}
   <div class="alert alert--success" role="status" data-toast="success">
     Đã nhận kiểm tra biểu mẫu thành công.
@@ -121,6 +130,18 @@
         </button>
       </form>
     </div>
+    {% if user.role in ('employee', 'boss') and sheet.status in ('needs_review', 'in_review', 'reviewed') %}
+    <form method="post" action="/office/sheets/{{ sheet.id }}/excel" enctype="multipart/form-data" class="correction-form" data-loading="Đang tải tệp đã sửa...">
+      <div class="form-row">
+        <div class="form-field">
+          <label for="correction-file">Tải lên tệp Excel đã sửa (phiên bản {{ sheet.version }})</label>
+          <input type="file" id="correction-file" name="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required />
+        </div>
+        <button type="submit" class="btn">Tải lên bản sửa</button>
+      </div>
+      <p class="muted">Chỉ sửa giá trị trong tệp vừa tải. Mỗi giá trị đã sửa được ghi lại: ai sửa, lúc nào, cũ và mới.</p>
+    </form>
+    {% endif %}
   </div>
 
   <!-- Photos Card -->

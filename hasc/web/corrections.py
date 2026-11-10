@@ -1,0 +1,136 @@
+"""Apply a re-uploaded, corrected page file (spec criteria 33-36, P148 follow-up for AI accuracy).
+
+Each changed value becomes a person's value and gets a "value_change" event with who, when, old and new.
+The event's detail keeps where the old value came from and its flag ("ai|doubt"), so AI accuracy can
+be counted later. A changed first row of a run updates the copied-down values below it (criterion 34).
+"""
+import sqlite3
+from urllib.parse import quote
+
+from fastapi import APIRouter, Depends, File, Request, UploadFile
+from fastapi.responses import RedirectResponse
+
+from hasc.db import get_sheet_by_id, get_sheet_data
+from hasc.excel.correction import MAX_FILE_BYTES, LayoutError, normalise, read_correction, stored_text
+from hasc.excel.page import CARRIED_FIELDS, COLUMNS, _prepare_rows
+from hasc.web import security
+from hasc.web.auth import get_db
+from hasc.web.errors import AppError
+from hasc.web.roles import require_role
+
+router = APIRouter()
+
+CORRECTABLE = ("needs_review", "in_review", "reviewed")
+
+
+def _stale() -> AppError:
+    return AppError(code="stale_version",
+                    message="Dữ liệu đã thay đổi kể từ khi tải xuống. Vui lòng tải lại tệp mới nhất.",
+                    status_code=409)
+
+
+def apply_correction(conn: sqlite3.Connection, sheet_id: int, user: dict, data: bytes) -> dict:
+    """Validate the file, then apply every change in one transaction. Returns {version, status, changed}."""
+    sheet = get_sheet_by_id(conn, sheet_id)
+    if not sheet:
+        raise AppError("not_found", "Không tìm thấy biểu mẫu", 404)
+    try:
+        parsed = read_correction(data)
+    except LayoutError as error:
+        raise AppError(code="bad_layout", message=str(error), status_code=422) from None
+    if parsed["sheet_id"] != sheet_id:
+        raise AppError(code="bad_layout", message="Tệp này thuộc một biểu mẫu khác.", status_code=422)
+    if parsed["version"] != sheet["version"]:
+        raise _stale()
+    if sheet["status"] not in CORRECTABLE:
+        raise AppError(code="not_reviewable", message="Biểu mẫu này chưa có dữ liệu để sửa.", status_code=409)
+
+    rows = get_sheet_data(conn, sheet_id)
+    if [str(r["row_key"]) for r in rows] != parsed["row_keys"]:
+        raise _stale()
+    shown = _prepare_rows(rows)  # what the downloaded file showed, copied-down values included
+
+    now = security.now().isoformat()
+    changes, updates = [], []
+    run = {}  # carried field -> the new value of the run's written row above
+    for row, display, values in zip(rows, shown, parsed["rows"]):
+        if all(values[f] is None for _, _, f in COLUMNS) and any(
+                c.get("value") not in (None, "") for c in row["cells"].values()):
+            raise AppError(code="bad_layout", status_code=422,
+                           message="Một dòng đã bị xóa hết. Không thêm hay xóa dòng trong tệp sửa.")
+        for _, _, field in COLUMNS:
+            new = values[field]
+            cell = row["cells"].get(field)
+            seen = display["cells"].get(field)
+            seen_value = normalise(field, seen.get("value")) if seen else None
+            if field in CARRIED_FIELDS and seen and seen.get("inherited"):
+                if new == seen_value:
+                    # Untouched copied-down value: follow the run's (possibly corrected) first row.
+                    if cell is not None and run.get(field) != normalise(field, cell.get("value")):
+                        updates.append((row["id"], field, stored_text(run.get(field))))
+                    continue
+            elif new == seen_value:
+                if field in CARRIED_FIELDS and new is not None:
+                    run[field] = new
+                continue
+            changes.append({
+                "row_id": row["id"], "field": field, "new": stored_text(new),
+                "old": cell.get("value") if cell else None,
+                "detail": f"{cell['source'] if cell else 'none'}|{cell['flag'] if cell else 'none'}",
+            })
+            if field in CARRIED_FIELDS and new is not None:
+                run[field] = new
+
+    with conn:
+        for c in changes:
+            conn.execute("""
+                INSERT INTO cells (row_id, field, value, inherited, source, flag, note)
+                VALUES (?, ?, ?, 0, 'person', 'none', NULL)
+                ON CONFLICT(row_id, field) DO UPDATE SET
+                    value = excluded.value, inherited = 0, source = 'person', flag = 'none', note = NULL
+            """, (c["row_id"], c["field"], c["new"]))
+            conn.execute("""
+                INSERT INTO events (at, user_id, action, sheet_id, row_id, field, old_value, new_value, detail)
+                VALUES (?, ?, 'value_change', ?, ?, ?, ?, ?, ?)
+            """, (now, user["id"], sheet_id, c["row_id"], c["field"], c["old"], c["new"], c["detail"]))
+        for row_id, field, value in updates:
+            conn.execute("UPDATE cells SET value = ? WHERE row_id = ? AND field = ? AND inherited = 1",
+                         (value, row_id, field))
+        version = sheet["version"] + (1 if changes or updates else 0)
+        conn.execute("""
+            UPDATE sheets SET version = ?, status = 'reviewed', status_since = ?,
+                picked_up_by = COALESCE(picked_up_by, ?) WHERE id = ?
+        """, (version, now, user["id"], sheet_id))
+        conn.execute("UPDATE rows SET reviewed = 1 WHERE sheet_id = ? AND invalid = 0", (sheet_id,))
+        conn.execute("""
+            INSERT INTO events (at, user_id, action, sheet_id, old_value, new_value, detail)
+            VALUES (?, ?, 'reupload', ?, ?, ?, ?)
+        """, (now, user["id"], sheet_id, str(sheet["version"]), str(version), f"changed={len(changes)}"))
+    return {"version": version, "status": "reviewed", "changed": len(changes)}
+
+
+def _read_upload(file: UploadFile) -> bytes:
+    data = file.file.read(MAX_FILE_BYTES + 1)
+    if len(data) > MAX_FILE_BYTES:
+        raise AppError(code="bad_layout", message="Tệp quá lớn (tối đa 5 MB).", status_code=422)
+    return data
+
+
+@router.post("/api/sheets/{sheet_id}/excel")
+def api_sheet_correction(sheet_id: int, file: UploadFile = File(...),
+                               user: dict = Depends(require_role("review_sheet")),
+                               conn: sqlite3.Connection = Depends(get_db)):
+    return apply_correction(conn, sheet_id, user, _read_upload(file))
+
+
+@router.post("/office/sheets/{sheet_id}/excel")
+def office_sheet_correction(sheet_id: int, request: Request, file: UploadFile = File(...),
+                                  user: dict = Depends(require_role("review_sheet")),
+                                  conn: sqlite3.Connection = Depends(get_db)):
+    try:
+        result = apply_correction(conn, sheet_id, user, _read_upload(file))
+    except AppError as error:
+        if error.status_code == 404:
+            raise
+        return RedirectResponse(url=f"/office/sheets/{sheet_id}?upload_error={quote(error.message)}", status_code=303)
+    return RedirectResponse(url=f"/office/sheets/{sheet_id}?corrected={result['changed']}", status_code=303)

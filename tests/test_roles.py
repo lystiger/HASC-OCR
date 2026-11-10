@@ -95,7 +95,6 @@ class TestSection4RoleTable(unittest.TestCase):
         for role in ["employee", "boss"]:
             client = self.clients[role]
             for res, name in ((client.get("/api/shifts/excel"), "GET /api/shifts/excel"),
-                              (client.post("/api/sheets/1/excel"), "POST /api/sheets/1/excel"),
                               (client.get("/api/sheets/1/template"), "GET /api/sheets/1/template")):
                 self._assert_allowed_unbuilt(role, res, name)
 
