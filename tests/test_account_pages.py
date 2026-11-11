@@ -624,8 +624,9 @@ class TestAccountPages(unittest.TestCase):
         html = owner.get("/admin/accounts").text
         self.assertRegex(html, r'<form[^>]*class="add-account-form"[^>]*hx-post="/admin/accounts"')
         js = (Path(__file__).resolve().parents[1] / "hasc/web/static/js/ui.js").read_text(encoding="utf-8")
-        self.assertIn('addEventListener("htmx:afterRequest", hideLoading)', js)
-        self.assertRegex(js, r'htmx:beforeSwap[\s\S]*status === 400[\s\S]*shouldSwap = true')
+        # Source checks only (no JS runner here); the behaviour was checked in a browser.
+        self.assertIn("if (htmxPost(event)) hideLoading();", js)
+        self.assertIn('status === 400 && htmxPost(event, "/admin/accounts")', js)
 
         owner.post("/admin/accounts", data={"action": "add", "username": "twice", "role": "employee"})
         res = owner.post("/admin/accounts", data={"action": "add", "username": "twice", "role": "employee"})
