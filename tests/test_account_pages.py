@@ -632,6 +632,8 @@ class TestAccountPages(unittest.TestCase):
         self.assertIn('if (event.defaultPrevented) return;', js)
         self.assertIn('if (form.tagName === "FORM" && form.hascReady && refuse(form)) event.preventDefault();', js)
         self.assertIn('querySelector(".temp-password-box, .alert")', js)
+        # A required file field (the correction upload) is checked before sending; the photo buttons are not.
+        self.assertIn('(field.type === "file" && !field.required)', js)
         self.assertIn('status === 400 && htmxPost(event, "/admin/accounts")', js)
 
         owner.post("/admin/accounts", data={"action": "add", "username": "twice", "role": "employee"})

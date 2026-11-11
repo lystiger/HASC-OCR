@@ -5,6 +5,7 @@ The event's detail keeps where the old value came from and its flag ("ai|doubt")
 be counted later. A changed first row of a run updates the copied-down values below it (criterion 34).
 """
 import sqlite3
+from typing import Optional
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Request, UploadFile
@@ -150,9 +151,11 @@ def api_sheet_correction(sheet_id: int, file: UploadFile = File(...),
 
 
 @router.post("/office/sheets/{sheet_id}/excel")
-def office_sheet_correction(sheet_id: int, request: Request, file: UploadFile = File(...),
+def office_sheet_correction(sheet_id: int, request: Request, file: Optional[UploadFile] = File(None),
                                   user: dict = Depends(require_role("review_sheet")),
                                   conn: sqlite3.Connection = Depends(get_db)):
+    if file is None or not file.filename:  # the button pressed with no file chosen
+        return RedirectResponse(url=f"/office/sheets/{sheet_id}?upload_error={quote('Chưa chọn tệp Excel đã sửa.')}", status_code=303)
     try:
         result = apply_correction(conn, sheet_id, user, _read_upload(file))
     except AppError as error:

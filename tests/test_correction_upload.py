@@ -215,6 +215,16 @@ class TestCorrectionUpload(unittest.TestCase):
         self.assertIn("upload_error=", stale.headers["location"])
         self.assertIn("Vui lòng tải lại tệp mới nhất", self.client.get(stale.headers["location"]).text)
 
+    def test_office_form_without_a_file_says_so_on_the_page(self):
+        """"Tải lên bản sửa" with no file chosen answered a raw JSON 422."""
+        path = f"/office/sheets/{self.sheet_id}/excel"
+        for res in (self.client.post(path, follow_redirects=False),  # no file part at all
+                    self.client.post(path, files={"file": ("", b"", "application/octet-stream")}, follow_redirects=False)):  # a browser's empty field
+            self.assertEqual(res.status_code, 303)
+            self.assertIn("upload_error=", res.headers["location"])
+            self.assertIn("Chưa chọn tệp Excel đã sửa", self.client.get(res.headers["location"]).text)
+        self.assertEqual(self._db("SELECT version, status FROM sheets WHERE id = ?", self.sheet_id), [{"version": 1, "status": "in_review"}])
+
     def test_operators_cannot_upload_corrections(self):
         conn = get_connection(self.db_path)
         create_user(conn, "op_user", hash_password("pass"), role="operator", active=1)
