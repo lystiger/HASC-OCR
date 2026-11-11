@@ -17,6 +17,7 @@ from hasc.zalo.receiver import ZaloError, beat, check_connection, poll_once
 
 ENV_VAR = "HASC_ZALO_ENV"
 RETRY_SECONDS = (5, 15, 60, 300)  # waits after consecutive failures, then the last one repeats
+BEAT_SECONDS = 30
 
 
 def settings_from_env(env_path=None):
@@ -53,12 +54,16 @@ def main(argv=None, settings=None, call=receiver.call, fetch=receiver.fetch, sle
             try:
                 poll_once(conn, token, staging, pilots, photos_dir, call, fetch)
                 failures = 0
-            except ZaloError as error:
-                beat(conn, error=str(error))
-                print(f"Error: {error}", flush=True)
+            except Exception as error:  # keep receiving; a non-Zalo error is named by type only
+                message = str(error) if isinstance(error, ZaloError) else f"lỗi nội bộ: {type(error).__name__}"
+                beat(conn, error=message)
+                print(f"Error: {message}", flush=True)
                 if args.once:
                     return 1
-                sleep(RETRY_SECONDS[min(failures, len(RETRY_SECONDS) - 1)])
+                wait = RETRY_SECONDS[min(failures, len(RETRY_SECONDS) - 1)]
+                for _ in range(0, wait, BEAT_SECONDS):  # stay "alive" on the AI page while waiting
+                    sleep(min(BEAT_SECONDS, wait))
+                    beat(conn, ok=False)
                 failures += 1
             if args.once:
                 return 0

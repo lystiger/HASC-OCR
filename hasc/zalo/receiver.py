@@ -9,6 +9,7 @@ The token sits in every API URL, so no URL, response body or exception text is e
 """
 from datetime import datetime, timezone
 import hashlib
+import http.client
 import json
 import socket
 import urllib.error
@@ -30,9 +31,12 @@ class ZaloError(Exception):
 
 def call(token, method, payload=None):
     """POST one Bot API method and return its `result`. An empty long poll returns None."""
-    request = urllib.request.Request(
-        API.format(token=token, method=method), data=json.dumps(payload or {}).encode(),
-        headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        request = urllib.request.Request(
+            API.format(token=token, method=method), data=json.dumps(payload or {}).encode(),
+            headers={"Content-Type": "application/json"}, method="POST")
+    except ValueError:  # its message holds the URL, so the token
+        raise ZaloError(f"{method}: token có ký tự không hợp lệ") from None
     try:
         with urllib.request.urlopen(request, timeout=POLL_TIMEOUT + 10) as response:
             raw = response.read()
@@ -44,7 +48,7 @@ def call(token, method, payload=None):
         if method == "getUpdates":
             return None
         raise ZaloError(f"{method}: hết thời gian chờ kết nối") from None
-    except (urllib.error.URLError, OSError):
+    except (urllib.error.URLError, OSError, http.client.HTTPException):
         raise ZaloError(f"{method}: không kết nối được tới Zalo") from None
     try:
         data = json.loads(raw) if raw else {"ok": True, "result": None}
@@ -63,7 +67,7 @@ def fetch(url):
             return response.read(MAX_FILE_SIZE + 1)
     except urllib.error.HTTPError as error:
         raise ZaloError(f"tải ảnh: HTTP {error.code}") from None
-    except (urllib.error.URLError, OSError):
+    except (urllib.error.URLError, OSError, http.client.HTTPException, ValueError):
         raise ZaloError("tải ảnh: không kết nối được") from None
 
 
@@ -118,7 +122,11 @@ def deliver_pending(conn, photos_dir, fetch=fetch):
     """Download every received photo into the inbox. Returns how many were tried."""
     pending = conn.execute("SELECT * FROM zalo_inbox WHERE status = 'received' ORDER BY id").fetchall()
     for item in pending:
-        deliver(conn, item, photos_dir, fetch)
+        try:
+            deliver(conn, item, photos_dir, fetch)
+        except Exception as error:  # e.g. a full disk: count the attempt, keep the photo, go on
+            status = "failed" if item["attempts"] + 1 >= MAX_ATTEMPTS else "received"
+            _finish(conn, item["id"], status, item["attempts"] + 1, f"lỗi lưu ảnh: {type(error).__name__}")
         beat(conn)  # slow downloads must not make a working receiver look dead
     return len(pending)
 
@@ -142,8 +150,9 @@ def deliver(conn, item, photos_dir, fetch=fetch):
         _finish(conn, item["id"], "rejected", attempts, "không phải tệp ảnh", photo_url=None)
         return "rejected"
     sha256 = hashlib.sha256(data).hexdigest()
-    same = conn.execute("SELECT path FROM zalo_inbox WHERE sha256 = ? AND status = 'delivered' AND id != ?",
-                        (sha256, item["id"])).fetchone()
+    same = conn.execute("""
+        SELECT path FROM zalo_inbox WHERE sha256 = ? AND status = 'delivered' AND staging = ? AND id != ?
+    """, (sha256, item["staging"], item["id"])).fetchone()  # a staging test photo never hides a pilot one
     if same:
         path = same["path"]
         status = "duplicate"
@@ -162,8 +171,9 @@ def _finish(conn, item_id, status, attempts, error, **fields):
         conn.execute(f"UPDATE zalo_inbox SET {names} WHERE id = ?", (*fields.values(), item_id))
 
 
-def beat(conn, error=None, started=False):
-    """Record that the receiver is alive; with `error`, the latest problem it hit."""
+def beat(conn, error=None, started=False, ok=True):
+    """Record that the receiver is alive; with `error`, the latest problem it hit.
+    ok=False only says it is alive, for the wait after an error."""
     now = now_iso()
     with conn:
         conn.execute("INSERT INTO zalo_receiver (id) VALUES (1) ON CONFLICT (id) DO NOTHING")
@@ -172,14 +182,19 @@ def beat(conn, error=None, started=False):
         if error:
             conn.execute("UPDATE zalo_receiver SET heartbeat_at = ?, last_error = ?, last_error_at = ? WHERE id = 1",
                          (now, error, now))
-        else:
+        elif ok:
             conn.execute("UPDATE zalo_receiver SET heartbeat_at = ?, last_ok_at = ? WHERE id = 1", (now, now))
+        else:
+            conn.execute("UPDATE zalo_receiver SET heartbeat_at = ? WHERE id = 1", (now,))
 
 
 def poll_once(conn, token, staging_group, pilot_groups, photos_dir, call=call, fetch=fetch):
     """One long poll: keep the events, then download what is waiting. Raises ZaloError on API failure."""
     for event in events_of(call(token, "getUpdates", {"timeout": str(POLL_TIMEOUT)})):
-        store_event(conn, event, staging_group, pilot_groups)
+        try:
+            store_event(conn, event, staging_group, pilot_groups)
+        except Exception as error:  # one odd event must not lose the rest of the batch
+            beat(conn, error=f"không lưu được sự kiện: {type(error).__name__}")
     beat(conn)
     deliver_pending(conn, photos_dir, fetch)
 

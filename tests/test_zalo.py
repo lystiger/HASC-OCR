@@ -145,6 +145,44 @@ class TestReceiver(ZaloTestCase):
         deliver_pending(self.conn, self.photos, fetch=broken)
         self.assertEqual(self.inbox()[0]["attempts"], 3)  # a failed photo waits for an admin
 
+    def test_a_failing_event_or_save_does_not_stop_the_rest(self):
+        events = [image_event("m1"), {"event_name": "message.image.received", "message": "not a dict"},
+                  image_event("m2")]
+        poll_once(self.conn, TOKEN, STAGING, [PILOT], self.photos,
+                  call=lambda token, method, payload=None: events, fetch=lambda url: jpeg())
+        self.assertEqual([r["status"] for r in self.inbox()], ["delivered", "duplicate"])
+        self.store(image_event("m3"))
+        with mock.patch("hasc.zalo.receiver.save_photo_file", side_effect=OSError("disk full")):
+            deliver_pending(self.conn, self.photos, fetch=lambda url: jpeg((9, 9, 9)))
+        row = self.inbox()[-1]
+        self.assertEqual((row["status"], row["attempts"], row["last_error"]), ("received", 1, "lỗi lưu ảnh: OSError"))
+
+    def test_staging_photo_never_hides_the_same_pilot_photo(self):
+        data = jpeg()
+        self.store(image_event("m1"))
+        self.store(image_event("m2", chat_id=PILOT))
+        deliver_pending(self.conn, self.photos, fetch=lambda url: data)
+        self.assertEqual([r["status"] for r in self.inbox()], ["delivered", "delivered"])
+
+    def test_receiver_keeps_beating_while_it_waits_after_an_error(self):
+        calls = {"n": 0}
+
+        def flaky(token, method, payload=None):
+            if method == "getUpdates":
+                calls["n"] += 1
+                if calls["n"] == 1:
+                    raise RuntimeError("boom")
+                raise KeyboardInterrupt
+            return {}
+
+        beats = []
+        with mock.patch.dict("os.environ", {"HASC_DB_PATH": str(self.db_path)}):
+            code = main([], settings=(TOKEN, STAGING, []), call=flaky, sleep=beats.append)
+        self.assertEqual((code, beats), (0, [5]))
+        state = self.conn.execute("SELECT * FROM zalo_receiver").fetchone()
+        self.assertEqual(state["last_error"], "lỗi nội bộ: RuntimeError")
+        self.assertGreater(state["heartbeat_at"], state["last_error_at"])
+
     def test_more_than_ten_photos_in_one_poll_are_all_kept(self):
         events = [image_event(f"m{i}") for i in range(12)]
         colors = iter(range(12))
@@ -193,7 +231,10 @@ class TestReceiver(ZaloTestCase):
         with mock.patch("urllib.request.urlopen", side_effect=urllib.error.URLError(f"host bot{TOKEN}")):
             with self.assertRaises(ZaloError) as caught:
                 receiver.call(TOKEN, "getUpdates")
-        self.assertNotIn("secret", str(caught.exception))
+        self.assertNotIn(TOKEN, str(caught.exception))
+        with self.assertRaises(ZaloError) as caught:
+            receiver.call("bad\ntoken-secret", "getMe")  # urllib's own message would hold the URL
+        self.assertNotIn("token-secret", str(caught.exception))
 
     def test_empty_long_poll_is_not_an_error(self):
         with mock.patch("urllib.request.urlopen", side_effect=TimeoutError()):
