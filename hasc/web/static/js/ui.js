@@ -120,6 +120,17 @@
     return first;
   }
 
+  // Says why the form cannot be sent yet, at its first wrong field; false when it can be sent.
+  function refuse(form) {
+    var bad = check(form);
+    if (!bad) return false;
+    toast(bad[1], "warning");
+    // A group (the photo buttons) cannot take focus itself: focus its first control.
+    var focusable = bad[0].matches("input, select, textarea, button") ? bad[0] : bad[0].querySelector("input, select, textarea, button");
+    if (focusable) focusable.focus();
+    return true;
+  }
+
   // Runs on the page and again on every part htmx swaps in (the accounts screen after an add), which
   // would otherwise lose the Vietnamese checks and messages. Each box and form is set up once.
   function setUp(root) {
@@ -137,16 +148,15 @@
       form.addEventListener("input", clearFor);
       form.addEventListener("change", clearFor);
       form.addEventListener("submit", function (event) {
-        // Cancel in an onsubmit confirm() stops the submit: no loading screen. htmx cancels the default
-        // of its own forms (hx-post) too, and those do send.
-        if (event.defaultPrevented && !form.hasAttribute("hx-post")) return;
-        var bad = check(form);
-        if (bad) {
+        // htmx has already sent (or, at htmx:confirm below, refused) its own forms by now.
+        if (form.hasAttribute("hx-post")) {
+          if (!check(form) && !form.hasAttribute("data-no-loading")) showLoading(form.getAttribute("data-loading"));
+          return;
+        }
+        // Cancel in an onsubmit confirm() stops the submit: no loading screen.
+        if (event.defaultPrevented) return;
+        if (refuse(form)) {
           event.preventDefault();
-          toast(bad[1], "warning");
-          // A group (the photo buttons) cannot take focus itself: focus its first control.
-          var focusable = bad[0].matches("input, select, textarea, button") ? bad[0] : bad[0].querySelector("input, select, textarea, button");
-          if (focusable) focusable.focus();
           return;
         }
         // A form that navigates gets the loading screen; a download (data-no-loading) does not.
@@ -157,6 +167,12 @@
 
   document.addEventListener("DOMContentLoaded", function () { setUp(document); });
   document.addEventListener("htmx:load", function (event) { setUp(event.detail.elt); });
+  // htmx sends its forms from a submit listener that runs before the one above, so an empty field
+  // would reach the server: check here, where htmx still lets the request be cancelled.
+  document.addEventListener("htmx:confirm", function (event) {
+    var form = event.detail.elt;
+    if (form.tagName === "FORM" && form.hascReady && refuse(form)) event.preventDefault();
+  });
 
   // Coming back with the browser's Back button must not leave the loading screen up.
   window.addEventListener("pageshow", hideLoading);
