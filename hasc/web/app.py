@@ -59,6 +59,7 @@ from hasc.web.security import (
     get_session_duration,
     hash_password,
     is_session_expired,
+    new_password_problem,
     temp_password_expires_at,
     verify_password,
 )
@@ -359,6 +360,15 @@ def create_app(
                 status_code=400,
             )
 
+        problem = new_password_problem(new_password, user["password_hash"])
+        if problem:
+            return templates.TemplateResponse(
+                request=request,
+                name="change_password.html",
+                context={"user": user, "error": problem},
+                status_code=400,
+            )
+
         # Update password; any other place this account is logged in is logged out.
         new_hash = hash_password(new_password)
         update_user_password(conn, user["id"], new_hash, must_change_password=0)
@@ -455,6 +465,9 @@ def create_app(
                 message="Mật khẩu cũ không chính xác",
                 status_code=400,
             )
+        problem = new_password_problem(payload.new, user["password_hash"])
+        if problem:
+            raise AppError(code="weak_password", message=problem, status_code=400)
 
         new_hash = hash_password(payload.new)
         update_user_password(conn, user["id"], new_hash, must_change_password=0)

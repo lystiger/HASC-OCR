@@ -69,7 +69,7 @@ class TestCreateUserCLI(unittest.TestCase):
         script_path = Path(__file__).resolve().parents[1] / "scripts" / "create_user.py"
         self.assertTrue(script_path.exists())
         res = subprocess.run(
-            [sys.executable, str(script_path), "--username", "script_user", "--role", "boss", "--password", "pwd", "--db", self.db_path],
+            [sys.executable, str(script_path), "--username", "script_user", "--role", "boss", "--password", "pwd123", "--db", self.db_path],
             capture_output=True,
             text=True,
         )

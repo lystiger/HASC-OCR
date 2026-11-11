@@ -9,7 +9,8 @@ from fastapi.testclient import TestClient
 from hasc.db import create_user, get_connection, get_user_by_id
 from hasc.web import self_account
 from hasc.web.app import create_app
-from hasc.web.security import hash_password
+from hasc.web.cli import main as cli_main
+from hasc.web.security import hash_password, verify_password
 
 
 class TestSelfAccount(unittest.TestCase):
@@ -178,6 +179,52 @@ class TestSelfAccount(unittest.TestCase):
         self._client("boss_user").post("/account/reset-request")
         page = self._client("admin_user").get("/admin/accounts").text
         self.assertIn("scripts/create_user.py --owner", page)
+
+
+class TestPasswordRules(unittest.TestCase):
+    """A new password has at least 6 characters and is not the current one (the temporary one included)."""
+    setUp, tearDown = TestSelfAccount.setUp, TestSelfAccount.tearDown
+    _client, _user, _events = TestSelfAccount._client, TestSelfAccount._user, TestSelfAccount._events
+
+    def _changes(self, client, new, old="pass"):
+        return [
+            client.post("/change-password", data={"old_password": old, "new_password": new, "confirm_password": new}, follow_redirects=False),
+            client.post("/account/password", data={"old_password": old, "new_password": new, "confirm_password": new}, follow_redirects=False),
+            client.post("/api/password", json={"old": old, "new": new}),
+        ]
+
+    def test_short_or_unchanged_passwords_are_refused_on_every_route(self):
+        client = self._client("emp_user")
+        for new in ("1", "12345"):
+            for res in self._changes(client, new):
+                self.assertEqual(res.status_code, 400, (new, res.request.url))
+                self.assertIn("ít nhất 6 ký tự", res.text, (new, res.request.url))
+        self.assertTrue(verify_password("pass", self._user("emp_user")["password_hash"]))
+
+        conn = get_connection(self.db_path)
+        conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hash_password("pass12"), self.ids["emp_user"]))
+        conn.commit()
+        conn.close()
+        for res in self._changes(client, "pass12", old="pass12"):
+            self.assertEqual(res.status_code, 400, res.request.url)
+            self.assertIn("khác mật khẩu hiện tại", res.text, res.request.url)
+        self.assertEqual(self._events("account_password"), [])
+
+    def test_temporary_password_cannot_be_kept(self):
+        conn = get_connection(self.db_path)
+        conn.execute("UPDATE users SET password_hash = ?, must_change_password = 1 WHERE id = ?", (hash_password("tmp-123456"), self.ids["emp_user"]))
+        conn.commit()
+        conn.close()
+        client = self._client("emp_user", "tmp-123456")
+        res = self._changes(client, "tmp-123456", old="tmp-123456")[0]
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(self._user("emp_user")["must_change_password"], 1)
+        ok = client.post("/change-password", data={"old_password": "tmp-123456", "new_password": "sau-ky", "confirm_password": "sau-ky"}, follow_redirects=False)
+        self.assertEqual((ok.status_code, ok.headers["location"]), (303, "/"))
+
+    def test_create_user_script_refuses_a_short_password(self):
+        self.assertNotEqual(cli_main(["--username", "shorty", "--role", "boss", "--password", "12345", "--db", str(self.db_path)]), 0)
+        self.assertEqual(cli_main(["--username", "longer", "--role", "boss", "--password", "123456", "--db", str(self.db_path)]), 0)
 
 
 if __name__ == "__main__":
