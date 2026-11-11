@@ -20,7 +20,7 @@ from hasc.web.accounts import (
 )
 from hasc.web.auth import get_authenticated_user, get_db, get_session_id_from_request
 from hasc.web.errors import AppError
-from hasc.web.security import hash_password, verify_password
+from hasc.web.security import hash_password, new_password_problem, verify_password
 
 router = APIRouter()
 
@@ -95,6 +95,9 @@ def account_password(request: Request, old_password: str = Form(...), new_passwo
         return _render(request, conn, user, status_code=400, error="Mật khẩu mới và xác nhận mật khẩu không khớp.")
     if not verify_password(old_password, user["password_hash"]):
         return _render(request, conn, user, status_code=400, error="Mật khẩu hiện tại không chính xác.")
+    problem = new_password_problem(new_password, user["password_hash"])
+    if problem:
+        return _render(request, conn, user, status_code=400, error=problem)
     update_user_password(conn, user["id"], hash_password(new_password), must_change_password=0)
     delete_user_sessions(conn, user["id"], keep=get_session_id_from_request(request))
     with conn:

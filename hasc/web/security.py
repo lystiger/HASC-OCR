@@ -22,6 +22,19 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
 
+# A password the user chooses: at least this long, and not the one it replaces (a temporary one included).
+MIN_PASSWORD_LENGTH = 6
+
+
+def new_password_problem(new_password: str, current_hash: str | None = None) -> str | None:
+    """Why this new password is refused, in Vietnamese; None when it is accepted."""
+    if len(new_password) < MIN_PASSWORD_LENGTH:
+        return f"Mật khẩu mới phải có ít nhất {MIN_PASSWORD_LENGTH} ký tự."
+    if current_hash and verify_password(new_password, current_hash):
+        return "Mật khẩu mới phải khác mật khẩu hiện tại."
+    return None
+
+
 # Session durations as defined in spec (Section 4 & criterion 2)
 # Operators: 30 days
 # Office (Employee, Boss) & Admin: 8 hours
