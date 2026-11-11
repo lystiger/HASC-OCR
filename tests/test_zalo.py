@@ -23,6 +23,8 @@ from hasc.zalo.__main__ import main
 from hasc.zalo.receiver import ZaloError, beat, deliver_pending, poll_once, store_event
 
 STAGING, PILOT, OTHER = "g-staging-000001", "g-pilot-000002", "g-other-000003"
+TESTER, WORKER, STRANGER = "u-tester-0000a", "u-worker-0000b", "u-stranger-000c"
+SOURCES = {("GROUP", STAGING): 1, ("GROUP", PILOT): 0, ("PRIVATE", TESTER): 1, ("PRIVATE", WORKER): 0}
 TOKEN = "123456:secret-token"
 SIGNED = "https://zalo.example/photo.jpg?signature=abc"
 
@@ -33,9 +35,10 @@ def jpeg(color=(200, 200, 200)):
     return out.getvalue()
 
 
-def image_event(message_id, chat_id=STAGING, caption=None, chat_type="GROUP", event="message.image.received"):
+def image_event(message_id, chat_id=STAGING, caption=None, chat_type="GROUP", event="message.image.received",
+                sender="u-1"):
     message = {"message_id": message_id, "date": 1762850000000, "message_type": "CHAT_PHOTO",
-               "from": {"id": "u-1", "display_name": "Tổ trưởng", "is_bot": False},
+               "from": {"id": sender, "display_name": "Tổ trưởng", "is_bot": False},
                "chat": {"id": chat_id, "chat_type": chat_type}, "photo_url": SIGNED}
     if caption is not None:
         message["caption"] = caption
@@ -59,7 +62,7 @@ class ZaloTestCase(unittest.TestCase):
         return [dict(r) for r in self.conn.execute("SELECT * FROM zalo_inbox ORDER BY id")]
 
     def store(self, event):
-        return store_event(self.conn, event, STAGING, [PILOT])
+        return store_event(self.conn, event, SOURCES)
 
 
 class TestReceiver(ZaloTestCase):
@@ -77,6 +80,46 @@ class TestReceiver(ZaloTestCase):
         self.assertEqual(rows[0]["sender_id"], "u-1")
         ignored = self.conn.execute("SELECT ignored_events FROM zalo_receiver").fetchone()[0]
         self.assertEqual(ignored, 3)
+
+    def test_private_photos_only_from_allowed_senders(self):
+        private = dict(chat_type="PRIVATE")
+        self.assertEqual(self.store(image_event("p1", chat_id=TESTER, sender=TESTER, **private)), "new")
+        self.assertEqual(self.store(image_event("p2", chat_id=WORKER, sender=WORKER, **private)), "new")
+        self.assertEqual(self.store(image_event("p3", chat_id=STRANGER, sender=STRANGER, **private)), "ignored")
+        # A worker allowed in private chat does not make an unknown group allowed, and the reverse.
+        self.assertEqual(self.store(image_event("p4", chat_id=OTHER, sender=WORKER)), "ignored")
+        self.assertEqual(self.store(image_event("p5", chat_id=STAGING, sender=STAGING, **private)), "ignored")
+        rows = self.inbox()
+        self.assertEqual([(r["message_id"], r["chat_type"], r["staging"], r["sender_id"]) for r in rows],
+                         [("p1", "PRIVATE", 1, TESTER), ("p2", "PRIVATE", 0, WORKER)])
+
+    def test_ignored_log_masks_ids_unless_asked(self):
+        event = image_event("p1", chat_id=STRANGER, sender=STRANGER, chat_type="PRIVATE")
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            store_event(self.conn, event, SOURCES)
+            store_event(self.conn, image_event("g1", chat_id=OTHER), SOURCES)
+        self.assertNotIn(STRANGER, out.getvalue())
+        self.assertNotIn(OTHER, out.getvalue())
+        self.assertIn("PRIVATE chat from sender …-000c, not allowed", out.getvalue())
+        self.assertIn("group …00003, not allowed", out.getvalue())
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            store_event(self.conn, event, SOURCES, show_ids=True)
+        self.assertIn(STRANGER, out.getvalue())
+        self.assertNotIn("Tổ trưởng", out.getvalue())
+
+    def test_settings_need_a_source_and_map_lists(self):
+        from hasc.zalo.__main__ import settings_from_env
+        env = Path(self.temp_dir.name) / "zalo.env"
+        env.write_text(f"ZALO_BOT_TOKEN={TOKEN}\nZALO_STAGING_SENDER_IDS={TESTER}\n"
+                       f"ZALO_PILOT_SENDER_IDS={WORKER}, u-x\nZALO_PILOT_GROUP_IDS={PILOT}\n", encoding="utf-8")
+        token, sources = settings_from_env(env)
+        self.assertEqual(token, TOKEN)
+        self.assertEqual(sources, {("PRIVATE", TESTER): 1, ("PRIVATE", WORKER): 0, ("PRIVATE", "u-x"): 0,
+                                   ("GROUP", PILOT): 0})
+        env.write_text(f"ZALO_BOT_TOKEN={TOKEN}\n", encoding="utf-8")
+        with self.assertRaises(SystemExit) as stop:
+            settings_from_env(env)
+        self.assertNotIn(TOKEN, str(stop.exception.code))
 
     def test_chat_text_and_captions_are_never_stored(self):
         self.store(image_event("m1", caption="@bot /capture ghi chú riêng tư"))
@@ -148,7 +191,7 @@ class TestReceiver(ZaloTestCase):
     def test_a_failing_event_or_save_does_not_stop_the_rest(self):
         events = [image_event("m1"), {"event_name": "message.image.received", "message": "not a dict"},
                   image_event("m2")]
-        poll_once(self.conn, TOKEN, STAGING, [PILOT], self.photos,
+        poll_once(self.conn, TOKEN, SOURCES, self.photos,
                   call=lambda token, method, payload=None: events, fetch=lambda url: jpeg())
         self.assertEqual([r["status"] for r in self.inbox()], ["delivered", "duplicate"])
         self.assertEqual(receiver_health(self.conn, datetime.now(timezone.utc))["state"], "error")
@@ -178,7 +221,7 @@ class TestReceiver(ZaloTestCase):
 
         beats = []
         with mock.patch.dict("os.environ", {"HASC_DB_PATH": str(self.db_path)}):
-            code = main([], settings=(TOKEN, STAGING, []), call=flaky, sleep=beats.append)
+            code = main([], settings=(TOKEN, SOURCES), call=flaky, sleep=beats.append)
         self.assertEqual((code, beats), (0, [5]))
         state = self.conn.execute("SELECT * FROM zalo_receiver").fetchone()
         self.assertEqual(state["last_error"], "lỗi nội bộ: RuntimeError")
@@ -187,7 +230,7 @@ class TestReceiver(ZaloTestCase):
     def test_more_than_ten_photos_in_one_poll_are_all_kept(self):
         events = [image_event(f"m{i}") for i in range(12)]
         colors = iter(range(12))
-        poll_once(self.conn, TOKEN, STAGING, [PILOT], self.photos,
+        poll_once(self.conn, TOKEN, SOURCES, self.photos,
                   call=lambda token, method, payload=None: events,
                   fetch=lambda url: jpeg((next(colors) * 20, 0, 0)))
         self.assertEqual([r["status"] for r in self.inbox()], ["delivered"] * 12)
@@ -202,7 +245,7 @@ class TestReceiver(ZaloTestCase):
             return {}
 
         with mock.patch.dict("os.environ", {"HASC_DB_PATH": str(self.db_path)}):
-            code = main(["--once", "--photos-dir", str(self.photos)], settings=(TOKEN, STAGING, [PILOT]),
+            code = main(["--once", "--photos-dir", str(self.photos)], settings=(TOKEN, SOURCES),
                         call=fake_call, fetch=lambda url: jpeg())
         self.assertEqual(code, 0)
         self.assertEqual(methods, ["getMe", "getWebhookInfo", "getUpdates"])
@@ -216,7 +259,7 @@ class TestReceiver(ZaloTestCase):
             return {"url": "https://example.com/hook"} if method == "getWebhookInfo" else {}
 
         with mock.patch.dict("os.environ", {"HASC_DB_PATH": str(self.db_path)}):
-            code = main(["--once"], settings=(TOKEN, STAGING, []), call=fake_call)
+            code = main(["--once"], settings=(TOKEN, SOURCES), call=fake_call)
         self.assertEqual(code, 1)
         state = self.conn.execute("SELECT * FROM zalo_receiver").fetchone()
         self.assertIn("webhook", state["last_error"])
@@ -289,7 +332,7 @@ class TestHealth(ZaloTestCase):
         self.assertEqual(days["2026-11-10"]["pilot"]["events"], 1)
         self.assertEqual(days["2026-11-01"]["pilot"]["events"], 0)
         self.assertEqual(overview["outgoing"], 0)
-        self.assertEqual(overview["passive"], {"plain": 1, "command": 0})
+        self.assertEqual(overview["staging_test"]["saved"], 1)
 
 
 class TestAiPageZalo(ZaloTestCase):

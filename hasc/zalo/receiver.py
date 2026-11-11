@@ -1,7 +1,12 @@
-"""Receive-only Zalo bot: keep photos from allowed groups in the HASC Zalo inbox.
+"""Receive-only Zalo bot: keep photos from allowed senders and groups in the HASC Zalo inbox.
 
 The bot never sends a chat message: this module has no send call. It long-polls getUpdates, keeps
-image events from the staging and pilot groups, and drops every other event without storing it.
+image events from allowed sources, and drops every other event without storing it.
+
+Workers send sheet photos to the bot in a private chat. Group photos reach a bot only when they
+mention it or reply to it (tested 2026-11-11: plain group photos never arrived), so group sources
+stay supported but are not the intake path. A source is ("PRIVATE", sender id) or ("GROUP", chat id),
+mapped to 1 for staging or 0 for pilot.
 A kept event is written first and downloaded after, so a failed download stays in the inbox for
 retry. Nothing here creates a sheet or a read job: an inbox photo has no machine, date, shift or page.
 
@@ -82,31 +87,44 @@ def events_of(result):
     return [result] if isinstance(result, dict) else []
 
 
-def store_event(conn, event, staging_group, pilot_groups):
-    """Keep an image event from an allowed group. Returns 'new', 'redelivered' or 'ignored'.
+def mask(value):
+    """A Zalo ID shortened for logs: enough to tell sources apart, not to copy one."""
+    return f"…{value[-5:]}" if value else "?"
+
+
+def store_event(conn, event, sources, show_ids=False):
+    """Keep an image event from an allowed source. Returns 'new', 'redelivered' or 'ignored'.
 
     Only the event name, chat, sender, message id, time and whether the caption held /capture are
     read. The caption and any chat text are not stored.
     """
     message = event.get("message") or {}
     chat = message.get("chat") or {}
+    sender = message.get("from") or {}
     chat_id = str(chat.get("id") or "")
-    allowed = chat.get("chat_type") == "GROUP" and chat_id and chat_id in ({staging_group} | set(pilot_groups))
+    chat_type = chat.get("chat_type")
+    source_id = chat_id if chat_type == "GROUP" else str(sender.get("id") or "")
+    staging = sources.get((chat_type, source_id)) if source_id else None
     message_id = str(message.get("message_id") or "")
-    if event.get("event_name") != "message.image.received" or not allowed or not message_id:
+    if event.get("event_name") != "message.image.received" or staging is None or not message_id:
+        # Metadata only, so a staging test shows why an event was dropped: no text, name or URL.
+        # --show-ids prints the full ID once, to copy into the settings file.
+        shown = source_id if show_ids else mask(source_id)
+        where = f"group {shown}" if chat_type == "GROUP" else f"{chat_type} chat from sender {shown}"
+        print(f"Ignored: {event.get('event_name')} in {where}, "
+              f"{'not allowed' if staging is None else 'allowed'}", flush=True)
         with conn:
             conn.execute("UPDATE zalo_receiver SET ignored_events = ignored_events + 1 WHERE id = 1")
         return "ignored"
-    sender = message.get("from") or {}
     sent_at = message.get("date")
     with conn:
         cursor = conn.execute("""
-            INSERT INTO zalo_inbox (chat_id, message_id, sender_id, sender_name, staging, command, sent_at,
-                                    received_at, photo_url, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'received')
+            INSERT INTO zalo_inbox (chat_id, chat_type, message_id, sender_id, sender_name, staging, command,
+                                    sent_at, received_at, photo_url, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'received')
             ON CONFLICT (chat_id, message_id) DO NOTHING
-        """, (chat_id, message_id, str(sender.get("id") or "") or None, sender.get("display_name"),
-              int(chat_id == staging_group), int("/capture" in str(message.get("caption") or "").lower()),
+        """, (chat_id, chat_type, message_id, str(sender.get("id") or "") or None, sender.get("display_name"),
+              staging, int("/capture" in str(message.get("caption") or "").lower()),
               _ms_to_iso(sent_at), now_iso(), message.get("photo_url")))
         if cursor.rowcount:
             return "new"
@@ -192,12 +210,12 @@ def beat(conn, error=None, started=False, ok=True):
             conn.execute("UPDATE zalo_receiver SET heartbeat_at = ? WHERE id = 1", (now,))
 
 
-def poll_once(conn, token, staging_group, pilot_groups, photos_dir, call=call, fetch=fetch):
+def poll_once(conn, token, sources, photos_dir, call=call, fetch=fetch, show_ids=False):
     """One long poll: keep the events, then download what is waiting. Raises ZaloError on API failure."""
     dropped = False
     for event in events_of(call(token, "getUpdates", {"timeout": str(POLL_TIMEOUT)})):
         try:
-            store_event(conn, event, staging_group, pilot_groups)
+            store_event(conn, event, sources, show_ids)
         except Exception as error:  # one odd event must not lose the rest of the batch
             dropped = True
             try:

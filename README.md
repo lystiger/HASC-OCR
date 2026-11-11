@@ -94,17 +94,17 @@ python3 -m hasc.worker --once
 
 ## Zalo Receiver (staging)
 
-`python -m hasc.zalo` is a receive-only Zalo bot. It long-polls the Zalo Bot API and keeps image events from the staging group and any pilot groups in the Zalo inbox. It never sends a chat message. Inbox photos do not become sheets and are not read by the AI yet: they wait until their machine, date, shift and page are known. The AI page (`/ai`, section **Zalo Bot**) shows the receiver's health, the inbox and the usage counts. Pilot counts exclude the staging group.
+`python -m hasc.zalo` is a receive-only Zalo bot. Workers send sheet photos to the bot in a private chat. The receiver long-polls the Zalo Bot API and keeps photos from allowed senders in the Zalo inbox. It never sends a chat message. Inbox photos do not become sheets and are not read by the AI yet: they wait until their machine, date, shift and page are known. The AI page (`/ai`, section **Zalo Bot**) shows the receiver's health, the inbox and the usage counts. Pilot counts exclude staging senders.
 
-Zalo documents group delivery only for messages that mention the bot or reply to it, and marks group support as beta. Ordinary photos sent without a mention may never arrive. The AI page shows ordinary photos apart from `/capture` ones, so a staging test can prove which kinds arrive.
+Group chats are not the intake path. Zalo passes a group message to a bot only when it mentions the bot or replies to it. In a test on 2026-11-11, plain photos posted in a group never reached the bot, and a private photo did.
 
 Bot settings go in an env file outside the repository, for example `~/.config/hasc-ocr/zalo.env`. Edit the file yourself. Never pass the token on the command line or paste it into a chat:
 
 ```ini
 ZALO_BOT_TOKEN=your_bot_token_here
-ZALO_STAGING_GROUP_ID=stable_group_id_of_staging
-# Optional, comma-separated, only after the staging proof:
-# ZALO_PILOT_GROUP_IDS=group_id_1,group_id_2
+# Sender IDs, comma-separated. Staging is for test photos and stays out of pilot totals.
+ZALO_STAGING_SENDER_IDS=sender_id_of_the_tester
+# ZALO_PILOT_SENDER_IDS=worker_id_1,worker_id_2
 ```
 
 ```bash
@@ -114,7 +114,9 @@ python3 -m hasc.zalo          # keeps receiving; Ctrl+C stops
 python3 -m hasc.zalo --once   # one poll, then exit
 ```
 
-Group IDs are the `chat.id` values Zalo sends, not the group's display name. Run only one receiver per bot. The receiver stops without changing anything if the bot has a webhook set, because `getUpdates` does not work while one is set.
+To find a worker's sender ID, start the receiver with `--show-ids` and have the worker send the bot one photo. The log prints `Ignored: message.image.received in PRIVATE chat from sender <ID>, not allowed`. Add that ID to the file and restart without `--show-ids`. Without the flag, the log shows only the last 5 characters of each ID.
+
+Run only one receiver per bot. The receiver stops without changing anything if the bot has a webhook set, because `getUpdates` does not work while one is set.
 
 ## Daily Report (Báo cáo sản xuất ngày)
 

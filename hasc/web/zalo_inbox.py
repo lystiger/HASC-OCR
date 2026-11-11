@@ -1,9 +1,9 @@
 """Zalo Bot section of the AI page: receiver health, the inbox, and pilot usage kept apart from staging.
 
 The receiver (python -m hasc.zalo) writes zalo_receiver and zalo_inbox; this page only reads them.
-An idle group is not a failure: health comes from the receiver's own heartbeat, and a quiet day
-shows zero photos. Ordinary photos (no /capture) are counted apart, since Zalo documents group
-delivery only for mentions and replies. The bot sends nothing, so outgoing messages are always 0.
+A quiet day is not a failure: health comes from the receiver's own heartbeat, and a quiet day
+shows zero photos. Workers send photos to the bot in a private chat; the staging card shows whether
+a test photo made it end to end. The bot sends nothing, so outgoing messages are always 0.
 Signed photo URLs and the token never reach a page.
 """
 from datetime import date, datetime, timedelta, timezone
@@ -79,19 +79,19 @@ def usage(conn: sqlite3.Connection, today: date) -> dict:
 
 def zalo_overview(conn: sqlite3.Connection, now: datetime) -> dict:
     today = now.astimezone(timezone(timedelta(hours=7))).date()
-    passive = conn.execute("""
-        SELECT COALESCE(SUM(command = 0), 0) AS plain, COALESCE(SUM(command = 1), 0) AS command
+    test = conn.execute("""
+        SELECT COUNT(*) AS saved, MAX(delivered_at) AS last_at
         FROM zalo_inbox WHERE staging = 1 AND status IN ('delivered', 'duplicate')
     """).fetchone()
     last = conn.execute("SELECT MAX(received_at) AS at FROM zalo_inbox").fetchone()["at"]
     recent = conn.execute(f"""
-        SELECT id, chat_id, sender_name, staging, command, received_at, status, attempts, last_error,
+        SELECT id, chat_type, sender_id, chat_id, sender_name, staging, command, received_at, status, attempts, last_error,
                path IS NOT NULL AS has_photo
         FROM zalo_inbox ORDER BY id DESC LIMIT {RECENT}
     """).fetchall()
     return {
         "health": receiver_health(conn, now), "last_photo_at": last,
-        "passive": {"plain": passive["plain"], "command": passive["command"]},
+        "staging_test": {"saved": test["saved"], "last_at": test["last_at"]},
         "usage": usage(conn, today), "recent": [dict(r) for r in recent],
         "outgoing": 0,  # no send call exists in hasc.zalo
     }

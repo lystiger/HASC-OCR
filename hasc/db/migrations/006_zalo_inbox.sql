@@ -1,13 +1,15 @@
 -- Zalo inbox (LysStack roadmap, Zalo staging integration): photos the receive-only bot got from
--- allowed groups. A photo waits here, unassigned, until its machine, date, shift and page are known.
+-- allowed senders (private chat) or groups. A photo waits here, unassigned, until its machine, date,
+-- shift and page are known.
 -- Caption and chat text are never stored; `command` only records whether the caption held /capture.
 CREATE TABLE IF NOT EXISTS zalo_inbox (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     chat_id TEXT NOT NULL,
+    chat_type TEXT NOT NULL,  -- PRIVATE or GROUP
     message_id TEXT NOT NULL,
     sender_id TEXT,
     sender_name TEXT,
-    staging INTEGER NOT NULL,  -- 1 for the staging group: kept out of pilot totals
+    staging INTEGER NOT NULL,  -- 1 for a staging sender or group: kept out of pilot totals
     command INTEGER NOT NULL,  -- 1 when the caption held /capture; 0 is an ordinary photo
     sent_at TEXT,
     received_at TEXT NOT NULL,
