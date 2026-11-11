@@ -56,6 +56,10 @@ def call(token, method, payload=None):
         raise ZaloError(f"{method}: Zalo trả về dữ liệu không đọc được") from None
     if not isinstance(data, dict) or data.get("ok") is not True:
         code = data.get("error_code") if isinstance(data, dict) else None
+        # Seen live 2026-11-11: getWebhookInfo answers 404 on a bot with no webhook. The docs only
+        # define 404 as "not found" and 408 as a timeout; neither is a failure for these two methods.
+        if (method, code) in (("getWebhookInfo", 404), ("getUpdates", 408)):
+            return None
         raise ZaloError(f"{method}: Zalo từ chối yêu cầu (mã {code})")
     return data.get("result")
 

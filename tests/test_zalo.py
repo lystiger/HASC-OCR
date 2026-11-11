@@ -237,6 +237,19 @@ class TestReceiver(ZaloTestCase):
             receiver.call("bad\ntoken-secret", "getMe")  # urllib's own message would hold the URL
         self.assertNotIn("token-secret", str(caught.exception))
 
+    def test_no_webhook_404_and_empty_poll_408_are_not_errors(self):
+        def answer(code):
+            body = io.BytesIO(('{"ok": false, "error_code": %d, "description": "x"}' % code).encode())
+            return mock.MagicMock(__enter__=lambda self: body)
+
+        with mock.patch("urllib.request.urlopen", return_value=answer(404)):
+            self.assertIsNone(receiver.call(TOKEN, "getWebhookInfo"))
+        with mock.patch("urllib.request.urlopen", return_value=answer(408)):
+            self.assertIsNone(receiver.call(TOKEN, "getUpdates"))
+        with mock.patch("urllib.request.urlopen", return_value=answer(404)):
+            with self.assertRaises(ZaloError):
+                receiver.call(TOKEN, "getMe")
+
     def test_empty_long_poll_is_not_an_error(self):
         with mock.patch("urllib.request.urlopen", side_effect=TimeoutError()):
             self.assertIsNone(receiver.call(TOKEN, "getUpdates"))
