@@ -92,6 +92,30 @@ To run the worker once (process all currently queued jobs until empty, then exit
 python3 -m hasc.worker --once
 ```
 
+## Zalo Receiver (staging)
+
+`python -m hasc.zalo` is a receive-only Zalo bot. It long-polls the Zalo Bot API and keeps image events from the staging group and any pilot groups in the Zalo inbox. It never sends a chat message. Inbox photos do not become sheets and are not read by the AI yet: they wait until their machine, date, shift and page are known. The AI page (`/ai`, section **Zalo Bot**) shows the receiver's health, the inbox and the usage counts. Pilot counts exclude the staging group.
+
+Zalo documents group delivery only for messages that mention the bot or reply to it, and marks group support as beta. Ordinary photos sent without a mention may never arrive. The AI page shows ordinary photos apart from `/capture` ones, so a staging test can prove which kinds arrive.
+
+Bot settings go in an env file outside the repository, for example `~/.config/hasc-ocr/zalo.env`. Edit the file yourself. Never pass the token on the command line or paste it into a chat:
+
+```ini
+ZALO_BOT_TOKEN=your_bot_token_here
+ZALO_STAGING_GROUP_ID=stable_group_id_of_staging
+# Optional, comma-separated, only after the staging proof:
+# ZALO_PILOT_GROUP_IDS=group_id_1,group_id_2
+```
+
+```bash
+chmod 600 ~/.config/hasc-ocr/zalo.env
+export HASC_ZALO_ENV="$HOME/.config/hasc-ocr/zalo.env"
+python3 -m hasc.zalo          # keeps receiving; Ctrl+C stops
+python3 -m hasc.zalo --once   # one poll, then exit
+```
+
+Group IDs are the `chat.id` values Zalo sends, not the group's display name. Run only one receiver per bot. The receiver stops without changing anything if the bot has a webhook set, because `getUpdates` does not work while one is set.
+
 ## Daily Report (Báo cáo sản xuất ngày)
 
 The daily report aggregates production sheets across Ca 1 and Ca 2 for a given date into an Excel spreadsheet (form `HASC281224`).

@@ -30,6 +30,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
     # 11. The AI page: reads, accuracy, cost (P149); only admins set the budget
     "view_ai": {"boss", "admin"},
     "manage_ai_budget": {"admin"},
+    # 12. Zalo inbox on the AI page: bosses and admins see it, only admins retry a failed download
+    "manage_zalo": {"admin"},
 }
 
 ROLE_GROUPS: dict[str, set[str]] = {

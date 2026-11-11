@@ -1,6 +1,11 @@
 {% macro pct(value) %}{% if value is none %}—{% else %}{{ "%.1f"|format(value * 100) }}%{% endif %}{% endmacro %}
 {% macro secs(value) %}{% if value is none %}—{% elif value < 90 %}{{ value|round|int }} giây{% else %}{{ (value / 60)|round(1) }} phút{% endif %}{% endmacro %}
 {% set b = ai.budget %}
+{% set o = ai.openrouter %}
+<h2 class="ai-section">OpenRouter</h2>
+<p class="muted">Mô hình đọc gần nhất: <strong>{{ o.model or "chưa có lượt đọc" }}</strong>{% if o.last_ok_at %} · đọc xong lúc {{ o.last_ok_at|vntime }}{% endif %}.
+{% if o.last_error %}Lỗi gần nhất ({{ o.last_error_at|vntime }}): {{ o.last_error }}{% else %}Chưa có lượt đọc lỗi.{% endif %}
+Trạng thái lấy từ các lượt đọc đã ghi, không gọi thử mô hình.</p>
 <div class="stat-grid">
   <div class="card stat">
     <p class="stat__label">Lượt đọc tháng {{ ai.month_label }}</p>
@@ -77,3 +82,5 @@
     </table>
   </div>
 </section>
+
+{% include "ai_zalo_partial.html" %}

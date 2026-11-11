@@ -558,6 +558,7 @@ def create_app(
     from hasc.web.self_account import router as self_account_router
     from hasc.web.corrections import router as corrections_router
     from hasc.web.ai_stats import router as ai_router
+    from hasc.web.zalo_inbox import router as zalo_router
 
     app.include_router(operator_router)
     app.include_router(office_router)
@@ -565,6 +566,7 @@ def create_app(
     app.include_router(self_account_router)
     app.include_router(corrections_router)
     app.include_router(ai_router)
+    app.include_router(zalo_router)
 
     # -------------------------------------------------------------------------
     # API Routes: Section 4 Role Table Endpoints
