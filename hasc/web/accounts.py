@@ -803,6 +803,12 @@ def set_or_create_owner(
                 (pw_hash, expiry, target_id),
             )
             conn.execute("DELETE FROM sessions WHERE user_id = ?", (target_id,))
+            # A reset like an admin's: it answers this account's waiting reset request (the owner's can
+            # only be answered here, on the server).
+            conn.execute(
+                "INSERT INTO events (at, user_id, action, field) VALUES (?, ?, 'account_reset', ?)",
+                (security.now().isoformat(), target_id, f"user:{target_id}"),
+            )
             return target_id, temp_pw, False
         else:
             conn.execute("UPDATE users SET is_owner = 0 WHERE is_owner = 1")
