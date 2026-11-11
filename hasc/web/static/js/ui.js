@@ -148,6 +148,25 @@
 
   // Coming back with the browser's Back button must not leave the loading screen up.
   window.addEventListener("pageshow", hideLoading);
+  // An htmx form (adding an account) swaps the page in place instead of navigating: hide it when that
+  // post ends. Only a post: the pages' polling (GET) must not close the screen of a running upload.
+  // (detail.elt is not reliably the form: htmx may name the swap target instead, so use requestConfig.)
+  function htmxPost(event, path) {
+    var config = event.detail.requestConfig;
+    return !!config && config.verb === "post" && (!path || config.path === path);
+  }
+  document.addEventListener("htmx:afterRequest", function (event) {
+    if (htmxPost(event)) hideLoading();
+  });
+  // On the accounts screen a 400 is the page with the reason (a username already taken): show it.
+  // htmx skips 4xx by default, which left the last temporary password on screen as if the new account
+  // had been made. Elsewhere a 400 is JSON, which must not be swapped into the page.
+  document.addEventListener("htmx:beforeSwap", function (event) {
+    if (event.detail.xhr.status === 400 && htmxPost(event, "/admin/accounts")) {
+      event.detail.shouldSwap = true;
+      event.detail.isError = false;
+    }
+  });
 
   window.hascUI = { toast: toast, showLoading: showLoading, hideLoading: hideLoading };
 })();
