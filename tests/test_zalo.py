@@ -151,6 +151,7 @@ class TestReceiver(ZaloTestCase):
         poll_once(self.conn, TOKEN, STAGING, [PILOT], self.photos,
                   call=lambda token, method, payload=None: events, fetch=lambda url: jpeg())
         self.assertEqual([r["status"] for r in self.inbox()], ["delivered", "duplicate"])
+        self.assertEqual(receiver_health(self.conn, datetime.now(timezone.utc))["state"], "error")
         self.store(image_event("m3"))
         with mock.patch("hasc.zalo.receiver.save_photo_file", side_effect=OSError("disk full")):
             deliver_pending(self.conn, self.photos, fetch=lambda url: jpeg((9, 9, 9)))

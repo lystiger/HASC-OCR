@@ -127,7 +127,7 @@ def deliver_pending(conn, photos_dir, fetch=fetch):
         except Exception as error:  # e.g. a full disk: count the attempt, keep the photo, go on
             status = "failed" if item["attempts"] + 1 >= MAX_ATTEMPTS else "received"
             _finish(conn, item["id"], status, item["attempts"] + 1, f"lỗi lưu ảnh: {type(error).__name__}")
-        beat(conn)  # slow downloads must not make a working receiver look dead
+        beat(conn, ok=False)  # slow downloads must not make a working receiver look dead
     return len(pending)
 
 
@@ -190,12 +190,17 @@ def beat(conn, error=None, started=False, ok=True):
 
 def poll_once(conn, token, staging_group, pilot_groups, photos_dir, call=call, fetch=fetch):
     """One long poll: keep the events, then download what is waiting. Raises ZaloError on API failure."""
+    dropped = False
     for event in events_of(call(token, "getUpdates", {"timeout": str(POLL_TIMEOUT)})):
         try:
             store_event(conn, event, staging_group, pilot_groups)
         except Exception as error:  # one odd event must not lose the rest of the batch
-            beat(conn, error=f"không lưu được sự kiện: {type(error).__name__}")
-    beat(conn)
+            dropped = True
+            try:
+                beat(conn, error=f"không lưu được sự kiện: {type(error).__name__}")
+            except Exception:
+                pass  # the database itself is failing; the next events still get their try
+    beat(conn, ok=not dropped)  # a dropped event keeps the page on "Đang lỗi" until a clean poll
     deliver_pending(conn, photos_dir, fetch)
 
 
