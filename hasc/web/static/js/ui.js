@@ -70,6 +70,7 @@
   function problem(field) {
     var v = field.validity;
     if (v.valueMissing) return "Chưa nhập " + fieldName(field).toLowerCase();
+    if (v.tooShort) return fieldName(field) + " phải có ít nhất " + field.minLength + " ký tự";
     if (v.rangeUnderflow) return fieldName(field) + " phải từ " + field.min + " trở lên";
     if (v.rangeOverflow) return fieldName(field) + " tối đa là " + field.max;
     if (v.badInput || v.typeMismatch || v.stepMismatch) return fieldName(field) + " không hợp lệ";

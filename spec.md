@@ -65,6 +65,7 @@ Employees and bosses together are the 6 office members. Nobody can delete sheets
 
 **Login (P45, P49)**
 - Username and password. The admin creates the account and a temporary password, and the user must change it on first login.
+- A password the user chooses has at least 6 characters and must differ from the one it replaces, a temporary one included. Refused with `400 weak_password` on the API and the reason on the page.
 - Operator sessions last 30 days. Office sessions last 8 hours.
 - The site uses HTTPS on the local network, with a certificate created on the Dell and trusted on each device (P67).
 - The website is in Vietnamese only (P37).

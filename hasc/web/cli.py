@@ -12,6 +12,7 @@ from hasc.db.connection import get_default_db_path
 from hasc.accounts import set_or_create_owner, validate_username
 from hasc.web.errors import AppError
 from hasc.web.security import (
+    MIN_PASSWORD_LENGTH,
     generate_temporary_password,
     hash_password,
     temp_password_expires_at,
@@ -70,6 +71,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
+    if args.password is not None and len(args.password) < MIN_PASSWORD_LENGTH:
+        print(f"Error: the password needs at least {MIN_PASSWORD_LENGTH} characters.", file=sys.stderr)
+        return 1
     if not args.owner and not args.role:
         print("Error: --role is required when --owner is not specified.", file=sys.stderr)
         return 1
