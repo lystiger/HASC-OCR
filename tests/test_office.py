@@ -483,10 +483,11 @@ class TestOfficeScreens(unittest.TestCase):
 
         emp = self.clients["employee"]
 
-        # Stale version via form POST
-        res_stale = emp.post(f"/office/sheets/{s1}/confirm", data={"version": "2"})
-        self.assertEqual(res_stale.status_code, 409)
-        self.assertEqual(res_stale.json()["error"]["code"], "stale_version")
+        # Stale version via form POST: refused, and the clerk is sent back to the sheet with the reason
+        res_stale = emp.post(f"/office/sheets/{s1}/confirm", data={"version": "2"}, follow_redirects=False)
+        self.assertEqual(res_stale.status_code, 303)
+        self.assertIn(f"/office/sheets/{s1}?upload_error=", res_stale.headers["location"])
+        self.assertIn("Dữ liệu đã thay đổi", emp.get(res_stale.headers["location"]).text)
 
         # Matching version via form POST
         res_ok = emp.post(f"/office/sheets/{s1}/confirm", data={"version": "3"}, follow_redirects=False)
@@ -578,3 +579,25 @@ class TestOfficeScreens(unittest.TestCase):
         admin_events = [e for e in events if e["action"] == "admin_open_sheet"]
         self.assertEqual(len(admin_events), 1)
         self.assertEqual(admin_events[0]["user_id"], self.users["admin"])
+
+    def test_confirming_a_sheet_a_colleague_already_confirmed_stays_on_the_page(self):
+        """Two clerks have the sheet open; the second "Đúng, xác nhận" got a raw JSON page. It must come
+        back to the sheet with the reason, and a reviewed sheet offers no confirm button."""
+        conn = self._get_conn()
+        s1 = create_sheet(
+            conn, form="BMMT01-2022/HASC", machine="T1", production_date="2026-10-21", shift=1, page_no=1,
+            status="needs_review", version=1, status_since=datetime.now(timezone.utc).isoformat(),
+        )
+        conn.close()
+        emp1, emp2 = self.clients["employee"], self.clients["employee2"]
+        self.assertIn(f'action="/office/sheets/{s1}/confirm"', emp1.get(f"/office/sheets/{s1}").text)
+
+        self.assertEqual(emp2.post(f"/office/sheets/{s1}/confirm", data={"version": 1}, follow_redirects=False).status_code, 303)
+        res = emp1.post(f"/office/sheets/{s1}/confirm", data={"version": 1})
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("Biểu mẫu này đã được xác nhận", res.text)
+        self.assertNotIn('{"error"', res.text)
+        self.assertNotIn(f'action="/office/sheets/{s1}/confirm"', res.text)
+
+        # The API keeps its JSON answer.
+        self.assertEqual(emp1.post(f"/api/sheets/{s1}/confirm", json={"version": 1}).status_code, 409)

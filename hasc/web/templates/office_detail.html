@@ -122,13 +122,15 @@
         Tải tệp Excel
       </a>
 
-      <!-- 'Đúng, xác nhận' button -->
+      <!-- 'Đúng, xác nhận' button: a reviewed sheet has nothing left to confirm -->
+      {% if sheet.status != 'reviewed' %}
       <form method="post" action="/office/sheets/{{ sheet.id }}/confirm" style="margin: 0;" data-loading="Đang xác nhận...">
         <input type="hidden" name="version" value="{{ sheet.version }}" />
-        <button type="submit" class="btn" style="min-height: 40px; background: #15803D; border-color: #15803D; color: #FFFFFF;" {% if sheet.status == 'reviewed' %}title="Biểu mẫu đã được kiểm tra"{% endif %}>
+        <button type="submit" class="btn" style="min-height: 40px; background: #15803D; border-color: #15803D; color: #FFFFFF;">
           Đúng, xác nhận
         </button>
       </form>
+      {% endif %}
     </div>
     {% if user.role in ('employee', 'boss') and sheet.status in ('needs_review', 'in_review', 'reviewed') %}
     <form method="post" action="/office/sheets/{{ sheet.id }}/excel" enctype="multipart/form-data" class="correction-form" data-loading="Đang tải tệp đã sửa...">
