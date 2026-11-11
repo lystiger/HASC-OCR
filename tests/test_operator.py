@@ -335,6 +335,18 @@ class TestOperatorUpload(unittest.TestCase):
         self.assertIn('<option value="T1" selected>T1</option>', res2.text)
         self.assertIn("Gửi: T1 · Ca", res2.text)
 
+    def test_a_poll_after_the_session_ended_reloads_the_page(self):
+        """The uploads list polls every 5 s. Once the session is gone, htmx followed the redirect and put
+        the whole login page inside the list; it must load /login as a page instead."""
+        self.client_op1.get("/logout")
+        for path in ("/operator/uploads", "/office/sheets/partial", "/admin/accounts/partial", "/ai/partial"):
+            res = self.client_op1.get(path, headers={"HX-Request": "true"}, follow_redirects=False)
+            self.assertEqual(res.headers.get("HX-Redirect"), "/login", path)
+            self.assertNotIn("<form", res.text, path)
+        # A normal browser visit still redirects as before.
+        res = self.client_op1.get("/operator/uploads", follow_redirects=False)
+        self.assertEqual((res.status_code, res.headers["location"]), (303, "/login"))
+
     def test_post_api_photos_byte_identical_and_sha256(self):
         """POST /api/photos saves the original byte-identical first, stores its sha256."""
         raw_jpeg = make_test_table_jpeg()
