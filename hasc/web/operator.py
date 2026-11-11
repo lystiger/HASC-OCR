@@ -60,13 +60,17 @@ def get_shift_and_date(now_dt: datetime | None = None) -> tuple[int, str, str]:
 def get_remembered_machine(
     conn: sqlite3.Connection, user_id: int, request: Request | None = None
 ) -> str:
-    """Pre-select the machine this account chose last, defaulting to T1."""
+    """Pre-select the machine this account chose last, defaulting to T1.
+
+    Only front pages count (odd Trang, P121): a back photo may be on another machine (P101) and is
+    saved after its front, so the last photo alone would offer the back's machine next time.
+    """
     cursor = conn.execute(
         """
         SELECT s.machine
         FROM photos p
         JOIN sheets s ON p.sheet_id = s.id
-        WHERE p.uploaded_by = ?
+        WHERE p.uploaded_by = ? AND s.page_no % 2 = 1
         ORDER BY p.id DESC
         LIMIT 1
         """,

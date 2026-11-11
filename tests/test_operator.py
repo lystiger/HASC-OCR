@@ -347,6 +347,17 @@ class TestOperatorUpload(unittest.TestCase):
         res = self.client_op1.get("/operator/uploads", follow_redirects=False)
         self.assertEqual((res.status_code, res.headers["location"]), (303, "/login"))
 
+    def test_remembered_machine_is_the_front_not_the_back(self):
+        """A back photo on another machine (P101) must not change the machine offered next time."""
+        res = self.client_op1.post("/operator/upload", files={
+            "file_front": ("front.jpg", make_test_table_jpeg(), "image/jpeg"),
+            "file_back": ("back.jpg", make_test_table_jpeg(), "image/jpeg"),
+        }, data={"machine": "T1", "back_machine": "T6", "production_date": "2026-11-04", "shift": "1", "paper_no": "1"})
+        self.assertEqual(res.status_code, 200)
+        page = self.client_op1.get("/").text
+        self.assertIn('<option value="T1" selected>T1</option>', page)
+        self.assertIn("Gửi: T1 · Ca", page)
+
     def test_post_api_photos_byte_identical_and_sha256(self):
         """POST /api/photos saves the original byte-identical first, stores its sha256."""
         raw_jpeg = make_test_table_jpeg()
