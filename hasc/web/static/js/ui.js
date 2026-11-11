@@ -69,7 +69,7 @@
 
   function problem(field) {
     var v = field.validity;
-    if (v.valueMissing) return "Chưa nhập " + fieldName(field).toLowerCase();
+    if (v.valueMissing) return field.type === "file" ? "Chưa chọn tệp" : "Chưa nhập " + fieldName(field).toLowerCase();
     if (v.rangeUnderflow) return fieldName(field) + " phải từ " + field.min + " trở lên";
     if (v.rangeOverflow) return fieldName(field) + " tối đa là " + field.max;
     if (v.badInput || v.typeMismatch || v.stepMismatch) return fieldName(field) + " không hợp lệ";
@@ -102,7 +102,8 @@
   function check(form) {
     var first = null;
     form.querySelectorAll("input, select, textarea").forEach(function (field) {
-      if (!field.willValidate || field.type === "file") return;
+      // The photo buttons are checked by their page (hascCheck); a required file field is checked here.
+      if (!field.willValidate || (field.type === "file" && !field.required)) return;
       clearError(field);
       var text = problem(field);
       if (text) {
