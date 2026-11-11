@@ -23,7 +23,7 @@ from hasc.web.security import (
 )
 
 USERNAME_REGEX = re.compile(r"^[a-zA-Z0-9._]+$")
-ALLOWED_ROLES = {"employee", "boss", "admin"}
+ALLOWED_ROLES = {"operator", "employee", "boss", "admin"}
 
 # Every column that names a user. A row in any of them is history a deletion would lose (spec P47).
 USER_REFERENCES = (
@@ -77,11 +77,11 @@ def get_account_actions(actor: dict, target: dict) -> dict:
             "available_roles": [],
         }
 
-    # Available roles: only owner can grant admin; neither can grant operator
+    # Available roles: only owner can grant admin; admins can grant operator
     if actor_is_owner:
-        allowed = ["employee", "boss", "admin"]
+        allowed = ["operator", "employee", "boss", "admin"]
     else:
-        allowed = ["employee", "boss"]
+        allowed = ["operator", "employee", "boss"]
 
     available_roles = [r for r in allowed if r != target_role]
 
@@ -100,9 +100,9 @@ def get_addable_roles(actor: dict) -> list[tuple[str, str]]:
     """Roles that the actor is allowed to assign when creating a new account."""
     actor_is_owner = bool(actor.get("is_owner"))
     if actor_is_owner:
-        roles = ["employee", "boss", "admin"]
+        roles = ["operator", "employee", "boss", "admin"]
     else:
-        roles = ["employee", "boss"]
+        roles = ["operator", "employee", "boss"]
     return [(r, ROLE_LABELS.get(r, r)) for r in roles]
 
 
@@ -289,12 +289,6 @@ def create_account(
     role: str,
 ) -> tuple[int, str]:
     """Create a new user account, enforcing username and owner rules."""
-    if role == "operator":
-        raise AppError(
-            code="invalid_role",
-            message="Không thể tạo tài khoản với vai trò xưởng (operator)",
-            status_code=400,
-        )
     if role not in ALLOWED_ROLES:
         raise AppError(
             code="invalid_role",
@@ -398,12 +392,6 @@ def change_account_role(
             status_code=404,
         )
 
-    if new_role == "operator":
-        raise AppError(
-            code="invalid_role",
-            message="Không thể chuyển sang vai trò xưởng (operator)",
-            status_code=400,
-        )
     if new_role not in ALLOWED_ROLES:
         raise AppError(
             code="invalid_role",
@@ -582,12 +570,6 @@ def patch_account(
         validate_owner_rules(actor, target, action="reset")
 
     if role is not None:
-        if role == "operator":
-            raise AppError(
-                code="invalid_role",
-                message="Không thể chuyển sang vai trò xưởng (operator)",
-                status_code=400,
-            )
         if role not in ALLOWED_ROLES:
             raise AppError(
                 code="invalid_role",

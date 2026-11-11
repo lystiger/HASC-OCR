@@ -14,11 +14,11 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
     # 3. See the status of all sheets, and photos
     "view_all_sheets": {"employee", "boss", "admin"},
     # 4. Pick up, download, correct, re-upload, confirm, retry, hand-enter
-    "review_sheet": {"employee", "boss"},
+    "review_sheet": {"employee", "boss", "admin"},
     # 5. Mark an upload invalid
-    "mark_invalid": {"employee", "boss"},
+    "mark_invalid": {"employee", "boss", "admin"},
     # 6. Mark a machine or shift not running, with a reason
-    "mark_not_running": {"operator", "employee", "boss"},
+    "mark_not_running": {"operator", "employee", "boss", "admin"},
     # 7. See sheet numbers
     "view_sheet_numbers": {"employee", "boss", "admin"},
     # 8. See edit history
@@ -33,7 +33,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
 }
 
 ROLE_GROUPS: dict[str, set[str]] = {
-    "office": {"employee", "boss"},
+    "office": {"employee", "boss", "admin"},
     "all": {"operator", "employee", "boss", "admin"},
 }
 

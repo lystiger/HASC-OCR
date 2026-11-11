@@ -470,16 +470,16 @@ class TestNegativeChecks(unittest.TestCase):
         self.assertEqual(upload_res.status_code, 201)
         self.assertEqual(self.office_client.get("/api/uploads/mine").status_code, 200)
 
-        # --- Admin attempts sheet review actions -> 403 Forbidden ---
+        # --- Admin can review sheets ---
         self.assertEqual(
-            self.admin_client.post(f"/api/sheets/{self.sheet_id}/pickup", json={"takeover": False}).status_code,
-            403,
+            self.admin_client.post(f"/api/sheets/{self.sheet_id}/pickup", json={"takeover": True}).status_code,
+            200,
         )
         self.assertEqual(
             self.admin_client.post(f"/api/sheets/{self.sheet_id}/confirm", json={"version": 2}).status_code,
-            403,
+            200,
         )
-        self.assertEqual(self.admin_client.get(f"/api/sheets/{self.sheet_id}/excel").status_code, 403)
+        self.assertEqual(self.admin_client.get(f"/api/sheets/{self.sheet_id}/excel").status_code, 200)
 
     def test_no_reader_or_network_use(self):
         """Verify guards prevent any outbound network connection or real reader initialization."""
