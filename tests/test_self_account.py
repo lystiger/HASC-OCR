@@ -181,10 +181,6 @@ class TestSelfAccount(unittest.TestCase):
         self.assertIn("scripts/create_user.py --owner", page)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestPasswordRules(unittest.TestCase):
     """A new password has at least 6 characters and is not the current one (the temporary one included)."""
     setUp, tearDown = TestSelfAccount.setUp, TestSelfAccount.tearDown
@@ -229,3 +225,7 @@ class TestPasswordRules(unittest.TestCase):
     def test_create_user_script_refuses_a_short_password(self):
         self.assertNotEqual(cli_main(["--username", "shorty", "--role", "boss", "--password", "12345", "--db", str(self.db_path)]), 0)
         self.assertEqual(cli_main(["--username", "longer", "--role", "boss", "--password", "123456", "--db", str(self.db_path)]), 0)
+
+
+if __name__ == "__main__":
+    unittest.main()
