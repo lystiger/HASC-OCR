@@ -148,6 +148,16 @@
 
   // Coming back with the browser's Back button must not leave the loading screen up.
   window.addEventListener("pageshow", hideLoading);
+  // An htmx form (adding an account) swaps the page in place instead of navigating: hide it when done.
+  document.addEventListener("htmx:afterRequest", hideLoading);
+  // A 400 is a page with the reason (a username already taken): show it. htmx skips 4xx by default,
+  // which left the last temporary password on screen as if the new account had been made.
+  document.addEventListener("htmx:beforeSwap", function (event) {
+    if (event.detail.xhr.status === 400) {
+      event.detail.shouldSwap = true;
+      event.detail.isError = false;
+    }
+  });
 
   window.hascUI = { toast: toast, showLoading: showLoading, hideLoading: hideLoading };
 })();

@@ -615,3 +615,20 @@ class TestAccountPages(unittest.TestCase):
         finally:
             conn.close()
         self.assertEqual(found, set(USER_REFERENCES))
+
+    def test_adding_through_htmx_does_not_leave_the_page_locked(self):
+        """The add form posts through htmx and never navigates, so the loading screen must close when the
+        request ends, and a refused add (400) must replace the page, or the last temporary password stays
+        on screen as if the new account had been made."""
+        owner = self.clients["owner"]
+        html = owner.get("/admin/accounts").text
+        self.assertRegex(html, r'<form[^>]*class="add-account-form"[^>]*hx-post="/admin/accounts"')
+        js = (Path(__file__).resolve().parents[1] / "hasc/web/static/js/ui.js").read_text(encoding="utf-8")
+        self.assertIn('addEventListener("htmx:afterRequest", hideLoading)', js)
+        self.assertRegex(js, r'htmx:beforeSwap[\s\S]*status === 400[\s\S]*shouldSwap = true')
+
+        owner.post("/admin/accounts", data={"action": "add", "username": "twice", "role": "employee"})
+        res = owner.post("/admin/accounts", data={"action": "add", "username": "twice", "role": "employee"})
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("Tên đăng nhập đã tồn tại", res.text)
+        self.assertNotIn('class="temp-password', res.text)
