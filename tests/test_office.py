@@ -601,3 +601,25 @@ class TestOfficeScreens(unittest.TestCase):
 
         # The API keeps its JSON answer.
         self.assertEqual(emp1.post(f"/api/sheets/{s1}/confirm", json={"version": 1}).status_code, 409)
+
+    def test_sheet_page_offers_only_the_actions_the_user_may_take(self):
+        """An admin may look at a sheet but not review it: no pick-up, confirm or correction upload, which
+        only answered 403. Confirm is offered only while the sheet waits for review or is being reviewed."""
+        conn = self._get_conn()
+        ids = {status: create_sheet(conn, form="BMMT01-2022/HASC", machine="T1", production_date="2026-10-22",
+                                    shift=1, page_no=n, status=status, version=1,
+                                    status_since=datetime.now(timezone.utc).isoformat())
+               for n, status in enumerate(("needs_review", "in_review", "received", "reading", "failed", "reviewed"), 1)}
+        conn.close()
+        # Every review action answers 403 to an admin, the Excel download included (review_sheet).
+        page = self.clients["admin"].get(f"/office/sheets/{ids['needs_review']}").text
+        self.assertIn("Biểu mẫu Máy T1", page)
+        self.assertNotIn("Thao tác xử lý biểu mẫu", page)
+        for action in ("/pickup", "/confirm", f"/office/sheets/{ids['needs_review']}/excel", "/download"):
+            self.assertNotIn(action, page)
+        self.assertEqual(self.clients["admin"].get(f"/office/sheets/{ids['needs_review']}/excel").status_code, 403)
+        self.assertIn(f"/office/sheets/{ids['needs_review']}/excel", self.clients["employee"].get(f"/office/sheets/{ids['needs_review']}").text)
+        for status, sheet_id in ids.items():
+            page = self.clients["employee"].get(f"/office/sheets/{sheet_id}").text
+            self.assertEqual(f'action="/office/sheets/{sheet_id}/confirm"' in page, status in ("needs_review", "in_review"), status)
+        self.assertIn("/pickup", self.clients["boss"].get(f"/office/sheets/{ids['needs_review']}").text)
