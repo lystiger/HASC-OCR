@@ -15,6 +15,7 @@ import tempfile
 import threading
 import time
 import unittest
+import urllib.parse
 import urllib.request
 
 import uvicorn
@@ -33,50 +34,56 @@ class TestParallelRequests(unittest.TestCase):
         conn.close()
         app = create_app(db_path=root / "hasc.db", photos_dir=root / "photos")
 
-        with socket.socket() as s:
-            s.bind(("127.0.0.1", 0))
-            self.port = s.getsockname()[1]
-        self.server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=self.port, log_level="critical"))
-        self.thread = threading.Thread(target=self.server.run, daemon=True)
+        # The server takes over this socket, so no other process can grab the port in between.
+        self.sock = socket.socket()
+        self.sock.bind(("127.0.0.1", 0))
+        self.port = self.sock.getsockname()[1]
+        self.server = uvicorn.Server(uvicorn.Config(app, log_level="critical"))
+        self.thread = threading.Thread(target=self.server.run, kwargs={"sockets": [self.sock]}, daemon=True)
         self.thread.start()
-        for _ in range(100):
+        for _ in range(200):
             if self.server.started:
                 break
             time.sleep(0.05)
+        self.assertTrue(self.server.started, "the test server did not start")
 
     def tearDown(self):
         self.server.should_exit = True
         self.thread.join(timeout=10)
+        self.sock.close()
+        self.assertFalse(self.thread.is_alive(), "the test server did not stop")
         gc.collect()  # Windows cannot delete a database file a leftover connection still holds
         self.temp_dir.cleanup()
 
-    def _status(self, opener, path, body=None):
+    def _get(self, opener, path, body=None):
+        """(status, final path): a lost session would redirect to /login and still answer 200."""
         request = urllib.request.Request(f"http://127.0.0.1:{self.port}{path}")
         if body is not None:
             request.data = json.dumps(body).encode()
             request.add_header("Content-Type", "application/json")
         try:
             with opener.open(request, timeout=30) as response:
-                return response.status
+                return response.status, urllib.parse.urlsplit(response.geturl()).path
         except urllib.error.HTTPError as error:
-            return error.code
+            return error.code, path
 
     def test_parallel_page_loads_and_logins_all_succeed(self):
         opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
-        self.assertEqual(self._status(opener, "/api/login", {"username": "nv1", "password": "nv1_pass1"}), 200)
+        login = {"username": "nv1", "password": "nv1_pass1"}
+        self.assertEqual(self._get(opener, "/api/login", login), (200, "/api/login"))
 
         def page(_):
-            return self._status(opener, "/office")
+            return self._get(opener, "/office")
 
-        def login(_):
+        def login_again(_):
             fresh = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
-            return self._status(fresh, "/api/login", {"username": "nv1", "password": "nv1_pass1"})
+            return self._get(fresh, "/api/login", login)
 
         with ThreadPoolExecutor(max_workers=8) as pool:
             pages = list(pool.map(page, range(40)))
-            logins = list(pool.map(login, range(8)))
-        self.assertEqual(pages, [200] * 40)
-        self.assertEqual(logins, [200] * 8)
+            logins = list(pool.map(login_again, range(8)))
+        self.assertEqual(pages, [(200, "/office")] * 40)
+        self.assertEqual(logins, [(200, "/api/login")] * 8)
 
 
 if __name__ == "__main__":
