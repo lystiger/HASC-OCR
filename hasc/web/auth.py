@@ -24,7 +24,10 @@ COOKIE_NAME = "hasc_session"
 def get_db(request: Request) -> Generator[sqlite3.Connection, None, None]:
     """Dependency yielding a connection to the application database."""
     db_path = getattr(request.app.state, "db_path", None)
-    conn = get_connection(db_path, auto_migrate=False)
+    # FastAPI opens, uses and closes this connection in different worker threads. Each request has its
+    # own connection and uses it one step at a time, so sqlite3's same-thread check only gets in the way:
+    # with it, two requests at once answered 500.
+    conn = get_connection(db_path, auto_migrate=False, check_same_thread=False)
     try:
         yield conn
     finally:
