@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from hasc.db import create_user, get_connection, get_user_by_id
 from hasc.web import self_account
+from hasc.web.accounts import set_or_create_owner
 from hasc.web.app import create_app
 from hasc.web.cli import main as cli_main
 from hasc.web.security import hash_password, verify_password
@@ -179,6 +180,15 @@ class TestSelfAccount(unittest.TestCase):
         self._client("boss_user").post("/account/reset-request")
         page = self._client("admin_user").get("/admin/accounts").text
         self.assertIn("scripts/create_user.py --owner", page)
+
+        # Resetting on the server answers the request: it no longer waits on the accounts page.
+        conn = get_connection(self.db_path)
+        set_or_create_owner(conn, "boss_user")
+        conn.close()
+        page = self._client("admin_user").get("/admin/accounts").text
+        self.assertNotIn("scripts/create_user.py --owner", page)
+        self.assertNotIn("Yêu cầu đặt lại mật khẩu", page)
+        self.assertEqual([e["field"] for e in self._events("account_reset")], [f"user:{self.ids['boss_user']}"])
 
 
 class TestPasswordRules(unittest.TestCase):
