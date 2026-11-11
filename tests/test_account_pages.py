@@ -626,6 +626,11 @@ class TestAccountPages(unittest.TestCase):
         js = (Path(__file__).resolve().parents[1] / "hasc/web/static/js/ui.js").read_text(encoding="utf-8")
         # Source checks only (no JS runner here); the behaviour was checked in a browser.
         self.assertIn("if (htmxPost(event)) hideLoading();", js)
+        # The swapped-in screen keeps the Vietnamese checks and messages, Cancel in a confirm() shows no
+        # loading screen, and the result of an add is scrolled into view on a phone.
+        self.assertIn('addEventListener("htmx:load", function (event) { setUp(event.detail.elt); })', js)
+        self.assertIn('if (event.defaultPrevented && !form.hasAttribute("hx-post")) return;', js)
+        self.assertIn('querySelector(".temp-password-box, .alert")', js)
         self.assertIn('status === 400 && htmxPost(event, "/admin/accounts")', js)
 
         owner.post("/admin/accounts", data={"action": "add", "username": "twice", "role": "employee"})

@@ -120,17 +120,26 @@
     return first;
   }
 
-  document.addEventListener("DOMContentLoaded", function () {
+  // Runs on the page and again on every part htmx swaps in (the accounts screen after an add), which
+  // would otherwise lose the Vietnamese checks and messages. Each box and form is set up once.
+  function setUp(root) {
     // A message the server put on the page also pops up; the page copy stays for reading later.
-    document.querySelectorAll("[data-toast]").forEach(function (box) {
+    root.querySelectorAll("[data-toast]").forEach(function (box) {
+      if (box.hascShown) return;
+      box.hascShown = true;
       toast(box.textContent.replace(/\s+/g, " ").trim(), box.getAttribute("data-toast"));
     });
-    document.querySelectorAll("form").forEach(function (form) {
+    root.querySelectorAll("form").forEach(function (form) {
+      if (form.hascReady) return;
+      form.hascReady = true;
       form.setAttribute("novalidate", "");
       function clearFor(event) { clearError(event.target.closest(".file-pick") || event.target); }
       form.addEventListener("input", clearFor);
       form.addEventListener("change", clearFor);
       form.addEventListener("submit", function (event) {
+        // Cancel in an onsubmit confirm() stops the submit: no loading screen. htmx cancels the default
+        // of its own forms (hx-post) too, and those do send.
+        if (event.defaultPrevented && !form.hasAttribute("hx-post")) return;
         var bad = check(form);
         if (bad) {
           event.preventDefault();
@@ -144,7 +153,10 @@
         if (!form.hasAttribute("data-no-loading")) showLoading(form.getAttribute("data-loading"));
       });
     });
-  });
+  }
+
+  document.addEventListener("DOMContentLoaded", function () { setUp(document); });
+  document.addEventListener("htmx:load", function (event) { setUp(event.detail.elt); });
 
   // Coming back with the browser's Back button must not leave the loading screen up.
   window.addEventListener("pageshow", hideLoading);
@@ -166,6 +178,14 @@
       event.detail.shouldSwap = true;
       event.detail.isError = false;
     }
+  });
+
+  // After an htmx post the page is replaced where it stands; on a phone the add form is far down, so
+  // the result (the one-time password, or the error) would sit off-screen above. Bring it into view.
+  document.addEventListener("htmx:afterSettle", function (event) {
+    if (!htmxPost(event)) return;
+    var box = event.detail.target.querySelector(".temp-password-box, .alert");
+    if (box) box.scrollIntoView({ block: "start" });
   });
 
   window.hascUI = { toast: toast, showLoading: showLoading, hideLoading: hideLoading };
