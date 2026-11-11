@@ -167,15 +167,22 @@ def create_app(
     templates.env.globals["app_version"] = os.environ.get("HASC_VERSION", "")
     app.state.templates = templates
 
+    def go_to(request: Request, url: str) -> Response:
+        """Send the browser to another page. An htmx request (a list polling every few seconds) would
+        follow a redirect and put the target page inside the list, so it gets HX-Redirect instead."""
+        if request.headers.get("HX-Request") == "true":
+            return Response(status_code=200, headers={"HX-Redirect": url})
+        return RedirectResponse(url=url, status_code=303)
+
     # Exception handlers conforming to spec error shape:
     # {"error": {"code": "<code>", "message": "<Vietnamese text>"}}
     @app.exception_handler(AppError)
     async def app_error_handler(request: Request, exc: AppError):
         if not request.url.path.startswith("/api/"):
             if exc.code == "password_change_required":
-                return RedirectResponse(url="/change-password", status_code=303)
+                return go_to(request, "/change-password")
             if exc.status_code == 401:
-                return RedirectResponse(url="/login", status_code=303)
+                return go_to(request, "/login")
         return exc.to_response()
 
     DEFAULT_HTTP_ERRORS = {
@@ -204,7 +211,7 @@ def create_app(
         # For browser navigation without API prefix, redirect 401 to /login
         if not request.url.path.startswith("/api/"):
             if exc.status_code == 401:
-                return RedirectResponse(url="/login", status_code=303)
+                return go_to(request, "/login")
 
         default_code, default_msg = DEFAULT_HTTP_ERRORS.get(
             exc.status_code, ("http_error", "Lỗi hệ thống")
