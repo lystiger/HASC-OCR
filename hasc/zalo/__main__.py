@@ -36,6 +36,8 @@ def settings_from_env(env_path=None):
     sources = {}
     for name, (kind, staging) in SOURCE_LISTS.items():
         for source_id in (s.strip() for s in values.get(name, "").split(",")):
+            if source_id and sources.get((kind, source_id), staging) != staging:
+                sys.exit(f"{source_id} is listed as both staging and pilot in {env_path}")
             if source_id:
                 sources[(kind, source_id)] = staging
     if not sources:

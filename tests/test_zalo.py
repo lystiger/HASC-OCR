@@ -116,6 +116,10 @@ class TestReceiver(ZaloTestCase):
         self.assertEqual(token, TOKEN)
         self.assertEqual(sources, {("PRIVATE", TESTER): 1, ("PRIVATE", WORKER): 0, ("PRIVATE", "u-x"): 0,
                                    ("GROUP", PILOT): 0})
+        env.write_text(f"ZALO_BOT_TOKEN={TOKEN}\nZALO_STAGING_SENDER_IDS={TESTER}\nZALO_PILOT_SENDER_IDS={TESTER}\n",
+                       encoding="utf-8")
+        with self.assertRaises(SystemExit):  # staging photos must never count as pilot
+            settings_from_env(env)
         env.write_text(f"ZALO_BOT_TOKEN={TOKEN}\n", encoding="utf-8")
         with self.assertRaises(SystemExit) as stop:
             settings_from_env(env)
