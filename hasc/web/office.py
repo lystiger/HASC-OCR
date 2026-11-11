@@ -4,6 +4,7 @@ import io
 from pathlib import Path
 import sqlite3
 from typing import Any, Optional
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
@@ -416,7 +417,15 @@ def office_sheet_confirm_html(
     user: dict = Depends(require_role("review_sheet")),
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    _perform_confirm(conn, sheet_id, user, version=version)
+    try:
+        _perform_confirm(conn, sheet_id, user, version=version)
+    except AppError as error:
+        if error.status_code != 409:
+            raise
+        # A colleague confirmed or corrected it since this page was opened: back to the sheet with the reason.
+        sheet = get_sheet_by_id(conn, sheet_id)
+        message = "Biểu mẫu này đã được xác nhận." if sheet["status"] == "reviewed" else error.message
+        return RedirectResponse(url=f"/office/sheets/{sheet_id}?upload_error={quote(message)}", status_code=303)
     return RedirectResponse(url=f"/office/sheets/{sheet_id}?confirmed=1", status_code=303)
 
 

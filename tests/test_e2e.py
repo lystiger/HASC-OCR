@@ -407,14 +407,15 @@ class TestNegativeChecks(unittest.TestCase):
         sheet_after = get_sheet_by_id(conn, self.sheet_id)
         self.assertEqual(sheet_after["status"], "needs_review")
 
-        # 2. HTML form submission with stale version also returns 409 stale_version
+        # 2. HTML form submission with stale version is refused too, back on the sheet page with the reason
         res_stale_html = self.office_client.post(
             f"/office/sheets/{self.sheet_id}/confirm",
             data={"version": "1"},
         )
-        self.assertEqual(res_stale_html.status_code, 409)
-        err_html = res_stale_html.json()["error"]
-        self.assertEqual(err_html["code"], "stale_version")
+        self.assertEqual(res_stale_html.status_code, 200)
+        self.assertIn("Dữ liệu đã thay đổi", res_stale_html.text)
+        self.assertNotIn('{"error"', res_stale_html.text)
+        self.assertEqual(get_sheet_by_id(conn, self.sheet_id)["status"], "needs_review")
 
         # 3. Simulate version bump in database (e.g. data modified to version 3)
         increment_sheet_version(conn, self.sheet_id)
