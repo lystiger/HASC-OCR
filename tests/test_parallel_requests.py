@@ -27,7 +27,10 @@ from hasc.web.security import hash_password
 
 class TestParallelRequests(unittest.TestCase):
     def setUp(self):
+        # Cleanups run in reverse order and even when setUp fails: stop the server, then delete the files.
         self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+        self.addCleanup(gc.collect)  # Windows cannot delete a database file a leftover connection still holds
         root = Path(self.temp_dir.name)
         conn = get_connection(root / "hasc.db")
         create_user(conn, "nv1", hash_password("nv1_pass1"), role="employee", active=1)
@@ -36,24 +39,24 @@ class TestParallelRequests(unittest.TestCase):
 
         # The server takes over this socket, so no other process can grab the port in between.
         self.sock = socket.socket()
+        self.addCleanup(self.sock.close)
         self.sock.bind(("127.0.0.1", 0))
         self.port = self.sock.getsockname()[1]
         self.server = uvicorn.Server(uvicorn.Config(app, log_level="critical"))
         self.thread = threading.Thread(target=self.server.run, kwargs={"sockets": [self.sock]}, daemon=True)
         self.thread.start()
+        self.addCleanup(self._stop_server)
         for _ in range(200):
             if self.server.started:
                 break
             time.sleep(0.05)
         self.assertTrue(self.server.started, "the test server did not start")
 
-    def tearDown(self):
+    def _stop_server(self):
         self.server.should_exit = True
         self.thread.join(timeout=10)
-        self.sock.close()
-        self.assertFalse(self.thread.is_alive(), "the test server did not stop")
-        gc.collect()  # Windows cannot delete a database file a leftover connection still holds
-        self.temp_dir.cleanup()
+        if self.thread.is_alive():
+            raise AssertionError("the test server did not stop")
 
     def _get(self, opener, path, body=None):
         """(status, final path): a lost session would redirect to /login and still answer 200."""
