@@ -629,7 +629,8 @@ class TestAccountPages(unittest.TestCase):
         # The swapped-in screen keeps the Vietnamese checks and messages, Cancel in a confirm() shows no
         # loading screen, and the result of an add is scrolled into view on a phone.
         self.assertIn('addEventListener("htmx:load", function (event) { setUp(event.detail.elt); })', js)
-        self.assertIn('if (event.defaultPrevented && !form.hasAttribute("hx-post")) return;', js)
+        self.assertIn('if (event.defaultPrevented) return;', js)
+        self.assertIn('if (form.tagName === "FORM" && form.hascReady && refuse(form)) event.preventDefault();', js)
         self.assertIn('querySelector(".temp-password-box, .alert")', js)
         self.assertIn('status === 400 && htmxPost(event, "/admin/accounts")', js)
 
