@@ -93,7 +93,8 @@
     </div>
   </div>
 
-  <!-- Actions Card (Pick-up, Excel Download, Đúng xác nhận) -->
+  <!-- Actions Card (Pick-up, Excel Download, Đúng xác nhận): none for a role that only looks -->
+  {% if can_review %}
   <div class="card" style="margin-bottom: 1.5rem;">
     <h2 style="font-size: 1.15rem; margin-bottom: 0.75rem;">Thao tác xử lý biểu mẫu</h2>
     <div class="action-row">
@@ -117,10 +118,12 @@
         {% endif %}
       {% endif %}
 
-      <!-- Excel Download using hasc/excel -->
+      <!-- Excel Download using hasc/excel (part of reviewing: review_sheet) -->
+      {% if can_review %}
       <a href="/office/sheets/{{ sheet.id }}/excel" class="btn btn--secondary" style="min-height: 40px; display: inline-flex; align-items: center; text-decoration: none;" download>
         Tải tệp Excel
       </a>
+      {% endif %}
 
       <!-- 'Đúng, xác nhận' button: only while the sheet waits for review or is being reviewed -->
       {% if can_review and sheet.status in ('needs_review', 'in_review') %}
@@ -145,6 +148,7 @@
     </form>
     {% endif %}
   </div>
+  {% endif %}
 
   <!-- Photos Card -->
   <div class="card">
@@ -168,7 +172,7 @@
             <div>Chụp lúc: <span class="num">{{ photo.taken_at|vntime }}</span></div>
             {% endif %}
             <div style="margin-top: 0.35rem;">
-              {% if user.role in ("employee", "boss") %}<a href="/api/photos/{{ photo.id }}/download" download style="text-decoration: underline;">Tải ảnh gốc</a>{% endif %}
+              {% if can_review %}<a href="/api/photos/{{ photo.id }}/download" download style="text-decoration: underline;">Tải ảnh gốc</a>{% endif %}
             </div>
             {% if photo.quality_warnings %}
             <div class="alert" style="background: #FEFCE8; color: #854D0E; border: 1px solid #FEF08A; padding: 0.35rem 0.5rem; margin-top: 0.35rem; font-size: 0.8rem;">

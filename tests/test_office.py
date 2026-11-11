@@ -611,11 +611,14 @@ class TestOfficeScreens(unittest.TestCase):
                                     status_since=datetime.now(timezone.utc).isoformat())
                for n, status in enumerate(("needs_review", "in_review", "received", "reading", "failed", "reviewed"), 1)}
         conn.close()
-        actions = ("/pickup", "/confirm", 'enctype="multipart/form-data"')
+        # Every review action answers 403 to an admin, the Excel download included (review_sheet).
         page = self.clients["admin"].get(f"/office/sheets/{ids['needs_review']}").text
-        self.assertIn(f"/office/sheets/{ids['needs_review']}/excel", page)
-        for action in actions:
+        self.assertIn("Biểu mẫu Máy T1", page)
+        self.assertNotIn("Thao tác xử lý biểu mẫu", page)
+        for action in ("/pickup", "/confirm", f"/office/sheets/{ids['needs_review']}/excel", "/download"):
             self.assertNotIn(action, page)
+        self.assertEqual(self.clients["admin"].get(f"/office/sheets/{ids['needs_review']}/excel").status_code, 403)
+        self.assertIn(f"/office/sheets/{ids['needs_review']}/excel", self.clients["employee"].get(f"/office/sheets/{ids['needs_review']}").text)
         for status, sheet_id in ids.items():
             page = self.clients["employee"].get(f"/office/sheets/{sheet_id}").text
             self.assertEqual(f'action="/office/sheets/{sheet_id}/confirm"' in page, status in ("needs_review", "in_review"), status)
