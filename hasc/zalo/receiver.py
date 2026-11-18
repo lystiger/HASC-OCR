@@ -1,7 +1,8 @@
-"""Receive-only Zalo bot: keep photos from allowed senders and groups in the HASC Zalo inbox.
+"""Zalo bot receiver: keep photos from allowed senders and groups in the HASC Zalo inbox.
 
-The bot never sends a chat message: this module has no send call. It long-polls getUpdates, keeps
-image events from allowed sources, and drops every other event without storing it.
+This module never sends a chat message; the only send is the daily summary (hasc.zalo.summary, P151).
+It long-polls getUpdates, keeps image events from allowed sources, and drops every other event
+without storing it.
 
 Workers send sheet photos to the bot in a private chat. Group photos reach a bot only when they
 mention it or reply to it (tested 2026-11-11: plain group photos never arrived), so group sources
@@ -34,6 +35,11 @@ class ZaloError(Exception):
     """A safe message: names the method and the HTTP status, never the URL or the token."""
 
 
+class ZaloUncertain(ZaloError):
+    """The request was sent but no usable answer came back (timeout, cut-off or unreadable reply).
+    Zalo may have acted on it, so a send must not be repeated."""
+
+
 def call(token, method, payload=None):
     """POST one Bot API method and return its `result`. An empty long poll returns None."""
     try:
@@ -45,20 +51,24 @@ def call(token, method, payload=None):
     try:
         with urllib.request.urlopen(request, timeout=POLL_TIMEOUT + 10) as response:
             raw = response.read()
-    except urllib.error.HTTPError as error:
+    except urllib.error.HTTPError as error:  # Zalo answered with an error status
         if method == "getUpdates" and error.code in (408, 504):
             return None
         raise ZaloError(f"{method}: HTTP {error.code}") from None
-    except (TimeoutError, socket.timeout):
+    except urllib.error.URLError as error:  # urllib wraps failures while connecting or sending the request
+        if isinstance(error.reason, (socket.gaierror, ConnectionRefusedError)):  # nothing reached Zalo
+            raise ZaloError(f"{method}: không kết nối được tới Zalo") from None
+        raise ZaloUncertain(f"{method}: mất kết nối khi gửi tới Zalo") from None
+    except (TimeoutError, socket.timeout):  # raised after the request went out
         if method == "getUpdates":
             return None
-        raise ZaloError(f"{method}: hết thời gian chờ kết nối") from None
-    except (urllib.error.URLError, OSError, http.client.HTTPException):
-        raise ZaloError(f"{method}: không kết nối được tới Zalo") from None
+        raise ZaloUncertain(f"{method}: hết thời gian chờ kết nối") from None
+    except (OSError, http.client.HTTPException):  # e.g. cut off while reading the reply
+        raise ZaloUncertain(f"{method}: mất kết nối khi chờ Zalo trả lời") from None
     try:
         data = json.loads(raw) if raw else {"ok": True, "result": None}
     except ValueError:
-        raise ZaloError(f"{method}: Zalo trả về dữ liệu không đọc được") from None
+        raise ZaloUncertain(f"{method}: Zalo trả về dữ liệu không đọc được") from None
     if not isinstance(data, dict) or data.get("ok") is not True:
         code = data.get("error_code") if isinstance(data, dict) else None
         # Seen live 2026-11-11: getWebhookInfo answers 404 on a bot with no webhook. The docs only

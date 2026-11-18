@@ -112,7 +112,7 @@ class TestReceiver(ZaloTestCase):
         env = Path(self.temp_dir.name) / "zalo.env"
         env.write_text(f"ZALO_BOT_TOKEN={TOKEN}\nZALO_STAGING_SENDER_IDS={TESTER}\n"
                        f"ZALO_PILOT_SENDER_IDS={WORKER}, u-x\nZALO_PILOT_GROUP_IDS={PILOT}\n", encoding="utf-8")
-        token, sources = settings_from_env(env)
+        token, sources, _ = settings_from_env(env)
         self.assertEqual(token, TOKEN)
         self.assertEqual(sources, {("PRIVATE", TESTER): 1, ("PRIVATE", WORKER): 0, ("PRIVATE", "u-x"): 0,
                                    ("GROUP", PILOT): 0})
@@ -225,7 +225,7 @@ class TestReceiver(ZaloTestCase):
 
         beats = []
         with mock.patch.dict("os.environ", {"HASC_DB_PATH": str(self.db_path)}):
-            code = main([], settings=(TOKEN, SOURCES), call=flaky, sleep=beats.append)
+            code = main([], settings=(TOKEN, SOURCES, None), call=flaky, sleep=beats.append)
         self.assertEqual((code, beats), (0, [5]))
         state = self.conn.execute("SELECT * FROM zalo_receiver").fetchone()
         self.assertEqual(state["last_error"], "lỗi nội bộ: RuntimeError")
@@ -249,21 +249,25 @@ class TestReceiver(ZaloTestCase):
             return {}
 
         with mock.patch.dict("os.environ", {"HASC_DB_PATH": str(self.db_path)}):
-            code = main(["--once", "--photos-dir", str(self.photos)], settings=(TOKEN, SOURCES),
+            code = main(["--once", "--photos-dir", str(self.photos)], settings=(TOKEN, SOURCES, None),
                         call=fake_call, fetch=lambda url: jpeg())
         self.assertEqual(code, 0)
         self.assertEqual(methods, ["getMe", "getWebhookInfo", "getUpdates"])
         self.assertEqual(self.inbox()[0]["status"], "delivered")
-        source = "".join(p.read_text(encoding="utf-8") for p in Path(receiver.__file__).parent.glob("*.py"))
+        files = {p.name: p.read_text(encoding="utf-8") for p in Path(receiver.__file__).parent.glob("*.py")}
+        summary = files.pop("summary.py")  # the daily summary is the bot's only send (P151)
+        source = "".join(files.values())
         for send in ("sendMessage", "sendPhoto", "sendSticker", "sendVoice", "sendChatAction", "deleteWebhook"):
             self.assertNotIn(send, source)
+            if send != "sendMessage":
+                self.assertNotIn(send, summary)
 
     def test_webhook_in_use_stops_without_changing_it(self):
         def fake_call(token, method, payload=None):
             return {"url": "https://example.com/hook"} if method == "getWebhookInfo" else {}
 
         with mock.patch.dict("os.environ", {"HASC_DB_PATH": str(self.db_path)}):
-            code = main(["--once"], settings=(TOKEN, SOURCES), call=fake_call)
+            code = main(["--once"], settings=(TOKEN, SOURCES, None), call=fake_call)
         self.assertEqual(code, 1)
         state = self.conn.execute("SELECT * FROM zalo_receiver").fetchone()
         self.assertIn("webhook", state["last_error"])
@@ -350,6 +354,22 @@ class TestAiPageZalo(ZaloTestCase):
         client = TestClient(self.app)
         self.assertEqual(client.post("/api/login", json={"username": name, "password": "pass"}).status_code, 200)
         return client
+
+    def test_page_shows_the_daily_summary_state(self):
+        client = self.client("boss_user")
+        self.assertIn("Chưa gửi", client.get("/ai/partial").text)
+        self.conn.execute("""INSERT INTO zalo_summary (production_date, chat_id, status, attempts, last_error, last_try_at)
+                             VALUES ('2026-11-18', 'g', 'failed', 3, 'sendMessage: HTTP 500', '2026-11-19T02:20:00+00:00')""")
+        self.conn.commit()
+        text = client.get("/ai/partial").text
+        self.assertIn("Lỗi", text)
+        self.assertIn("sendMessage: HTTP 500", text)
+        sent_at = datetime.now(timezone.utc).isoformat()
+        self.conn.execute("UPDATE zalo_summary SET status = 'sent', last_error = NULL, sent_at = ?", (sent_at,))
+        self.conn.commit()
+        text = client.get("/ai/partial").text
+        self.assertIn("Đã gửi", text)
+        self.assertIn("1 tin tháng này", text)
 
     def test_page_shows_both_sections_without_secrets(self):
         self.store(image_event("m1", caption="/capture riêng tư"))

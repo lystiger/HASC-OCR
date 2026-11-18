@@ -3,7 +3,8 @@
 The receiver (python -m hasc.zalo) writes zalo_receiver and zalo_inbox; this page only reads them.
 A quiet day is not a failure: health comes from the receiver's own heartbeat, and a quiet day
 shows zero photos. Workers send photos to the bot in a private chat; the staging card shows whether
-a test photo made it end to end. The bot sends nothing, so outgoing messages are always 0.
+a test photo made it end to end. The bot's only message is the daily summary to the office group (P151):
+outgoing counts the summaries sent this month, and the card shows the latest one or its error.
 Signed photo URLs and the token never reach a page.
 """
 from datetime import date, datetime, timedelta, timezone
@@ -93,7 +94,10 @@ def zalo_overview(conn: sqlite3.Connection, now: datetime) -> dict:
         "health": receiver_health(conn, now), "last_photo_at": last,
         "staging_test": {"saved": test["saved"], "last_at": test["last_at"]},
         "usage": usage(conn, today), "recent": [dict(r) for r in recent],
-        "outgoing": 0,  # no send call exists in hasc.zalo
+        "outgoing": conn.execute("SELECT COUNT(*) FROM zalo_summary WHERE status = 'sent' AND sent_at >= ? AND sent_at < ?",
+                                 month_window(today)).fetchone()[0],
+        "summary": dict(latest) if (latest := conn.execute(
+            "SELECT * FROM zalo_summary ORDER BY production_date DESC LIMIT 1").fetchone()) else None,
     }
 
 

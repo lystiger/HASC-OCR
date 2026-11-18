@@ -34,9 +34,21 @@
     {% endif %}
   </div>
   <div class="card stat">
-    <p class="stat__label">Tin bot gửi đi</p>
-    <p class="stat__value num">{{ zalo.outgoing }}</p>
-    <p class="muted">Bot chỉ nhận, không trả lời. Hạn mức Zalo: không có dữ liệu từ nhà cung cấp.</p>
+    <p class="stat__label">Bản tin hằng ngày (9:00)</p>
+    {% set s = zalo.summary %}
+    {% if not s %}
+    <p class="stat__value"><span class="badge badge--off">Chưa gửi</span></p>
+    <p class="muted">Bot chỉ gửi bản tin số liệu hôm qua vào nhóm văn phòng lúc 9:00, khi đã cài nhóm nhận.</p>
+    {% elif s.status == "sent" %}
+    <p class="stat__value"><span class="badge badge--ok">Đã gửi</span></p>
+    <p class="muted">Ngày {{ s.production_date }}, gửi lúc {{ s.sent_at|vntime }}. {{ zalo.outgoing }} tin tháng này.</p>
+    {% elif s.status == "failed" %}
+    <p class="stat__value"><span class="badge badge--danger">Lỗi</span></p>
+    <p class="muted">Ngày {{ s.production_date }}: {{ s.last_error }}. Không tự gửi lại.</p>
+    {% else %}
+    <p class="stat__value"><span class="badge badge--warn">Đang thử lại</span></p>
+    <p class="muted">Ngày {{ s.production_date }}, lần {{ s.attempts }}/3: {{ s.last_error or "đang gửi" }}</p>
+    {% endif %}
   </div>
 </div>
 
