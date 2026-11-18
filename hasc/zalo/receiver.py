@@ -1,7 +1,8 @@
-"""Receive-only Zalo bot: keep photos from allowed senders and groups in the HASC Zalo inbox.
+"""Zalo bot receiver: keep photos from allowed senders and groups in the HASC Zalo inbox.
 
-The bot never sends a chat message: this module has no send call. It long-polls getUpdates, keeps
-image events from allowed sources, and drops every other event without storing it.
+This module never sends a chat message; the only send is the daily summary (hasc.zalo.summary, P151).
+It long-polls getUpdates, keeps image events from allowed sources, and drops every other event
+without storing it.
 
 Workers send sheet photos to the bot in a private chat. Group photos reach a bot only when they
 mention it or reply to it (tested 2026-11-11: plain group photos never arrived), so group sources
@@ -34,6 +35,10 @@ class ZaloError(Exception):
     """A safe message: names the method and the HTTP status, never the URL or the token."""
 
 
+class ZaloTimeout(ZaloError):
+    """No answer in time. The request may still have reached Zalo, so a send must not be repeated."""
+
+
 def call(token, method, payload=None):
     """POST one Bot API method and return its `result`. An empty long poll returns None."""
     try:
@@ -52,7 +57,7 @@ def call(token, method, payload=None):
     except (TimeoutError, socket.timeout):
         if method == "getUpdates":
             return None
-        raise ZaloError(f"{method}: hết thời gian chờ kết nối") from None
+        raise ZaloTimeout(f"{method}: hết thời gian chờ kết nối") from None
     except (urllib.error.URLError, OSError, http.client.HTTPException):
         raise ZaloError(f"{method}: không kết nối được tới Zalo") from None
     try:

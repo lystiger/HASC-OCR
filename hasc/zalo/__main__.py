@@ -4,9 +4,11 @@ Reads HASC_DB_PATH for the database and HASC_ZALO_ENV for the bot settings file,
 repository: ZALO_BOT_TOKEN and at least one comma-separated source list. Workers send photos to the
 bot in a private chat, so the usual lists are ZALO_STAGING_SENDER_IDS and ZALO_PILOT_SENDER_IDS;
 ZALO_STAGING_GROUP_ID and ZALO_PILOT_GROUP_IDS also work, but only for photos that mention the bot.
-The token is never printed. Run only one receiver per bot: getUpdates hands each event out once.
+ZALO_SUMMARY_CHAT_ID, when set, is the group that gets yesterday's numbers at 9:00 (P151); without it
+the bot sends nothing. The token is never printed. Run only one receiver per bot: getUpdates hands each event out once.
 """
 import argparse
+from datetime import datetime, timezone
 import os
 import sys
 import time
@@ -15,7 +17,8 @@ from pathlib import Path
 from hasc.db import get_connection, get_default_photos_dir
 from hasc.worker.config import read_env
 from hasc.zalo import receiver
-from hasc.zalo.receiver import ZaloError, beat, check_connection, poll_once
+from hasc.zalo.receiver import ZaloError, beat, check_connection, mask, poll_once
+from hasc.zalo.summary import send_due_summary
 
 ENV_VAR = "HASC_ZALO_ENV"
 RETRY_SECONDS = (5, 15, 60, 300)  # waits after consecutive failures, then the last one repeats
@@ -42,17 +45,18 @@ def settings_from_env(env_path=None):
                 sources[(kind, source_id)] = staging
     if not sources:
         sys.exit(f"no sender or group IDs in {env_path}: set ZALO_STAGING_SENDER_IDS")
-    return values["ZALO_BOT_TOKEN"], sources
+    return values["ZALO_BOT_TOKEN"], sources, values.get("ZALO_SUMMARY_CHAT_ID", "").strip() or None
 
 
-def main(argv=None, settings=None, call=receiver.call, fetch=receiver.fetch, sleep=time.sleep):
+def main(argv=None, settings=None, call=receiver.call, fetch=receiver.fetch, sleep=time.sleep,
+         clock=lambda: datetime.now(timezone.utc)):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--once", action="store_true", help="poll once, download what is waiting, then exit")
     parser.add_argument("--photos-dir", type=Path, default=None, help="directory where photos are stored")
     parser.add_argument("--show-ids", action="store_true",
                         help="print full sender and group IDs of ignored events, to copy into the settings file")
     args = parser.parse_args(argv)
-    token, sources = settings or settings_from_env()
+    token, sources, summary_chat = settings or settings_from_env()
     conn = get_connection()
     photos_dir = args.photos_dir or get_default_photos_dir()
     failures = 0
@@ -65,12 +69,15 @@ def main(argv=None, settings=None, call=receiver.call, fetch=receiver.fetch, sle
             print(f"Stopped: {error}")
             return 1
         staging = sum(sources.values())
-        print(f"Receiving from {staging} staging and {len(sources) - staging} pilot source(s). "
-              "No chat messages are sent.", flush=True)
+        sends = (f"Daily summary at 9:00 to group {mask(summary_chat)}." if summary_chat
+                 else "No chat messages are sent.")
+        print(f"Receiving from {staging} staging and {len(sources) - staging} pilot source(s). {sends}", flush=True)
         while True:
             try:
                 poll_once(conn, token, sources, photos_dir, call, fetch, args.show_ids)
                 failures = 0
+                if summary_chat and send_due_summary(conn, token, summary_chat, clock(), call) == "sent":
+                    print("Daily summary sent.", flush=True)
             except Exception as error:  # keep receiving; a non-Zalo error is named by type only
                 message = str(error) if isinstance(error, ZaloError) else f"lỗi nội bộ: {type(error).__name__}"
                 beat(conn, error=message)
