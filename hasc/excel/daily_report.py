@@ -3,10 +3,14 @@
 Each shift block has one line per machine + customer + film type + product code, weighing the sum of
 net_kg over the valid rows of valid photos. Pending goods, waste and the signature are left blank for
 the office. A line that includes a sheet not yet Reviewed is marked `Chưa xác nhận`.
+
+A row's machine is the one written in its Máy cell (form A rev 3 writes it on the first row and whenever the
+machine changes), carried down the page; rows before any written machine use the machine picked at upload.
 """
 
 from collections import defaultdict
 from datetime import date
+import re
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font
 from openpyxl.utils import get_column_letter
@@ -33,6 +37,7 @@ HEADINGS = (
 COLUMN_WIDTHS = (10, 24, 22, 34, 16, 18, 10, 18, 18, 18)
 PENDING_NOTE = "Chưa xác nhận"
 UNREAD_NOTE = "Có khối lượng chưa đọc được, chưa cộng"
+UNCLEAR_MACHINE_NOTE = "Máy ghi không rõ: {}"
 NET_COLUMN = 5
 ROLLS_COLUMN = 7
 NOTE_COLUMN = 9
@@ -55,6 +60,11 @@ def _number(text: str) -> float | None:
         return None
 
 
+def _written_machine(cells: dict) -> str:
+    """The Máy cell as written, normalised so " t 6 " reads as T6."""
+    return re.sub(r"[\s.\-]", "", _text(cells, "machine")).upper()
+
+
 def _from_valid_photos(cells: dict, valid_photo_ids: set[int]) -> bool:
     sources = {cell.get("source_photo_id") for cell in cells.values() if cell.get("source_photo_id") is not None}
     return sources <= valid_photo_ids
@@ -75,12 +85,16 @@ def _collect(conn, production_date: str):
             if photo["uploaded_by"] is not None and photo["uploaded_by"] not in leaders[sheet["shift"]]:
                 leaders[sheet["shift"]].append(photo["uploaded_by"])
         layout = sheet["layout"] or "form_a"
-        section = lines[(sheet["shift"], sheet["machine"])]
-        carried = carried_by_section.setdefault((sheet["shift"], sheet["machine"], layout), {})
+        machine = sheet["machine"]
         for row in get_sheet_data(conn, sheet["id"]):
             cells = row["cells"]
             if not _from_valid_photos(cells, valid_photo_ids):
                 continue
+            written = _written_machine(cells)
+            if written in MACHINES:
+                machine = written
+            section = lines[(sheet["shift"], machine)]
+            carried = carried_by_section.setdefault((sheet["shift"], machine, layout), {})
             for field in CARRIED_FIELDS:
                 val = cells.get(field, {}).get("value")
                 if val is not None and str(val).strip():
@@ -93,7 +107,10 @@ def _collect(conn, production_date: str):
             else:
                 code = f"{thickness}x{width}x{_text(cells, 'length_mm')}"
             key = (layout, _text(cells, "customer"), _text(cells, "film_type"), code)
-            line = section.setdefault(key, {"net": 0.0, "rolls": 0, "unconfirmed": False, "unread": False})
+            line = section.setdefault(key, {"net": 0.0, "rolls": 0, "unconfirmed": False, "unread": False,
+                                            "unclear_machines": []})
+            if written and written not in MACHINES and written not in line["unclear_machines"]:
+                line["unclear_machines"].append(written)
             net = _number(_text(cells, "net_kg"))
             line["net"] += net or 0
             unreadable = cells.get("net_kg", {}).get("flag") == "unreadable"
@@ -143,6 +160,7 @@ def build_daily_report(conn, production_date: date) -> Workbook:
             for key in sorted(section, key=lambda k: (k[0] != "form_a", k[1], k[2], k[3])):
                 line = section[key]
                 notes = [PENDING_NOTE] * line["unconfirmed"] + [UNREAD_NOTE] * line["unread"]
+                notes += [UNCLEAR_MACHINE_NOTE.format(value) for value in line["unclear_machines"]]
                 note = "; ".join(notes) or None
                 values = [machine, key[1], key[2], key[3], round(line["net"], 3), None, line["rolls"], None, note]
                 _write_values(ws, row, values)

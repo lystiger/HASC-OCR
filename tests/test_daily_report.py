@@ -16,7 +16,7 @@ from hasc.db import (
     upsert_cell,
 )
 from hasc.excel import build_daily_report, daily_report_filename
-from hasc.excel.daily_report import HEADINGS, MACHINES, PENDING_NOTE, UNREAD_NOTE
+from hasc.excel.daily_report import HEADINGS, MACHINES, PENDING_NOTE, UNCLEAR_MACHINE_NOTE, UNREAD_NOTE
 
 DAY = date(2026, 12, 1)
 FORM = "BMMT01-2022/HASC"
@@ -42,10 +42,11 @@ class DailyReport(unittest.TestCase):
                                 sha256=f"sha{self.photos}", uploaded_by=uploader)
         return sheet_id, photo_id
 
-    def roll(self, sheet_id, photo_id, net, customer, film_type, thickness, width, length=None, invalid=False):
+    def roll(self, sheet_id, photo_id, net, customer, film_type, thickness, width, length=None, invalid=False,
+             machine=None):
         position = len(get_rows_for_sheet(self.conn, sheet_id, include_invalid=True)) + 1
         row_id = create_row(self.conn, sheet_id, str(position), position, invalid=int(invalid))
-        details = {"customer": customer, "film_type": film_type, "thickness_mic": thickness,
+        details = {"machine": machine, "customer": customer, "film_type": film_type, "thickness_mic": thickness,
                    "width_mm": width, "length_mm": length, "net_kg": net}
         for field, value in details.items():
             if value is not None:
@@ -223,6 +224,51 @@ class DailyReport(unittest.TestCase):
         self.assertEqual(lines[0][:4], ["T3", "Gamma", "TX", "30mic x R400"])
         self.assertEqual(lines[0][4], 40)
         self.assertEqual(lines[0][6], 2)
+
+    def machine_lines(self, ws, shift, machine):
+        return [line for line in self.block(ws, shift)[2:] if line[0] == machine and line[1] is not None]
+
+    def test_written_machine_moves_rows_to_that_machine(self):
+        # Form A rev 3: Máy is written on the first row and whenever the machine changes.
+        sheet_id, photo_id = self.sheet("T1", 1, self.an)
+        self.roll(sheet_id, photo_id, 10, "Alpha", "GT", 40, 500, 1500, machine="T6")
+        self.roll(sheet_id, photo_id, 20, None, None, None, None, None)
+        self.roll(sheet_id, photo_id, 30, "Beta", "PE", 30, 600, 1200, machine="T1")
+        ws = self.build()
+        t6 = self.machine_lines(ws, 1, "T6")
+        self.assertEqual([line[:5] + [line[6]] for line in t6], [["T6", "Alpha", "GT", "40x500x1500", 30, 2]])
+        t1 = self.machine_lines(ws, 1, "T1")
+        self.assertEqual([line[:5] + [line[6]] for line in t1], [["T1", "Beta", "PE", "30x600x1200", 30, 1]])
+
+    def test_blank_machine_keeps_the_machine_picked_at_upload(self):
+        sheet_id, photo_id = self.sheet("T6", 1, self.an)
+        self.roll(sheet_id, photo_id, 10, "Alpha", "GT", 40, 500, 1500)
+        ws = self.build()
+        self.assertEqual(len(self.machine_lines(ws, 1, "T6")), 1)
+
+    def test_written_machine_does_not_carry_to_the_next_page(self):
+        front, front_photo = self.sheet("T1", 1, self.an, page_no=1)
+        self.roll(front, front_photo, 10, "Alpha", "GT", 40, 500, 1500, machine="T6")
+        back, back_photo = self.sheet("T1", 1, self.an, page_no=2)
+        self.roll(back, back_photo, 20, "Beta", "PE", 30, 600, 1200)
+        ws = self.build()
+        self.assertEqual([line[1] for line in self.machine_lines(ws, 1, "T6")], ["Alpha"])
+        self.assertEqual([line[1] for line in self.machine_lines(ws, 1, "T1")], ["Beta"])
+
+    def test_handwritten_machine_spellings_are_understood(self):
+        sheet_id, photo_id = self.sheet("T1", 1, self.an)
+        self.roll(sheet_id, photo_id, 10, "Alpha", "GT", 40, 500, 1500, machine=" t 6 ")
+        ws = self.build()
+        self.assertEqual(len(self.machine_lines(ws, 1, "T6")), 1)
+        self.assertEqual(self.machine_lines(ws, 1, "T1"), [])
+
+    def test_unknown_machine_stays_put_and_is_noted(self):
+        sheet_id, photo_id = self.sheet("T1", 1, self.an)
+        self.roll(sheet_id, photo_id, 10, "Alpha", "GT", 40, 500, 1500, machine="X9")
+        ws = self.build()
+        lines = self.machine_lines(ws, 1, "T1")
+        self.assertEqual(len(lines), 1)
+        self.assertIn(UNCLEAR_MACHINE_NOTE.format("X9"), lines[0][8])
 
     def test_filename(self):
         self.assertEqual(daily_report_filename(DAY), "HASC_BaoCaoNgay_2026-12-01.xlsx")
