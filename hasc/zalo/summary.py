@@ -4,9 +4,9 @@ Yesterday is the production date that ended at 7am today: Ca 1 (7am-7pm) and Ca 
 finished. The numbers are the daily report's (`hasc.excel.daily_report`): kg and rolls per shift and
 machine. Sheets the office has not confirmed yet are sent anyway, marked `chưa xác nhận`.
 
-A day is sent at most once. Its row is written as `sending` before the call, so a crash or a timeout
-mid-send leaves it `failed` for a person to check, never sent twice. A plain failure (no connection,
-Zalo refused) waits RETRY_MINUTES and tries again, up to MAX_ATTEMPTS. A PC that is off at 9:00 sends
+A day is sent at most once. Its row is written as `sending` before the call, so a crash, a timeout or
+a reply cut off mid-send leaves it `failed` for a person to check, never sent twice. Only a failure
+known not to have delivered (no connection while sending, or Zalo answered with an error) waits RETRY_MINUTES and tries again, up to MAX_ATTEMPTS. A PC that is off at 9:00 sends
 when it is back, until 23:59; after that the day is skipped and the next morning reports the next day.
 """
 from datetime import date, datetime, time, timedelta, timezone
@@ -14,7 +14,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from hasc.db import list_not_running, list_sheets
 from hasc.excel.daily_report import MACHINES, SHIFTS, _collect
 from hasc.web.operator import ALLOWED_MACHINES
-from hasc.zalo.receiver import ZaloError, ZaloTimeout, call
+from hasc.zalo.receiver import ZaloError, ZaloUncertain, call
 
 VN = timezone(timedelta(hours=7))  # Vietnam has no daylight saving
 SEND_AT = time(9, 0)
@@ -61,7 +61,8 @@ def summary_text(conn, production_date: date) -> str:
             text.append("- Không có số liệu")
     total = f"Tổng: {_kg(film_kg)} kg màng, {rolls} cuộn"
     text.append(total + (f"; túi {_kg(bag_kg)} kg" if bag_kg else ""))
-    received = {(s["machine"], s["shift"]) for s in sheets}
+    # Only a form A page counts as the shift's sheet; a back page alone still leaves form A missing.
+    received = {(s["machine"], s["shift"]) for s in sheets if (s["layout"] or "form_a") == "form_a"}
     idle = {(r["machine"], r["shift"]) for r in list_not_running(conn, iso)}
     missing = [f"{m} Ca {s}" for s in SHIFTS for m in ALLOWED_MACHINES if (m, s) not in received | idle]
     if missing:
@@ -105,7 +106,7 @@ def send_due_summary(conn, token, chat_id, now: datetime, call=call) -> str | No
     _record(conn, iso, chat_id, "sending", attempts, stamp, None)
     try:
         call(token, "sendMessage", {"chat_id": chat_id, "text": text})
-    except ZaloTimeout as error:  # the message may have gone out; never risk a second one
+    except ZaloUncertain as error:  # the message may have gone out; never risk a second one
         _save(conn, iso, "failed", attempts, f"{error}; có thể tin đã đến, xem nhóm Zalo")
         return "failed"
     except ZaloError as error:

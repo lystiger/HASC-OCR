@@ -1,11 +1,13 @@
 """Daily summary to the office group (P151): text, 9:00 timing, and at most one message per day."""
 from datetime import date, datetime, timedelta, timezone
+import http.client
 import unittest
+import urllib.error
 from unittest import mock
 
 from hasc.db import mark_not_running
 from hasc.zalo.__main__ import main
-from hasc.zalo.receiver import ZaloError, ZaloTimeout
+from hasc.zalo.receiver import ZaloError, ZaloUncertain
 from hasc.zalo.summary import due_date, send_due_summary, summary_text
 from tests.test_daily_report import DAY, DailyReport
 
@@ -51,13 +53,13 @@ class Summary(unittest.TestCase):
             "Ca 2:",
             "- T6: 125 kg, 2 cuộn",
             "Tổng: 500,8 kg màng, 9 cuộn; túi 50 kg",
-            "Chưa nhận tờ: T6 Ca 1, T1 Ca 2, T3 Ca 2",
+            "Chưa nhận tờ: T3 Ca 1, T6 Ca 1, T1 Ca 2, T3 Ca 2",
             "Chưa xác nhận: 1 tờ",
         ]))
 
     def test_shifts_marked_not_running_are_not_missing(self):
         self.seed()
-        for machine, shift in (("T1", 2), ("T3", 2), ("T6", 1)):
+        for machine, shift in (("T1", 2), ("T3", 1), ("T3", 2), ("T6", 1)):
             mark_not_running(self.conn, machine, DAY.isoformat(), shift, "nghỉ")
         self.assertNotIn("Chưa nhận tờ", summary_text(self.conn, DAY))
 
@@ -111,11 +113,37 @@ class Summary(unittest.TestCase):
         self.assertEqual(len(sent), 3)
 
     def test_timeout_is_never_retried(self):
-        call, sent = self.calls(ZaloTimeout("sendMessage: hết thời gian chờ kết nối"))
+        call, sent = self.calls(ZaloUncertain("sendMessage: hết thời gian chờ kết nối"))
         self.assertEqual(send_due_summary(self.conn, TOKEN, CHAT, at(9), call), "failed")
         self.assertIsNone(send_due_summary(self.conn, TOKEN, CHAT, at(10), call))
         self.assertEqual(len(sent), 1)
         self.assertIn("xem nhóm Zalo", self.row()["last_error"])
+
+    def test_reply_cut_off_is_never_retried(self):
+        for error in (http.client.IncompleteRead(b""), http.client.RemoteDisconnected(), ConnectionResetError(),
+                      TimeoutError()):
+            with self.subTest(error=type(error).__name__):
+                self.conn.execute("DELETE FROM zalo_summary")
+                self.conn.commit()
+                sent = []
+
+                def urlopen(request, timeout=None):
+                    sent.append(request)
+                    raise error
+                with mock.patch("urllib.request.urlopen", urlopen):
+                    self.assertEqual(send_due_summary(self.conn, TOKEN, CHAT, at(9)), "failed")
+                    self.assertIsNone(send_due_summary(self.conn, TOKEN, CHAT, at(10)))
+                self.assertEqual(len(sent), 1)
+
+    def test_failure_while_sending_the_request_is_retried(self):
+        error = urllib.error.URLError(ConnectionRefusedError())
+        with mock.patch("urllib.request.urlopen", side_effect=error):
+            self.assertEqual(send_due_summary(self.conn, TOKEN, CHAT, at(9)), "waiting")
+
+    def test_a_back_page_does_not_stand_in_for_form_a(self):
+        t3, photo = self.sheet("T3", 1, self.an, layout="back")
+        self.roll(t3, photo, 50, "Gamma", "TX", 30, 400)
+        self.assertIn("Chưa nhận tờ: T1 Ca 1, T3 Ca 1,", summary_text(self.conn, DAY))
 
     def test_a_send_cut_off_midway_is_not_repeated(self):
         call, sent = self.calls()
