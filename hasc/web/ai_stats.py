@@ -158,6 +158,22 @@ def ai_overview(conn: sqlite3.Connection, today: date) -> dict:
         "quality": accuracy(conn, first.isoformat(), next_month.isoformat()),
         "weeks": heatmap(per_day, today, budget["rate"]),
         "recent": [_day_row(d, per_day.get(d.isoformat(), {}), budget["rate"]) for d in recent],
+        "openrouter": openrouter_status(conn),
+    }
+
+
+def openrouter_status(conn: sqlite3.Connection) -> dict:
+    """The model behind the latest read and the latest failure, from recorded reads only: no paid probe."""
+    ok = conn.execute("""
+        SELECT reader_name, finished_at FROM read_jobs WHERE status = 'done' ORDER BY finished_at DESC LIMIT 1
+    """).fetchone()
+    failed = conn.execute("""
+        SELECT last_error, finished_at FROM read_jobs WHERE status = 'failed' ORDER BY finished_at DESC LIMIT 1
+    """).fetchone()
+    return {
+        "model": ok["reader_name"] if ok else None, "last_ok_at": ok["finished_at"] if ok else None,
+        "last_error": (failed["last_error"] or "")[:200] if failed else None,
+        "last_error_at": failed["finished_at"] if failed else None,
     }
 
 
@@ -182,9 +198,11 @@ def budget_alert(request: Request) -> dict | None:
 
 
 def _render(request, conn, user, name, **extra):
+    from hasc.web.zalo_inbox import zalo_overview  # it builds on this module's month helpers
     return request.app.state.templates.TemplateResponse(
         request=request, name=name,
         context={"user": user, "ai": ai_overview(conn, datetime.now(VN).date()),
+                 "zalo": zalo_overview(conn, datetime.now(timezone.utc)),
                  "settings": get_settings(conn), **extra})
 
 

@@ -1,0 +1,113 @@
+{% set h = zalo.health %}
+{% set m = zalo.usage.month %}
+<h2 class="ai-section">Zalo Bot</h2>
+<div class="stat-grid">
+  <div class="card stat">
+    <p class="stat__label">Bộ nhận ảnh</p>
+    {% if h.state == "never" %}
+    <p class="stat__value"><span class="badge badge--off">Chưa chạy</span></p>
+    <p class="muted">Chưa thấy bộ nhận ảnh (python -m hasc.zalo) chạy lần nào trên máy này.</p>
+    {% elif h.state == "stale" %}
+    <p class="stat__value"><span class="badge badge--danger">Mất tín hiệu</span></p>
+    <p class="muted">Tín hiệu cuối lúc {{ h.row.heartbeat_at|vntime }}. Bộ nhận ảnh đã dừng hoặc treo.</p>
+    {% elif h.state == "error" %}
+    <p class="stat__value"><span class="badge badge--warn">Đang lỗi</span></p>
+    <p class="muted">{{ h.row.last_error }} ({{ h.row.last_error_at|vntime }})</p>
+    {% else %}
+    <p class="stat__value"><span class="badge badge--ok">Đang nhận</span></p>
+    <p class="muted">Tín hiệu cuối lúc {{ h.row.heartbeat_at|vntime }}. Không có ảnh mới không phải là lỗi.</p>
+    {% endif %}
+  </div>
+  <div class="card stat">
+    <p class="stat__label">Ảnh nhận gần nhất</p>
+    <p class="stat__value num">{{ zalo.last_photo_at|vntime if zalo.last_photo_at else "—" }}</p>
+    <p class="muted">{{ m.pilot.waiting + m.staging.waiting }} ảnh đang chờ tải · {{ m.pilot.failed + m.staging.failed }} ảnh lỗi tháng này</p>
+  </div>
+  <div class="card stat">
+    <p class="stat__label">Ảnh thử (staging)</p>
+    {% if zalo.staging_test.saved %}
+    <p class="stat__value num">{{ zalo.staging_test.saved }} <span class="stat__unit">đã lưu</span></p>
+    <p class="muted">Ảnh thử gửi riêng cho bot đã vào hộp thư, lần cuối {{ zalo.staging_test.last_at|vntime }}.</p>
+    {% else %}
+    <p class="stat__value"><span class="badge badge--warn">Chưa chứng minh</span></p>
+    <p class="muted">Người thử gửi một ảnh riêng cho bot để kiểm tra cả đường từ Zalo vào HASC.</p>
+    {% endif %}
+  </div>
+  <div class="card stat">
+    <p class="stat__label">Tin bot gửi đi</p>
+    <p class="stat__value num">{{ zalo.outgoing }}</p>
+    <p class="muted">Bot chỉ nhận, không trả lời. Hạn mức Zalo: không có dữ liệu từ nhà cung cấp.</p>
+  </div>
+</div>
+
+<section class="card">
+  <h2 class="card__title">Sử dụng tháng {{ ai.month_label }} (pilot không tính staging)</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Ngày</th><th>Sự kiện ảnh</th><th>Ảnh mới</th><th>Ảnh trùng</th><th>Sự kiện lặp</th><th>Bị loại</th><th>Lỗi</th><th>Staging</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>Cả tháng</strong></td>
+          <td class="num">{{ m.pilot.events }}</td>
+          <td class="num">{{ m.pilot.delivered }}</td>
+          <td class="num">{{ m.pilot.duplicate }}</td>
+          <td class="num">{{ m.pilot.redeliveries }}</td>
+          <td class="num">{{ m.pilot.rejected }}</td>
+          <td class="num">{{ m.pilot.failed }}</td>
+          <td class="num">{{ m.staging.events }}</td>
+        </tr>
+        {% for d in zalo.usage.days %}
+        <tr>
+          <td class="num"><time datetime="{{ d.day.isoformat() }}">{{ d.day.strftime('%d/%m') }}</time></td>
+          <td class="num">{{ d.pilot.events }}</td>
+          <td class="num">{{ d.pilot.delivered }}</td>
+          <td class="num">{{ d.pilot.duplicate }}</td>
+          <td class="num">{{ d.pilot.redeliveries }}</td>
+          <td class="num">{{ d.pilot.rejected }}</td>
+          <td class="num">{{ d.pilot.failed }}</td>
+          <td class="num">{{ d.staging.events }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="muted">Sự kiện ảnh: mọi lần Zalo chuyển ảnh, kể cả chuyển lặp. Ảnh mới: ảnh đã lưu vào hộp thư. Ảnh trùng: cùng nội dung với ảnh đã có. Đây là số ảnh nhận vào, không phải tin nhắn gửi đi hay token AI.</p>
+</section>
+
+<section class="card">
+  <h2 class="card__title">Hộp thư Zalo ({{ zalo.recent|length }} ảnh gần nhất)</h2>
+  {% if zalo.recent %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Nhận lúc</th><th>Nguồn</th><th>Người gửi</th><th>Trạng thái</th><th></th></tr></thead>
+      <tbody>
+        {% for z in zalo.recent %}
+        <tr>
+          <td class="num">{{ z.received_at|vntime }}</td>
+          <td>{{ "Staging" if z.staging else "Pilot" }} · {{ "nhóm" if z.chat_type == "GROUP" else "tin riêng" }}</td>
+          <td>{{ z.sender_name or "—" }} <span class="muted num">…{{ (z.sender_id or "")[-5:] }}</span></td>
+          <td>
+            {% if z.status == "delivered" %}<span class="badge badge--ok">Đã lưu, chờ gán ca</span>
+            {% elif z.status == "duplicate" %}<span class="badge badge--off">Ảnh trùng</span>
+            {% elif z.status == "received" %}<span class="badge badge--warn">Đang tải ({{ z.attempts }} lần)</span>
+            {% elif z.status == "rejected" %}<span class="badge badge--off">Bị loại</span> <span class="muted">{{ z.last_error }}</span>
+            {% else %}<span class="badge badge--danger">Lỗi</span> <span class="muted">{{ z.last_error }}</span>{% endif %}
+          </td>
+          <td>
+            {% if z.has_photo %}<a href="/ai/zalo/{{ z.id }}/photo" target="_blank" rel="noopener">Xem ảnh</a>{% endif %}
+            {% if z.status == "failed" and user.role == "admin" %}
+            <form method="post" action="/ai/zalo/{{ z.id }}/retry" data-loading="Đang đưa lại vào hàng chờ...">
+              <button type="submit" class="btn btn--small btn--secondary">Thử tải lại</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">Chưa có ảnh nào từ Zalo.</p>
+  {% endif %}
+  <p class="muted">Ảnh trong hộp thư chưa thành biểu mẫu và chưa được AI đọc: cần biết máy, ngày, ca và trang trước.</p>
+</section>

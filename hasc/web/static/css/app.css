@@ -1260,3 +1260,9 @@ body.app-body {
 .office-sidebar :focus-visible {
   outline-color: #FF7900;
 }
+
+/* AI page: OpenRouter and Zalo Bot sections */
+.ai-section {
+  margin: 24px 0 8px;
+  font-size: 1.125rem;
+}
