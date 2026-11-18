@@ -86,6 +86,9 @@ def _collect(conn, production_date: str):
                 leaders[sheet["shift"]].append(photo["uploaded_by"])
         layout = sheet["layout"] or "form_a"
         machine = sheet["machine"]
+        # Product details carry down by the machine picked at upload, so a row that only writes a new Máy
+        # keeps the product above it.
+        carried = carried_by_section.setdefault((sheet["shift"], sheet["machine"], layout), {})
         for row in get_sheet_data(conn, sheet["id"]):
             cells = row["cells"]
             if not _from_valid_photos(cells, valid_photo_ids):
@@ -94,7 +97,6 @@ def _collect(conn, production_date: str):
             if written in MACHINES:
                 machine = written
             section = lines[(sheet["shift"], machine)]
-            carried = carried_by_section.setdefault((sheet["shift"], machine, layout), {})
             for field in CARRIED_FIELDS:
                 val = cells.get(field, {}).get("value")
                 if val is not None and str(val).strip():
@@ -109,8 +111,9 @@ def _collect(conn, production_date: str):
             key = (layout, _text(cells, "customer"), _text(cells, "film_type"), code)
             line = section.setdefault(key, {"net": 0.0, "rolls": 0, "unconfirmed": False, "unread": False,
                                             "unclear_machines": []})
-            if written and written not in MACHINES and written not in line["unclear_machines"]:
-                line["unclear_machines"].append(written)
+            as_written = _text(cells, "machine").strip()
+            if written and written not in MACHINES and as_written not in line["unclear_machines"]:
+                line["unclear_machines"].append(as_written)
             net = _number(_text(cells, "net_kg"))
             line["net"] += net or 0
             unreadable = cells.get("net_kg", {}).get("flag") == "unreadable"

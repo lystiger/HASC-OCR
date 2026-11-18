@@ -270,6 +270,33 @@ class DailyReport(unittest.TestCase):
         self.assertEqual(len(lines), 1)
         self.assertIn(UNCLEAR_MACHINE_NOTE.format("X9"), lines[0][8])
 
+    def test_machine_only_change_keeps_the_product_carried_down(self):
+        sheet_id, photo_id = self.sheet("T1", 1, self.an)
+        self.roll(sheet_id, photo_id, 10, "Alpha", "GT", 40, 500, 1500)
+        self.roll(sheet_id, photo_id, 20, None, None, None, None, None, machine="T6")
+        ws = self.build()
+        self.assertEqual([line[:5] for line in self.machine_lines(ws, 1, "T1")], [["T1", "Alpha", "GT", "40x500x1500", 10]])
+        self.assertEqual([line[:5] for line in self.machine_lines(ws, 1, "T6")], [["T6", "Alpha", "GT", "40x500x1500", 20]])
+
+    def test_unknown_machine_after_a_change_keeps_its_written_text(self):
+        sheet_id, photo_id = self.sheet("T1", 1, self.an)
+        self.roll(sheet_id, photo_id, 10, "Alpha", "GT", 40, 500, 1500, machine="T6")
+        self.roll(sheet_id, photo_id, 20, "Beta", "PE", 30, 600, 1200, machine=" x-9? ")
+        ws = self.build()
+        beta = [line for line in self.machine_lines(ws, 1, "T6") if line[1] == "Beta"]
+        self.assertEqual(len(beta), 1)
+        self.assertIn(UNCLEAR_MACHINE_NOTE.format("x-9?"), beta[0][8])
+
+    def test_totals_count_every_row_once_across_machine_changes(self):
+        sheet_id, photo_id = self.sheet("T1", 1, self.an)
+        self.roll(sheet_id, photo_id, 10, "Alpha", "GT", 40, 500, 1500, machine="T6")
+        self.roll(sheet_id, photo_id, 20, "Beta", "PE", 30, 600, 1200, machine="T1")
+        ws = self.build()
+        total = next(r for r in range(1, ws.max_row + 1) if ws.cell(r, 1).value == "TỔNG KHỐI CUỘN MÀNG (KG)")
+        self.assertEqual(ws.cell(total, 5).value, 30)
+        rolls = next(r for r in range(1, ws.max_row + 1) if ws.cell(r, 1).value == "TỔNG SỐ CUỘN")
+        self.assertEqual(ws.cell(rolls, 7).value, 2)
+
     def test_filename(self):
         self.assertEqual(daily_report_filename(DAY), "HASC_BaoCaoNgay_2026-12-01.xlsx")
 
