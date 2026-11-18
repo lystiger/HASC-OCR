@@ -55,8 +55,10 @@ def call(token, method, payload=None):
         if method == "getUpdates" and error.code in (408, 504):
             return None
         raise ZaloError(f"{method}: HTTP {error.code}") from None
-    except urllib.error.URLError:  # urllib wraps only failures while sending the request
-        raise ZaloError(f"{method}: không kết nối được tới Zalo") from None
+    except urllib.error.URLError as error:  # urllib wraps failures while connecting or sending the request
+        if isinstance(error.reason, (socket.gaierror, ConnectionRefusedError)):  # nothing reached Zalo
+            raise ZaloError(f"{method}: không kết nối được tới Zalo") from None
+        raise ZaloUncertain(f"{method}: mất kết nối khi gửi tới Zalo") from None
     except (TimeoutError, socket.timeout):  # raised after the request went out
         if method == "getUpdates":
             return None

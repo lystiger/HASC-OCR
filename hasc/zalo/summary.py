@@ -6,7 +6,7 @@ machine. Sheets the office has not confirmed yet are sent anyway, marked `chưa 
 
 A day is sent at most once. Its row is written as `sending` before the call, so a crash, a timeout or
 a reply cut off mid-send leaves it `failed` for a person to check, never sent twice. Only a failure
-known not to have delivered (no connection while sending, or Zalo answered with an error) waits RETRY_MINUTES and tries again, up to MAX_ATTEMPTS. A PC that is off at 9:00 sends
+known not to have delivered (no DNS, connection refused, or Zalo answered with an error) waits RETRY_MINUTES and tries again, up to MAX_ATTEMPTS. A PC that is off at 9:00 sends
 when it is back, until 23:59; after that the day is skipped and the next morning reports the next day.
 """
 from datetime import date, datetime, time, timedelta, timezone

@@ -1,6 +1,7 @@
 """Daily summary to the office group (P151): text, 9:00 timing, and at most one message per day."""
 from datetime import date, datetime, timedelta, timezone
 import http.client
+import socket
 import unittest
 import urllib.error
 from unittest import mock
@@ -135,10 +136,14 @@ class Summary(unittest.TestCase):
                     self.assertIsNone(send_due_summary(self.conn, TOKEN, CHAT, at(10)))
                 self.assertEqual(len(sent), 1)
 
-    def test_failure_while_sending_the_request_is_retried(self):
-        error = urllib.error.URLError(ConnectionRefusedError())
-        with mock.patch("urllib.request.urlopen", side_effect=error):
-            self.assertEqual(send_due_summary(self.conn, TOKEN, CHAT, at(9)), "waiting")
+    def test_only_failures_before_connecting_are_retried(self):
+        for reason, status in ((socket.gaierror(), "waiting"), (ConnectionRefusedError(), "waiting"),
+                               (TimeoutError(), "failed"), (ConnectionResetError(), "failed")):
+            with self.subTest(reason=type(reason).__name__):
+                self.conn.execute("DELETE FROM zalo_summary")
+                self.conn.commit()
+                with mock.patch("urllib.request.urlopen", side_effect=urllib.error.URLError(reason)):
+                    self.assertEqual(send_due_summary(self.conn, TOKEN, CHAT, at(9)), status)
 
     def test_a_back_page_does_not_stand_in_for_form_a(self):
         t3, photo = self.sheet("T3", 1, self.an, layout="back")
