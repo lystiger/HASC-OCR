@@ -30,6 +30,6 @@ Later, only if a user asks (P119): Excel re-upload, hand-entry template, history
 
 | Item | Needed by |
 |---|---|
-| Which machine each daily-report line belongs to, when one form A page holds T1 and T6 (Q46) | S2 leaves it for the office; settle before go-live |
+| Which machine each daily-report line belongs to, when one form A page holds T1 and T6 (Q46) | Answered by P150: the written `Máy` on form A rev 3, once rev 3 is in use |
 | Where waste (`Phế phát sinh`) and the M2 bag line come from | S2 leaves them blank |
 | Whether an internet outage holds jobs longer instead of failing them after 15 minutes | Go-live |
