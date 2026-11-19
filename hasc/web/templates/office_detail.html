@@ -59,7 +59,7 @@
       <button type="button" class="btn btn--secondary" data-review-save>Lưu</button>
       {% endif %}
       {% if sheet.status in ('needs_review', 'in_review') %}
-      {# Without edits this confirms the version on screen, as before; with edits review.js saves them and confirms. #}
+      {# review.js sends this through the save-and-confirm; without script it is the plain confirm of this version. #}
       <form method="post" action="/office/sheets/{{ sheet.id }}/confirm" data-review-confirm-form data-loading="Đang xác nhận...">
         <input type="hidden" name="version" value="{{ sheet.version }}" />
         <button type="submit" class="btn btn--confirm" data-review-confirm>Xác nhận</button>

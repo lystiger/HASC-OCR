@@ -113,13 +113,15 @@ def apply_values(conn: sqlite3.Connection, sheet, user: dict, version: int, row_
     with conn:
         # Checked again inside the write: a reader or another upload that changed the sheet since
         # it was read above has raised its version, so this upload is stale and nothing is written.
+        # The status is checked too: a confirm without changes keeps the version, and a save read
+        # before it must not turn the page back to in_review. A finish always restamps status_since.
         new_version = sheet["version"] + (1 if changes or updates else 0)
         status = "reviewed" if finish or sheet["status"] == "reviewed" else "in_review"
         claimed = conn.execute("""
             UPDATE sheets SET version = ?, status = ?,
-                status_since = CASE WHEN status = ? THEN status_since ELSE ? END,
-                picked_up_by = COALESCE(picked_up_by, ?) WHERE id = ? AND version = ?
-        """, (new_version, status, status, now, user["id"], sheet_id, sheet["version"]))
+                status_since = CASE WHEN ? OR status != ? THEN ? ELSE status_since END,
+                picked_up_by = COALESCE(picked_up_by, ?) WHERE id = ? AND version = ? AND status = ?
+        """, (new_version, status, finish, status, now, user["id"], sheet_id, sheet["version"], sheet["status"]))
         if claimed.rowcount != 1:
             raise _stale()
         for c in changes:

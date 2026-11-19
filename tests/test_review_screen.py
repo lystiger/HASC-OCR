@@ -8,8 +8,12 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from hasc.db import create_row, create_sheet, create_user, get_connection, upsert_cell
+from hasc.db import create_row, create_sheet, create_user, get_connection, get_sheet_by_id, upsert_cell
+from hasc.excel.correction import normalise
 from hasc.web.app import create_app
+from hasc.web.corrections import apply_values
+from hasc.web.errors import AppError
+from hasc.web.review import FIELD_LABELS
 from hasc.web.security import hash_password
 
 
@@ -147,6 +151,49 @@ class TestReviewScreen(unittest.TestCase):
         _, table = self.page()
         res = self.send(table, version=2, cells={(1, "net_kg"): "86,7"})
         self.assertEqual(res.json()["status"], "reviewed")
+
+    def test_a_save_read_before_a_confirm_cannot_undo_it(self):
+        conn = get_connection(self.db_path)
+        try:
+            conn.execute("UPDATE cells SET value = '85' WHERE row_id = ? AND field = 'net_kg'", (self.rows[2],))
+            conn.commit()
+            before = dict(get_sheet_by_id(conn, self.sheet_id))  # a save read the page here...
+        finally:
+            conn.close()
+        _, table = self.page()
+        res = self.send(table, confirm=True)  # ...then a colleague confirmed it unchanged: still version 1
+        self.assertEqual(res.json(), {"version": 1, "status": "reviewed", "changed": 0})
+        table.rows[0]["net_kg"] = "90"
+        values = [{f: normalise(f, r.get(f), "x") for f in FIELD_LABELS} for r in table.rows]
+        conn = get_connection(self.db_path)
+        try:
+            with self.assertRaises(AppError) as raised:
+                apply_values(conn, before, {"id": 1}, 1, table.keys, values, finish=False, action="web_save")
+        finally:
+            conn.close()
+        self.assertEqual(raised.exception.status_code, 409)
+        self.assertEqual(self.sheet()["status"], "reviewed")
+
+    def test_a_finish_restamps_the_status_time_a_save_keeps_it(self):
+        def stamp():
+            return self.db("SELECT status_since FROM sheets WHERE id = ?", self.sheet_id)[0]["status_since"]
+        conn = get_connection(self.db_path)
+        conn.execute("UPDATE sheets SET status = 'reviewed', status_since = '2000-01-01T00:00:00' WHERE id = ?",
+                     (self.sheet_id,))
+        conn.commit()
+        conn.close()
+        _, table = self.page()
+        table.rows[2]["net_kg"] = "85"
+        self.send(table)
+        self.assertEqual(stamp(), "2000-01-01T00:00:00")  # Lưu on a reviewed page: status unchanged
+        _, table = self.page()
+        self.send(table, version=2, cells={(1, "net_kg"): "86,7"}, confirm=False)
+        conn = get_connection(self.db_path)
+        values = [{f: normalise(f, r.get(f), "x") for f in FIELD_LABELS} for r in self.page()[1].rows]
+        apply_values(conn, get_sheet_by_id(conn, self.sheet_id), {"id": 1}, 3, table.keys, values,
+                     finish=True, action="reupload")  # an Excel re-upload always restamps, as before
+        conn.close()
+        self.assertNotEqual(stamp(), "2000-01-01T00:00:00")
 
     def test_first_row_change_updates_the_copied_values_below(self):
         _, table = self.page()

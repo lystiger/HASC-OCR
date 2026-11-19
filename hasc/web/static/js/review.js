@@ -236,7 +236,7 @@
   if (save) save.addEventListener("click", function () { send(false); });
   var confirmForm = document.querySelector("[data-review-confirm-form]");
   if (confirmForm) confirmForm.addEventListener("submit", function (event) {
-    if (!dirty()) { saving = true; return; }  // nothing edited: the plain confirm of the version on screen
+    // Edited or not, Xác nhận goes through the same save-and-confirm; the plain form is the no-script fallback.
     event.preventDefault();
     event.stopImmediatePropagation();  // ui.js would show its own loading for the plain post
     send(true);
