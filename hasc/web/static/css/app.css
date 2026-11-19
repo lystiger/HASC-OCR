@@ -213,6 +213,13 @@ h2 {
   margin-bottom: 1rem;
 }
 
+/* Password with its eye button (ui.js); the button keeps a 44px touch target inside the field. */
+.password-field { position: relative; display: block; }
+.password-field input { padding-right: 3rem; }
+.password-toggle { position: absolute; top: 50%; right: 0.15rem; transform: translateY(-50%); width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--color-muted); cursor: pointer; }
+.password-toggle:hover { color: var(--color-text); }
+.password-toggle:focus-visible { outline: 2px solid var(--color-action); outline-offset: -2px; }
+
 .form-field label {
   font-weight: 500;
   color: var(--color-text);
