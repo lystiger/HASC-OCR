@@ -103,7 +103,7 @@ class TestReviewScreen(unittest.TestCase):
         inherited = [i for i in table.inputs if "is-inherited" in i["class"]]
         self.assertEqual({i["data-field"] for i in inherited}, {"customer", "thickness_mic"})
         self.assertEqual({i["data-flag"] for i in table.inputs if "data-flag" in i}, {"doubt", "unreadable"})
-        self.assertIn("2</span> ô cần kiểm tra", html)
+        self.assertIn('aria-label="Còn 2 trên 2 ô cần kiểm tra">2/2</span>', html)
         for text in ("Các cuộn", "Thông tin", "Lịch sử", "AI chưa chắc", "Không đọc được", ">Lưu<", ">Xác nhận<",
                      "Tải tệp Excel"):
             self.assertIn(text, html)

@@ -96,31 +96,34 @@
     </section>
 
     <section class="review-panel">
+      <div class="tabs-bar">
       <div class="tabs" role="tablist" aria-label="Nội dung biểu mẫu">
         <button type="button" role="tab" id="tab-rolls" aria-controls="panel-rolls" aria-selected="true">Các cuộn <span class="num muted">{{ table.rows|length }}</span></button>
         <button type="button" role="tab" id="tab-info" aria-controls="panel-info" aria-selected="false" tabindex="-1">Thông tin</button>
         <button type="button" role="tab" id="tab-history" aria-controls="panel-history" aria-selected="false" tabindex="-1">Lịch sử <span class="num muted">{{ history|length }}</span></button>
+      </div>
+      {% if table.rows %}
+      <div class="review-tools" data-rolls-only>
+        <ul class="legend" aria-label="Chú thích màu">
+          <li><span class="swatch swatch--doubt"></span>AI chưa chắc</li>
+          <li><span class="swatch swatch--rule"></span>Sai quy tắc</li>
+          <li><span class="swatch swatch--unreadable"></span>Không đọc được</li>
+          <li><span class="swatch swatch--edited"></span>Chưa lưu</li>
+          <li title="Giá trị chép xuống từ dòng trên"><span class="swatch swatch--inherited">Ab</span>Chép xuống</li>
+        </ul>
+        {% if table.flagged %}
+        <div class="review-tools__next">
+          <button type="button" class="btn btn--small btn--secondary" data-next-flag title="Enter: xuống dòng dưới · Tab: sang ô bên phải · F8: ô cần kiểm tra tiếp. Mỗi giá trị đã sửa được ghi lại: ai sửa, lúc nào, cũ và mới.">Ô cần kiểm tra tiếp <span class="num muted" data-flag-count aria-live="polite" aria-label="Còn {{ table.flagged }} trên {{ table.flagged }} ô cần kiểm tra">{{ table.flagged }}/{{ table.flagged }}</span> <kbd>F8</kbd></button>
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
       </div>
 
       <div role="tabpanel" id="panel-rolls" aria-labelledby="tab-rolls" class="tab-panel">
         {% if not table.rows %}
         <p class="muted">Chưa có dữ liệu đọc được cho trang này.</p>
         {% else %}
-        <div class="review-tools">
-          <ul class="legend" aria-label="Chú thích màu">
-            <li><span class="swatch swatch--doubt"></span>AI chưa chắc</li>
-            <li><span class="swatch swatch--rule"></span>Sai quy tắc</li>
-            <li><span class="swatch swatch--unreadable"></span>Không đọc được</li>
-            <li><span class="swatch swatch--edited"></span>Đã sửa, chưa lưu</li>
-            <li><span class="swatch swatch--inherited">Ab</span>Chép xuống từ dòng trên</li>
-          </ul>
-          {% if table.flagged %}
-          <div class="review-tools__next">
-            <span class="muted" data-flag-count aria-live="polite">Còn <span class="num">{{ table.flagged }}</span>/<span class="num">{{ table.flagged }}</span> ô cần kiểm tra</span>
-            <button type="button" class="btn btn--small btn--secondary" data-next-flag>Ô cần kiểm tra tiếp <kbd>F8</kbd></button>
-          </div>
-          {% endif %}
-        </div>
         <div class="review-table-wrap">
           <table class="review-table">
             <thead>
@@ -156,9 +159,6 @@
             </tbody>
           </table>
         </div>
-        {% if editable %}
-        <p class="muted review-hint">Enter: xuống dòng dưới · Tab: sang ô bên phải · F8: ô cần kiểm tra tiếp. Mỗi giá trị đã sửa được ghi lại: ai sửa, lúc nào, cũ và mới.</p>
-        {% endif %}
         {% endif %}
       </div>
 

@@ -1268,9 +1268,11 @@ body.app-body {
 }
 
 /* --- Review screen (P154): photo left, table right ------------------------------------------ */
-.office-content:has(.page--review) { max-width: none; padding-bottom: 1rem; }
-.back-link { display: inline-block; margin-bottom: 0.75rem; font-weight: 500; text-decoration: none; }
-.review-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.office-content:has(.page--review) { max-width: none; padding-top: 1rem; padding-bottom: 1rem; }
+/* The review page fills the window exactly: header on top, the rest goes to photo and table. */
+.page--review { display: flex; flex-direction: column; height: calc(100vh - 2rem); }
+.back-link { display: inline-block; margin-bottom: 0.25rem; font-weight: 500; text-decoration: none; }
+.review-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
 .review-head__title { margin: 0; font-size: 1.3rem; }
 .review-head__chips { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.4rem; }
 .review-head__actions { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
@@ -1287,30 +1289,38 @@ body.app-body {
 .chip--reading, .chip--queued { background: #F1F5F9; color: var(--color-muted); border-color: var(--color-border); }
 .chip--doubt { background: #FEF9C3; color: #713F12; border-color: #FDE68A; }
 
-.review { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; height: calc(100vh - 11rem); min-height: 520px; }
+/* Photo on top at its own shape (whole sheet, no empty frame space), table below; only the table scrolls. */
+.review { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 0.75rem; flex: 1; min-height: 0; }
+.review .viewer { justify-self: center; width: 100%; max-width: calc(40vh * var(--photo-ratio, 1.7778)); }
 .viewer, .review-panel { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); box-shadow: var(--shadow-light); min-height: 0; display: flex; flex-direction: column; }
-.viewer__bar { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; padding: 0.4rem 0.5rem; background: #1E2A33; border-radius: var(--radius-md) var(--radius-md) 0 0; }
+/* Controls float over the photo's corner, so the photo keeps the whole frame. */
+.viewer { position: relative; }
+.viewer__bar { position: absolute; top: 0.5rem; left: 0.5rem; z-index: 2; display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; padding: 0.3rem; background: rgba(30, 42, 51, 0.88); border-radius: var(--radius-md); }
 .viewer__photos { display: flex; gap: 0.25rem; margin-right: auto; }
 .viewer__btn { min-height: 36px; min-width: 36px; padding: 0 0.6rem; border: 1px solid #3B4D5A; border-radius: 4px; background: #2A3A46; color: #E2E8F0; font: inherit; font-size: 0.85rem; cursor: pointer; }
 .viewer__btn:hover, .viewer__btn.is-active { background: #3B4D5A; color: #FFFFFF; }
 .viewer__btn:focus-visible { outline: 2px solid #FDBA74; outline-offset: 1px; }
 .viewer__zoom { color: #E2E8F0; min-width: 3.5rem; text-align: center; font-size: 0.85rem; }
-.viewer__stage { position: relative; flex: 1; overflow: hidden; background: #0F172A; cursor: grab; touch-action: none; border-radius: 0 0 var(--radius-md) var(--radius-md); }
+.viewer__stage { position: relative; width: 100%; aspect-ratio: var(--photo-ratio, 1.7778); overflow: hidden; background: #0F172A; cursor: grab; touch-action: none; border-radius: var(--radius-md); }
 .viewer__stage.is-dragging { cursor: grabbing; }
 .viewer__stage:focus-visible { outline: 2px solid var(--color-action); outline-offset: -2px; }
 .viewer__stage img { position: absolute; left: 0; top: 0; max-width: none; transform-origin: center center; user-select: none; }
 .viewer__empty { padding: 2rem; color: var(--color-muted); }
 
-.tabs { display: flex; gap: 0.25rem; border-bottom: 1px solid var(--color-border); padding: 0 0.75rem; }
+.tabs-bar { display: flex; align-items: center; justify-content: space-between; gap: 0.25rem 0.75rem; flex-wrap: nowrap; border-bottom: 1px solid var(--color-border); padding: 0 0.75rem; }
+.tabs { display: flex; gap: 0.25rem; flex: none; }
 .tabs [role="tab"] { min-height: 44px; padding: 0 0.9rem; border: 0; border-bottom: 2px solid transparent; background: none; font: inherit; font-weight: 500; color: var(--color-muted); cursor: pointer; }
 .tabs [role="tab"][aria-selected="true"] { color: var(--color-text); border-bottom-color: var(--color-action); }
 .tabs [role="tab"]:focus-visible { outline: 2px solid var(--color-action); outline-offset: -2px; }
-.tab-panel { flex: 1; min-height: 0; overflow: auto; padding: 0.75rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.tab-panel { flex: 1; min-height: 0; overflow: auto; padding: 0.5rem 0.75rem 0.75rem; display: flex; flex-direction: column; gap: 0.5rem; }
 .tab-panel[hidden] { display: none; }
 
-.review-tools { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.review-tools { display: flex; justify-content: flex-end; align-items: center; gap: 0.4rem 0.75rem; flex: 1; min-width: 0; padding: 0.3rem 0; }
+.review-tools .legend { justify-content: flex-end; min-width: 0; }
+.review-tools__next { flex: none; }
+.review-tools[hidden] { display: none; }
 .review-tools__next { display: flex; align-items: center; gap: 0.5rem; }
-.legend { display: flex; flex-wrap: wrap; gap: 0.35rem 0.9rem; margin: 0; padding: 0; list-style: none; font-size: 0.8rem; color: var(--color-muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; margin: 0; padding: 0; list-style: none; font-size: 0.75rem; color: var(--color-muted); }
 .legend li { display: inline-flex; align-items: center; gap: 0.35rem; }
 .swatch { display: inline-flex; align-items: center; justify-content: center; width: 1.4rem; height: 1rem; border-radius: 3px; border: 1px solid var(--color-border); font-size: 0.65rem; }
 .swatch--doubt { background: #FEF08A; }
@@ -1330,7 +1340,7 @@ kbd { font-family: var(--font-mono); font-size: 0.7rem; padding: 0 0.3rem; borde
 .review-table .is-pinned--code { position: sticky; left: 2.4rem; z-index: 1; box-shadow: 2px 0 0 var(--color-border); }
 .review-table thead .is-pinned { z-index: 3; }
 .review-table thead .is-pinned--number { position: sticky; left: 0; }
-.cell { width: 100%; min-width: 4.5rem; min-height: 36px; padding: 0.3rem 0.4rem; border: 2px solid transparent; background: transparent; font: inherit; color: var(--color-text); }
+.cell { width: 100%; min-width: 4.5rem; min-height: 32px; padding: 0.2rem 0.4rem; border: 2px solid transparent; background: transparent; font: inherit; color: var(--color-text); }
 .cell.num { font-family: var(--font-mono); text-align: right; min-width: 4rem; }
 .cell[data-field="customer"], .cell[data-field="film_type"] { min-width: 10rem; }
 .cell[data-field="roll_code"] { min-width: 6.5rem; }
@@ -1343,7 +1353,6 @@ kbd { font-family: var(--font-mono); font-size: 0.7rem; padding: 0 0.3rem; borde
 .flag--doubt .cell.is-seen, .flag--rule .cell.is-seen, .flag--unreadable .cell.is-seen { box-shadow: inset 3px 0 0 #64748B; }
 .cell.is-edited { border-color: #2563EB; background: #FFFFFF; }
 .cell.is-invalid { border-color: var(--color-error); background: var(--color-error-bg); }
-.review-hint { margin: 0; }
 
 .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem 1rem; margin: 0; }
 .info-grid dt { color: var(--color-muted); font-size: 0.8rem; }
@@ -1357,9 +1366,11 @@ kbd { font-family: var(--font-mono); font-size: 0.7rem; padding: 0 0.3rem; borde
 
 /* Narrow screens: photo above, table below; each keeps its own scroll. */
 @media (max-width: 1100px) {
-  .review { grid-template-columns: minmax(0, 1fr); height: auto; }
+  .page--review { height: auto; }
+  .tabs-bar { flex-wrap: wrap; }
+  .review-tools { flex-wrap: wrap; }
+  .review { height: auto; }
   .review-table-wrap { max-height: 70vh; }
-  .viewer { height: 55vh; min-height: 320px; }
   .review-panel { min-height: 70vh; }
 }
 @media (prefers-reduced-motion: reduce) {

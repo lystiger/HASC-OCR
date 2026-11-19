@@ -36,6 +36,7 @@
     var turned = view.rotate % 180 !== 0;
     var w = turned ? img.naturalHeight : img.naturalWidth;
     var h = turned ? img.naturalWidth : img.naturalHeight;
+    root.style.setProperty("--photo-ratio", w / h);  // the frame takes the photo's shape (CSS), then we size to it
     view.fit = Math.min(stage.clientWidth / w, stage.clientHeight / h);
     view.cover = Math.max(stage.clientWidth / w, stage.clientHeight / h);
   }
@@ -128,6 +129,8 @@
       other.tabIndex = on ? 0 : -1;
       document.getElementById(other.getAttribute("aria-controls")).hidden = !on;
     });
+    var rollsOnly = document.querySelector("[data-rolls-only]");  // legend and flag jump belong to the table
+    if (rollsOnly) rollsOnly.hidden = tab.id !== "tab-rolls";
     tab.focus();
   }
   tabs.forEach(function (tab, index) {
@@ -151,7 +154,8 @@
   function updateCount() {
     if (!counter) return;
     var left = flagged.filter(function (input) { return !input.classList.contains("is-seen") && !edited(input); }).length;
-    counter.innerHTML = "Còn <span class=\"num\">" + left + "</span>/<span class=\"num\">" + flagged.length + "</span> ô cần kiểm tra";
+    counter.textContent = left + "/" + flagged.length;
+    counter.setAttribute("aria-label", "Còn " + left + " trên " + flagged.length + " ô cần kiểm tra");
   }
   function check(input) {
     var bad = input.hasAttribute("data-numeric") && input.value.trim() !== "" && !NUMBER.test(input.value.trim());
