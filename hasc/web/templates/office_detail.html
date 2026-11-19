@@ -2,193 +2,231 @@
 
 {% block nav_office_active %}is-active{% endblock %}
 
-{% block title %}Chi tiết biểu mẫu #{{ sheet.id }} – HASC VN{% endblock %}
+{% block title %}Biểu mẫu Máy {{ sheet.machine }} · Ca {{ sheet.shift }} · Trang {{ sheet.page_no }} – HASC VN{% endblock %}
 
 {% block content %}
-<div class="page">
-  <div style="margin-bottom: 1rem;">
-    <a href="/office" style="display: inline-flex; align-items: center; text-decoration: none; font-weight: 500;">
-      &larr; Quay lại danh sách biểu mẫu
-    </a>
-  </div>
+{# Review screen (P154): photo on the left, the page's table on the right. #}
+{% set editable = can_review and sheet.status in ('needs_review', 'in_review', 'reviewed') and table.rows %}
+<div class="page page--review">
+  <a href="/office" class="back-link">&larr; Quay lại danh sách biểu mẫu</a>
 
   {% if confirmed %}
-  <div class="alert alert--success" role="status" data-toast="success">
-    Đã xác nhận biểu mẫu thành công (Trạng thái: Đã kiểm tra).
-  </div>
+  <div class="alert alert--success" role="status" data-toast="success">Đã xác nhận biểu mẫu thành công (Trạng thái: Đã kiểm tra).</div>
   {% endif %}
-
   {% if corrected is not none %}
-  <div class="alert alert--success" role="status" data-toast="success">
-    Đã lưu bản sửa: {{ corrected }} giá trị thay đổi. Biểu mẫu chuyển sang Đã kiểm tra.
-  </div>
+  <div class="alert alert--success" role="status" data-toast="success">Đã lưu bản sửa: {{ corrected }} giá trị thay đổi. Biểu mẫu chuyển sang Đã kiểm tra.</div>
+  {% endif %}
+  {% if saved is not none %}
+  <div class="alert alert--success" role="status" data-toast="success">Đã lưu: {{ saved }} giá trị thay đổi. Biểu mẫu vẫn đang kiểm tra.</div>
   {% endif %}
   {% if upload_error %}
   <div class="alert alert--error" role="alert" data-toast="error">{{ upload_error }}</div>
   {% endif %}
-
   {% if pickup_success %}
-  <div class="alert alert--success" role="status" data-toast="success">
-    Đã nhận kiểm tra biểu mẫu thành công.
-  </div>
+  <div class="alert alert--success" role="status" data-toast="success">Đã nhận kiểm tra biểu mẫu thành công.</div>
   {% endif %}
-
   {% if error %}
-  <div class="alert alert--error" role="alert" data-toast="error">
-    {{ error }}
-  </div>
+  <div class="alert alert--error" role="alert" data-toast="error">{{ error }}</div>
   {% endif %}
 
-  <!-- Sheet Header Card -->
-  <div class="card" style="margin-bottom: 1.5rem;">
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 0.75rem;">
-      <div>
-        <h1 style="margin: 0; font-size: 1.4rem;">
-          Biểu mẫu Máy {{ sheet.machine }} · {{ sheet.production_date|vndate }} · Ca {{ sheet.shift }} · Trang {{ sheet.page_no }}
-        </h1>
-        <div style="font-size: 0.85rem; color: var(--color-muted); margin-top: 0.35rem;">
-          Mã số mẫu: {{ sheet.form }} · Phiên bản: <strong class="num">{{ sheet.version }}</strong>
-        </div>
-      </div>
-      <div>
-        <span class="badge badge--{{ sheet.status }}" style="font-size: 0.95rem; font-weight: 600; padding: 0.35rem 0.75rem; border-radius: var(--radius-md); background: var(--color-page); border: 1px solid var(--color-border);">
-          {{ status_label }}
-        </span>
-        {% if is_overdue %}
-        <span class="badge badge--danger" style="font-size: 0.85rem; font-weight: bold; background: #FEE2E2; color: #991B1B; border: 1px solid #FCA5A5; padding: 0.35rem 0.65rem; border-radius: var(--radius-md); margin-left: 0.5rem;">
-          Quá hạn
-        </span>
-        {% endif %}
+  <header class="review-head">
+    <div>
+      <h1 class="review-head__title">Biểu mẫu Máy {{ sheet.machine }} · {{ sheet.production_date|vndate }} · Ca {{ sheet.shift }} · Trang {{ sheet.page_no }}</h1>
+      <div class="review-head__chips">
+        <span class="chip chip--{{ sheet.status }}">{{ status_label }}</span>
+        {% if is_overdue %}<span class="chip chip--danger">Quá hạn</span>{% endif %}
+        {% if table.flagged %}<span class="chip chip--doubt"><span class="num">{{ table.flagged }}</span> ô cần kiểm tra</span>{% endif %}
+        <span class="muted">Phiên bản <strong class="num">{{ sheet.version }}</strong></span>
       </div>
     </div>
-
-    <hr style="border: 0; border-top: 1px solid var(--color-border); margin: 1rem 0;" />
-
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; font-size: 0.9rem;">
-      <div>
-        <span style="color: var(--color-muted);">Trưởng ca tải lên:</span><br />
-        <strong>{{ uploader_username or '-' }}</strong>
-      </div>
-      <div>
-        <span style="color: var(--color-muted);">Thời gian chờ:</span><br />
-        <strong class="num">{{ time_waited }}</strong>
-      </div>
-      <div>
-        <span style="color: var(--color-muted);">Người nhận kiểm tra:</span><br />
-        <strong>
-          {% if picked_up_by_username %}
-            {{ picked_up_by_username }}
-            {% if sheet.picked_up_by == user.id %}
-              <span style="color: var(--color-success); font-size: 0.85rem;">(Bạn)</span>
-            {% endif %}
-          {% else %}
-            <span style="color: var(--color-muted); font-style: italic;">Chưa có người nhận</span>
-          {% endif %}
-        </strong>
-      </div>
-      <div>
-        <span style="color: var(--color-muted);">Cập nhật trạng thái:</span><br />
-        <span class="num" style="font-size: 0.85rem;">{{ sheet.status_since|vntime }}</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- Actions Card (Pick-up, Excel Download, Đúng xác nhận): none for a role that only looks -->
-  {% if can_review %}
-  <div class="card" style="margin-bottom: 1.5rem;">
-    <h2 style="font-size: 1.15rem; margin-bottom: 0.75rem;">Thao tác xử lý biểu mẫu</h2>
-    <div class="action-row">
-
-      <!-- Pick-up action (an admin may look at a sheet but not review it) -->
-      {% if can_review and sheet.status != 'reviewed' %}
+    {% if can_review %}
+    <div class="review-head__actions">
+      {% if sheet.status != 'reviewed' %}
         {% if not sheet.picked_up_by %}
-          <form method="post" action="/office/sheets/{{ sheet.id }}/pickup" style="margin: 0;" data-loading="Đang nhận kiểm tra...">
-            <input type="hidden" name="takeover" value="false" />
-            <button type="submit" class="btn" style="min-height: 40px;">
-              Nhận kiểm tra
-            </button>
-          </form>
+        <form method="post" action="/office/sheets/{{ sheet.id }}/pickup" data-loading="Đang nhận kiểm tra...">
+          <input type="hidden" name="takeover" value="false" />
+          <button type="submit" class="btn btn--secondary">Nhận kiểm tra</button>
+        </form>
         {% elif sheet.picked_up_by != user.id %}
-          <form method="post" action="/office/sheets/{{ sheet.id }}/pickup" style="margin: 0;" data-loading="Đang nhận kiểm tra...">
-            <input type="hidden" name="takeover" value="true" />
-            <button type="submit" class="btn btn--secondary" style="min-height: 40px; border-color: #D97706; color: #B45309;" title="Đang được kiểm tra bởi {{ picked_up_by_username }}">
-              Tiếp quản kiểm tra
-            </button>
-          </form>
+        <form method="post" action="/office/sheets/{{ sheet.id }}/pickup" data-loading="Đang nhận kiểm tra...">
+          <input type="hidden" name="takeover" value="true" />
+          <button type="submit" class="btn btn--secondary" title="Đang được kiểm tra bởi {{ picked_up_by_username }}">Tiếp quản kiểm tra</button>
+        </form>
         {% endif %}
       {% endif %}
-
-      <!-- Excel Download using hasc/excel (part of reviewing: review_sheet) -->
-      {% if can_review %}
-      <a href="/office/sheets/{{ sheet.id }}/excel" class="btn btn--secondary" style="min-height: 40px; display: inline-flex; align-items: center; text-decoration: none;" download>
-        Tải tệp Excel
-      </a>
+      <a href="/office/sheets/{{ sheet.id }}/excel" class="btn btn--secondary" download>Tải tệp Excel</a>
+      {% if editable %}
+      <button type="button" class="btn btn--secondary" data-review-save>Lưu</button>
       {% endif %}
-
-      <!-- 'Đúng, xác nhận' button: only while the sheet waits for review or is being reviewed -->
-      {% if can_review and sheet.status in ('needs_review', 'in_review') %}
-      <form method="post" action="/office/sheets/{{ sheet.id }}/confirm" style="margin: 0;" data-loading="Đang xác nhận...">
+      {% if sheet.status in ('needs_review', 'in_review') %}
+      {# Without edits this confirms the version on screen, as before; with edits review.js saves them and confirms. #}
+      <form method="post" action="/office/sheets/{{ sheet.id }}/confirm" data-review-confirm-form data-loading="Đang xác nhận...">
         <input type="hidden" name="version" value="{{ sheet.version }}" />
-        <button type="submit" class="btn" style="min-height: 40px; background: #15803D; border-color: #15803D; color: #FFFFFF;">
-          Đúng, xác nhận
-        </button>
+        <button type="submit" class="btn btn--confirm" data-review-confirm>Xác nhận</button>
       </form>
       {% endif %}
     </div>
-    {% if can_review and sheet.status in ('needs_review', 'in_review', 'reviewed') %}
-    <form method="post" action="/office/sheets/{{ sheet.id }}/excel" enctype="multipart/form-data" class="correction-form" data-loading="Đang tải tệp đã sửa...">
-      <div class="form-row">
-        <div class="form-field">
-          <label for="correction-file">Tải lên tệp Excel đã sửa (phiên bản {{ sheet.version }})</label>
-          <input type="file" id="correction-file" name="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required />
-        </div>
-        <button type="submit" class="btn">Tải lên bản sửa</button>
-      </div>
-      <p class="muted">Chỉ sửa giá trị trong tệp vừa tải. Mỗi giá trị đã sửa được ghi lại: ai sửa, lúc nào, cũ và mới.</p>
-    </form>
     {% endif %}
-  </div>
-  {% endif %}
+  </header>
 
-  <!-- Photos Card -->
-  <div class="card">
-    <h2 style="font-size: 1.15rem; margin-bottom: 0.75rem;">
-      Ảnh chụp biểu mẫu ({{ photos|length }} ảnh)
-    </h2>
-    {% if not photos %}
-      <p style="color: var(--color-muted); font-style: italic;">Chưa có ảnh nào cho biểu mẫu này.</p>
-    {% else %}
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.25rem;">
+  <div class="review" data-review data-sheet-id="{{ sheet.id }}" data-version="{{ sheet.version }}">
+    <section class="viewer" aria-label="Ảnh biểu mẫu">
+      {% if photos %}
+      <div class="viewer__bar" role="toolbar" aria-label="Điều khiển ảnh">
+        {% if photos|length > 1 %}
+        <div class="viewer__photos" role="group" aria-label="Chọn ảnh">
+          {% for photo in photos %}
+          <button type="button" class="viewer__btn{% if loop.first %} is-active{% endif %}" data-photo-src="/api/photos/{{ photo.id }}/display"
+                  aria-pressed="{{ 'true' if loop.first else 'false' }}">Ảnh {{ loop.index }}{% if photo.invalid %} (không hợp lệ){% endif %}</button>
+          {% endfor %}
+        </div>
+        {% endif %}
+        <button type="button" class="viewer__btn" data-zoom="out" aria-label="Thu nhỏ">&minus;</button>
+        <span class="viewer__zoom num" data-zoom-label aria-live="polite">100%</span>
+        <button type="button" class="viewer__btn" data-zoom="in" aria-label="Phóng to">+</button>
+        <button type="button" class="viewer__btn" data-zoom="fit">Vừa khung</button>
+        <button type="button" class="viewer__btn" data-rotate aria-label="Xoay 90 độ">Xoay</button>
+      </div>
+      <div class="viewer__stage" data-stage tabindex="0" aria-label="Ảnh: kéo để di chuyển, cuộn chuột để phóng to">
+        <img src="/api/photos/{{ photos[0].id }}/display" alt="Ảnh biểu mẫu Máy {{ sheet.machine }}, trang {{ sheet.page_no }}" data-photo draggable="false" />
+      </div>
+      {% else %}
+      <p class="viewer__empty">Chưa có ảnh nào cho biểu mẫu này.</p>
+      {% endif %}
+    </section>
+
+    <section class="review-panel">
+      <div class="tabs" role="tablist" aria-label="Nội dung biểu mẫu">
+        <button type="button" role="tab" id="tab-rolls" aria-controls="panel-rolls" aria-selected="true">Các cuộn <span class="num muted">{{ table.rows|length }}</span></button>
+        <button type="button" role="tab" id="tab-info" aria-controls="panel-info" aria-selected="false" tabindex="-1">Thông tin</button>
+        <button type="button" role="tab" id="tab-history" aria-controls="panel-history" aria-selected="false" tabindex="-1">Lịch sử <span class="num muted">{{ history|length }}</span></button>
+      </div>
+
+      <div role="tabpanel" id="panel-rolls" aria-labelledby="tab-rolls" class="tab-panel">
+        {% if not table.rows %}
+        <p class="muted">Chưa có dữ liệu đọc được cho trang này.</p>
+        {% else %}
+        <div class="review-tools">
+          <ul class="legend" aria-label="Chú thích màu">
+            <li><span class="swatch swatch--doubt"></span>AI chưa chắc</li>
+            <li><span class="swatch swatch--rule"></span>Sai quy tắc</li>
+            <li><span class="swatch swatch--unreadable"></span>Không đọc được</li>
+            <li><span class="swatch swatch--edited"></span>Đã sửa, chưa lưu</li>
+            <li><span class="swatch swatch--inherited">Ab</span>Chép xuống từ dòng trên</li>
+          </ul>
+          {% if table.flagged %}
+          <div class="review-tools__next">
+            <span class="muted" data-flag-count aria-live="polite">Còn <span class="num">{{ table.flagged }}</span>/<span class="num">{{ table.flagged }}</span> ô cần kiểm tra</span>
+            <button type="button" class="btn btn--small btn--secondary" data-next-flag>Ô cần kiểm tra tiếp <kbd>F8</kbd></button>
+          </div>
+          {% endif %}
+        </div>
+        <div class="review-table-wrap">
+          <table class="review-table">
+            <thead>
+              <tr>
+                <th rowspan="2" class="is-pinned is-pinned--number" scope="col">#</th>
+                {% for h in table.top %}
+                <th {% if h.rowspan > 1 %}rowspan="2" scope="col"{% else %}colspan="{{ h.colspan }}" scope="colgroup"{% endif %}{% if h.pinned %} class="is-pinned is-pinned--code"{% endif %}>{{ h.text }}</th>
+                {% endfor %}
+              </tr>
+              <tr>
+                {% for column in table.bottom %}
+                <th scope="col">{{ column.sub }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in table.rows %}
+              <tr data-row-key="{{ row.row_key }}">
+                <th scope="row" class="is-pinned is-pinned--number num">{{ row.number }}</th>
+                {% for cell in row.cells %}
+                <td class="{% if cell.pinned %}is-pinned is-pinned--code{% endif %}{% if cell.flag %} flag--{{ cell.flag }}{% endif %}">
+                  <input class="cell{% if cell.numeric %} num{% endif %}{% if cell.inherited %} is-inherited{% endif %}"
+                         data-field="{{ cell.field }}" {% if cell.flag %}data-flag="{{ cell.flag }}"{% endif %}
+                         {% if cell.numeric %}inputmode="decimal" data-numeric{% endif %}
+                         value="{{ cell.value }}" data-orig="{{ cell.value }}"
+                         aria-label="Dòng {{ row.number }} · {{ cell.label }}{% if cell.flag_label %} ({{ cell.flag_label }}){% endif %}"
+                         {% if cell.flag_label or cell.note %}title="{{ cell.flag_label or '' }}{% if cell.note %}: {{ cell.note }}{% endif %}"{% endif %}
+                         {% if not editable %}readonly{% endif %} spellcheck="false" autocomplete="off" />
+                </td>
+                {% endfor %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if editable %}
+        <p class="muted review-hint">Enter: xuống dòng dưới · Tab: sang ô bên phải · F8: ô cần kiểm tra tiếp. Mỗi giá trị đã sửa được ghi lại: ai sửa, lúc nào, cũ và mới.</p>
+        {% endif %}
+        {% endif %}
+      </div>
+
+      <div role="tabpanel" id="panel-info" aria-labelledby="tab-info" class="tab-panel" hidden>
+        <dl class="info-grid">
+          <div><dt>Máy</dt><dd>{{ sheet.machine }}</dd></div>
+          <div><dt>Ngày sản xuất</dt><dd class="num">{{ sheet.production_date|vndate }}</dd></div>
+          <div><dt>Ca</dt><dd>{{ sheet.shift }}</dd></div>
+          <div><dt>Trang</dt><dd>{{ sheet.page_no }}</dd></div>
+          <div><dt>Mã số mẫu</dt><dd>{{ sheet.form }}</dd></div>
+          <div><dt>Trưởng ca tải lên</dt><dd>{{ uploader_username or '-' }}</dd></div>
+          <div><dt>Thời gian chờ</dt><dd class="num">{{ time_waited }}</dd></div>
+          <div><dt>Người nhận kiểm tra</dt><dd>
+            {% if picked_up_by_username %}{{ picked_up_by_username }}{% if sheet.picked_up_by == user.id %} <span class="muted">(Bạn)</span>{% endif %}
+            {% else %}<span class="muted">Chưa có người nhận</span>{% endif %}</dd></div>
+          <div><dt>Cập nhật trạng thái</dt><dd class="num">{{ sheet.status_since|vntime }}</dd></div>
+        </dl>
+
         {% for photo in photos %}
-        <div style="border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 0.75rem; background: var(--color-page);">
-          <div style="aspect-ratio: 4/3; overflow: hidden; border-radius: 4px; background: #000000; display: flex; align-items: center; justify-content: center; margin-bottom: 0.5rem;">
-            <a href="/api/photos/{{ photo.id }}" target="_blank" title="Xem ảnh gốc cỡ lớn">
-              <img src="/api/photos/{{ photo.id }}/display" alt="Ảnh phiếu #{{ photo.id }}" style="max-width: 100%; max-height: 100%; object-fit: contain; display: block;" loading="lazy" />
-            </a>
-          </div>
-          <div style="font-size: 0.85rem; color: var(--color-muted);">
-            <div>Ảnh #{{ photo.id }} · Tải lên lúc: <span class="num">{{ photo.uploaded_at|vntime }}</span></div>
-            {% if photo.taken_at %}
-            <div>Chụp lúc: <span class="num">{{ photo.taken_at|vntime }}</span></div>
-            {% endif %}
-            <div style="margin-top: 0.35rem;">
-              {% if can_review %}<a href="/api/photos/{{ photo.id }}/download" download style="text-decoration: underline;">Tải ảnh gốc</a>{% endif %}
-            </div>
-            {% if photo.quality_warnings %}
-            <div class="alert" style="background: #FEFCE8; color: #854D0E; border: 1px solid #FEF08A; padding: 0.35rem 0.5rem; margin-top: 0.35rem; font-size: 0.8rem;">
-              <strong>Lưu ý:</strong> {{ photo.quality_warnings }}
-            </div>
-            {% endif %}
-            {% if photo.invalid %}
-            <div class="alert alert--error" style="padding: 0.35rem 0.5rem; margin-top: 0.35rem; font-size: 0.8rem;">
-              Đã đánh dấu không hợp lệ
-            </div>
-            {% endif %}
-          </div>
+        <div class="photo-meta">
+          <strong>Ảnh {{ loop.index }}</strong> · Tải lên lúc <span class="num">{{ photo.uploaded_at|vntime }}</span>
+          {% if photo.taken_at %} · Chụp lúc <span class="num">{{ photo.taken_at|vntime }}</span>{% endif %}
+          {% if can_review %} · <a href="/api/photos/{{ photo.id }}/download" download>Tải ảnh gốc</a>{% endif %}
+          {% if photo.quality_warnings %}<div class="alert alert--warn"><strong>Lưu ý:</strong> {{ photo.quality_warnings }}</div>{% endif %}
+          {% if photo.invalid %}<div class="alert alert--error">Đã đánh dấu không hợp lệ</div>{% endif %}
         </div>
         {% endfor %}
+
+        {% if can_review and sheet.status in ('needs_review', 'in_review', 'reviewed') %}
+        <form method="post" action="/office/sheets/{{ sheet.id }}/excel" enctype="multipart/form-data" class="correction-form" data-loading="Đang tải tệp đã sửa...">
+          <h2 class="panel-title">Sửa bằng Excel (cách cũ)</h2>
+          <div class="form-row">
+            <div class="form-field">
+              <label for="correction-file">Tải lên tệp Excel đã sửa (phiên bản {{ sheet.version }})</label>
+              <input type="file" id="correction-file" name="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required />
+            </div>
+            <button type="submit" class="btn btn--secondary">Tải lên bản sửa</button>
+          </div>
+          <p class="muted">Tải tệp Excel ở trên, sửa giá trị, rồi tải lên lại. Tải lên là xác nhận biểu mẫu.</p>
+        </form>
+        {% endif %}
       </div>
-    {% endif %}
+
+      <div role="tabpanel" id="panel-history" aria-labelledby="tab-history" class="tab-panel" hidden>
+        {% if not history %}
+        <p class="muted">Chưa có thay đổi nào.</p>
+        {% else %}
+        <div class="table-wrap">
+          <table class="history-table">
+            <thead><tr><th scope="col">Lúc</th><th scope="col">Người</th><th scope="col">Việc</th><th scope="col">Ô</th><th scope="col">Cũ</th><th scope="col">Mới</th></tr></thead>
+            <tbody>
+              {% for e in history %}
+              <tr>
+                <td class="num">{{ e.at|vntime }}</td>
+                <td>{{ e.username or '-' }}</td>
+                <td>{{ e.label }}</td>
+                <td>{% if e.field %}Dòng {{ e.row_number }} · {{ e.field_label }}{% endif %}</td>
+                <td class="num">{% if e.field %}{{ e.old_value if e.old_value is not none else '(trống)' }}{% endif %}</td>
+                <td class="num">{% if e.field %}{{ e.new_value if e.new_value is not none else '(trống)' }}{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+      </div>
+    </section>
   </div>
 </div>
+<script src="/static/js/review.js?v={{ css_version }}" defer></script>
 {% endblock %}

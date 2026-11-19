@@ -260,7 +260,7 @@ class TestEndToEndFlow(unittest.TestCase):
         detail_res = office_client.get(f"/office/sheets/{sheet_id}")
         self.assertEqual(detail_res.status_code, 200)
         self.assertIn("Cần kiểm tra", detail_res.text)
-        self.assertIn("Đúng, xác nhận", detail_res.text)
+        self.assertIn(">Xác nhận<", detail_res.text)
 
         # --- Step 5: Office user downloads .xlsx and checks net-weight column sum ---
         excel_res = office_client.get(f"/api/sheets/{sheet_id}/excel")

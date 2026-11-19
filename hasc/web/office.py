@@ -25,7 +25,9 @@ from hasc.excel import build_page_workbook, page_filename
 from hasc.images import display_copy
 from hasc.web.auth import get_active_user, get_db
 from hasc.web.errors import AppError
+from hasc.web.review import review_history, review_table
 from hasc.web.roles import ROLE_PERMISSIONS, require_role
+
 
 router = APIRouter()
 
@@ -330,6 +332,7 @@ def office_sheet_detail_page(
     confirmed: Optional[int] = None,
     pickup_success: Optional[int] = None,
     corrected: Optional[int] = None,
+    saved: Optional[int] = None,
     upload_error: Optional[str] = None,
     user: dict = Depends(require_role("view_sheet_numbers")),
     conn: sqlite3.Connection = Depends(get_db),
@@ -389,9 +392,12 @@ def office_sheet_detail_page(
             "picked_up_by_username": picked_up_by_username,
             "photos": photos,
             "can_review": user["role"] in ROLE_PERMISSIONS["review_sheet"],
+            "table": review_table(conn, sheet_id),
+            "history": review_history(conn, sheet_id),
             "confirmed": bool(confirmed),
             "pickup_success": bool(pickup_success),
             "corrected": corrected,
+            "saved": saved,
             "upload_error": upload_error[:300] if upload_error else None,
             "error": None,
         },

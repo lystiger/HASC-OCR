@@ -322,7 +322,7 @@ class TestOfficeScreens(unittest.TestCase):
         self.assertIn(f"/api/photos/{photo_id}", html)
         self.assertIn("Nhận kiểm tra", html)
         self.assertIn("Tải tệp Excel", html)
-        self.assertIn("Đúng, xác nhận", html)
+        self.assertIn(">Xác nhận<", html)
 
         # Photo view endpoint
         res_photo = emp_client.get(f"/api/photos/{photo_id}")
