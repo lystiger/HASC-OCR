@@ -7,6 +7,10 @@ param(
     [string]$Subnet = "",
     [System.Security.SecureString]$HascPassword,
     [System.Security.SecureString]$OpenRouterKey,
+    [System.Security.SecureString]$ZaloToken,
+    [string]$ZaloSenderIds = "",
+    [string]$ZaloSummaryChatId = "",
+    [switch]$SkipZalo,
     [string]$KnownNames = "",
     [string]$AdminPassword = "",
     [string]$ImportDb = "",
@@ -132,6 +136,22 @@ function Install-Hasc {
         if (-not $OpenRouterKey) { $OpenRouterKey = Read-Text "Paste the OpenRouter API key (it starts with sk-or-). It is stored encrypted, readable only by '$Account'." -Secret }
         if ((Get-Plain $OpenRouterKey).Trim().Length -eq 0) { throw "The OpenRouter key is empty." }
     }
+    # The Zalo bot is optional: asked until it is set up, and never asked by CI or with -SkipZalo.
+    $zaloEnv = Join-Path $Config "zalo.env"
+    $needZalo = $false
+    if (-not (Test-Path $zaloEnv) -and -not $SkipZalo) {
+        if ($ZaloToken) { $needZalo = $true }
+        elseif (-not $NonInteractive -and (Confirm-Choice "Set up the Zalo bot now?`n`nIt keeps sheet photos that workers send to the bot, and posts yesterday's numbers to a Zalo group at 9:00. You need the bot token and the sender IDs (see the README).`n`nNo: skip it; the next update asks again." $false)) {
+            $ZaloToken = Read-Text "Paste the Zalo bot token. It is stored encrypted, readable only by '$Account'." -Secret
+            $ZaloSenderIds = Read-Text "Sender IDs that may send photos to the bot, separated by commas (ZALO_STAGING_SENDER_IDS)."
+            $ZaloSummaryChatId = Read-Text "Group ID for the 9:00 summary (ZALO_SUMMARY_CHAT_ID). Leave it empty to send nothing."
+            $needZalo = $true
+        }
+        if ($needZalo) {
+            if ((Get-Plain $ZaloToken).Trim().Length -eq 0) { throw "The Zalo bot token is empty. Nothing was changed." }
+            if (-not $ZaloSenderIds.Trim()) { throw "Give at least one sender ID for the Zalo bot. Nothing was changed." }
+        }
+    }
     $needData = -not (Test-Path $Db)
     if ($needData -and -not $ImportDb -and -not $FreshStart -and -not $NonInteractive) {
         if (Confirm-Choice "Bring existing data (a hasc.db backup and its photos folder)?`n`nYes: pick the backup. No: start with an empty database." $false) {
@@ -195,6 +215,22 @@ function Install-Hasc {
             "HASC_KNOWN_NAMES=$namesTarget")
     }
 
+    if ($needZalo) {
+        Step "Zalo bot settings"
+        # Copied into place as hasc, so on Pro the file is encrypted to hasc, also on an update where the
+        # config folder is already encrypted. The draft sits in the logs folder (hasc and admins only).
+        $draft = Join-Path $Logs "zalo.env.new"
+        try {
+            Set-Content $draft -Encoding ASCII -Value @(
+                "ZALO_BOT_TOKEN=$((Get-Plain $ZaloToken).Trim())",
+                "ZALO_STAGING_SENDER_IDS=$($ZaloSenderIds.Trim())",
+                "ZALO_SUMMARY_CHAT_ID=$($ZaloSummaryChatId.Trim())")
+            Invoke-AsHasc "copy /y `"$draft`" `"$zaloEnv`" >nul"
+        } finally {
+            Remove-Item $draft -Force -ErrorAction SilentlyContinue
+        }
+    }
+
     if ($needData) {
         if ($ImportDb) {
             Step "Importing $ImportDb"
@@ -226,7 +262,7 @@ function Install-Hasc {
 
     # --- Encryption (Pro only) --------------------------------------------------------------------
     # Decided from the files themselves, so a run that stopped half way still encrypts on the next run.
-    $plainFiles = @($Data, $Config, $Db, $workerEnv, $namesTarget) | Where-Object { -not (Test-Encrypted $_) }
+    $plainFiles = @($Data, $Config, $Db, $workerEnv, $namesTarget, $zaloEnv) | Where-Object { (Test-Path $_) -and -not (Test-Encrypted $_) }
     if ($hasEfs -and $plainFiles) {
         Step "Encrypting the data and settings to '$Account' (EFS)"
         Invoke-AsHasc "cipher /e /s:`"$Data`" >nul && cipher /e /s:`"$Config`" >nul" $Logs
@@ -268,7 +304,14 @@ function Install-Hasc {
     Invoke-Native $Nssm @("set", "hasc-redirect", "AppEnvironmentExtra", "HASC_CA_CERT=$Config\ca.crt")
     Invoke-Native $Nssm @("install", "hasc-worker", $Py, "-u -m hasc.worker")
     Invoke-Native $Nssm @("set", "hasc-worker", "AppEnvironmentExtra", "HASC_DB_PATH=$Db", "HASC_WORKER_ENV=$workerEnv")
-    foreach ($s in $Services) {
+    # The Zalo receiver, which also sends the 9:00 summary (P151). Photos go to data\photos, next to the database.
+    if (Test-Path $zaloEnv) {
+        Invoke-Native $Nssm @("install", "hasc-zalo", $Py, "-u -m hasc.zalo")
+        # PYTHONUTF8: its log lines are Vietnamese, which the Windows code page cannot print.
+        Invoke-Native $Nssm @("set", "hasc-zalo", "AppEnvironmentExtra", "HASC_DB_PATH=$Db", "HASC_ZALO_ENV=$zaloEnv", "PYTHONUTF8=1")
+    }
+    $Installed = @($Services | Where-Object { Get-Service $_ -ErrorAction SilentlyContinue })
+    foreach ($s in $Installed) {
         $log = Join-Path $Logs ($s.Replace("hasc-", "") + ".log")
         Invoke-Native $Nssm @("set", $s, "AppDirectory", $Code)
         Invoke-Native $Nssm @("set", $s, "ObjectName", ".\$Account", $plain) -Secret
@@ -337,14 +380,20 @@ function Install-Hasc {
 
     # --- Start and check --------------------------------------------------------------------------
     Step "Starting the services"
-    foreach ($s in $Services) { Start-Service $s }
+    foreach ($s in $Installed) {
+        try { Start-Service $s }
+        catch { if ($s -ne "hasc-zalo") { throw } }  # checked below; Zalo never fails the install
+    }
     Wait-Website
     # Fill the admins' update banner now rather than at the next noon.
     Start-ScheduledTask -TaskName "HASC update check"
     Start-Sleep -Seconds 5
-    foreach ($s in $Services) {
+    $zaloNote = ""
+    foreach ($s in $Installed) {
         $status = (Get-Service $s).Status
-        if ($status -ne "Running") { throw "$s is $status. See the log in $Logs" }
+        # The website does not need Zalo: a wrong token or no internet must not fail the update.
+        if ($s -eq "hasc-zalo" -and $status -ne "Running") { $zaloNote = "`n`nThe Zalo bot is $status. Check $Logs\zalo.log and the AI page." }
+        elseif ($status -ne "Running") { throw "$s is $status. See the log in $Logs" }
     }
 
     $addresses = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike "127.*" -and $_.IPAddress -notlike "169.254.*" }).IPAddress
@@ -354,6 +403,7 @@ function Install-Hasc {
     if (-not $update) {
         $done += "`n`nStill to do by hand:`n- BIOS: set 'Restore on AC power loss' to Power On.`n- Router: give this PC a fixed address.`n- Windows Update: pause it; install updates in planned shutdowns."
     }
+    $done += $zaloNote
     if (-not $NonInteractive) { Start-Process $WebsiteUrl }
     Show-Info $done
 }

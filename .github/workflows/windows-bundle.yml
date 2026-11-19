@@ -172,6 +172,21 @@ jobs:
           }
           Check "HASC update runs the update check (checked $checked, after $before)" ($checked -gt $before)
 
+          # 2b. Setting up the Zalo bot on an existing install adds the hasc-zalo service. The token is fake,
+          # so the receiver stops at getMe: the install still succeeds, and the stop is logged in UTF-8.
+          $zaloToken = ConvertTo-SecureString "ci-fake-zalo-token" -AsPlainText -Force
+          Run { & "$b\install.ps1" -NonInteractive -Yes -SkipKeyExport -HascPassword $pw -ZaloToken $zaloToken `
+            -ZaloSenderIds "u-ci-sender" -ZaloSummaryChatId "g-ci-group" }
+          Check "hasc-zalo service installed" ([bool](Get-Service hasc-zalo -ErrorAction SilentlyContinue))
+          $efs = cipher /c C:\HASC\config\zalo.env | Out-String
+          Check "zalo.env encrypted to hasc" ($efs -cmatch '(?ms)^E zalo\.env.*Users who can decrypt:\s+(\S+\\)?hasc\b')
+          Check "zalo.env draft removed" (-not (Test-Path C:\HASC\logs\zalo.env.new))
+          $zaloLog = ""
+          for ($i = 0; $i -lt 30 -and -not ($zaloLog -match "Stopped:"); $i++) { Start-Sleep -Seconds 2; $zaloLog = Get-Content C:\HASC\logs\zalo.log -Raw -Encoding UTF8 -ErrorAction SilentlyContinue }
+          Check "receiver logged its stop without an encoding error" (($zaloLog -match "Stopped:") -and -not ($zaloLog -match "UnicodeEncodeError"))
+          Check "the log never holds the token" (-not ($zaloLog -match "ci-fake-zalo-token"))
+          Check "admin can log in with the Zalo bot set up" ((Login "ci-admin-pass-2") -eq 200)
+
           # 3. Delete refuses a backup folder inside C:\HASC (it would be deleted with it), then deletes keeping the data.
           & C:\HASC\tools\delete.ps1 -NonInteractive -HascPassword $pw -KeepDataTo C:\HASC\keep
           Check "delete refuses a backup inside C:\HASC" (($LASTEXITCODE -ne 0) -and (Test-Path C:\HASC\data\hasc.db) -and ((Get-Service hasc-web).Status -eq "Running"))

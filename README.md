@@ -308,6 +308,8 @@ Each tool is a double-click: Windows asks to allow it to make changes (choose **
 4. On Windows Pro a black window opens as `hasc` to back up the encryption key: type a password for the key file there. Then copy the selected `hasc-efs-key.pfx` to a USB stick before pressing OK.
 5. The website opens when it is done. The last window lists the phone addresses, where each device gets the certificate (see HTTPS below), and what to do by hand: BIOS power-on after power loss, a fixed address in the router, Windows Update paused.
 
+**Zalo bot (optional):** install and update ask "Set up the Zalo bot now?" until it is set up. Yes asks for the bot token, the sender IDs allowed to send photos, and the group ID for the 9:00 summary (empty sends nothing). They are saved as `C:\HASC\config\zalo.env`, encrypted to `hasc` like the worker settings, and the installer adds the `hasc-zalo` service (log: `C:\HASC\logs\zalo.log`). A wrong token or no internet does not fail the install: the last window says the bot is stopped, and the AI page shows why. To change a setting later, delete `C:\HASC\config\zalo.env` (as an administrator) and run **HASC update**, which asks again.
+
 The installer adds **HASC website** and **HASC update** to the desktop, and both plus **HASC delete** to the Start menu.
 
 **HTTPS: trusting the website once on each device**
