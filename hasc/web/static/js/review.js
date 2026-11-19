@@ -9,26 +9,52 @@
   var stage = root.querySelector("[data-stage]");
   var img = root.querySelector("[data-photo]");
   var label = root.querySelector("[data-zoom-label]");
-  var view = { scale: 1, fit: 1, rotate: 0, x: 0, y: 0 };
-  var MIN = 0.25, MAX = 6;
+  var view = { scale: 1, fit: 1, cover: 1, rotate: 0, x: 0, y: 0 };
+  var MIN = 0.25, MAX = 6;  // of the default (filled) view
 
-  function draw() {
-    img.style.transform = "translate(" + view.x + "px," + view.y + "px) rotate(" + view.rotate + "deg) scale(" + view.scale + ")";
-    if (label) label.textContent = Math.round(view.scale / view.fit * 100) + "%";
+  function size() {  // the photo's on-screen size at the current scale and turn
+    var turned = view.rotate % 180 !== 0;
+    return { w: (turned ? img.naturalHeight : img.naturalWidth) * view.scale,
+             h: (turned ? img.naturalWidth : img.naturalHeight) * view.scale };
   }
-  function fit() {
-    if (!stage || !img.naturalWidth) return;
+  function clamp() {
+    // No empty space inside the frame: a photo larger than the frame keeps its edges at the frame's
+    // edges; a smaller one (Vừa khung, or zoomed out) sits in the middle.
+    var shown = size(), sw = stage.clientWidth, sh = stage.clientHeight;
+    var cx = view.x + img.naturalWidth / 2, cy = view.y + img.naturalHeight / 2;
+    cx = shown.w <= sw ? sw / 2 : Math.min(shown.w / 2, Math.max(sw - shown.w / 2, cx));
+    cy = shown.h <= sh ? sh / 2 : Math.min(shown.h / 2, Math.max(sh - shown.h / 2, cy));
+    view.x = cx - img.naturalWidth / 2;
+    view.y = cy - img.naturalHeight / 2;
+  }
+  function draw() {
+    clamp();
+    img.style.transform = "translate(" + view.x + "px," + view.y + "px) rotate(" + view.rotate + "deg) scale(" + view.scale + ")";
+    if (label) label.textContent = Math.round(view.scale / view.cover * 100) + "%";
+  }
+  function measure() {
     var turned = view.rotate % 180 !== 0;
     var w = turned ? img.naturalHeight : img.naturalWidth;
     var h = turned ? img.naturalWidth : img.naturalHeight;
     view.fit = Math.min(stage.clientWidth / w, stage.clientHeight / h);
+    view.cover = Math.max(stage.clientWidth / w, stage.clientHeight / h);
+  }
+  function fill() {  // the default: the photo fills the frame, starting at the sheet's top-left
+    if (!stage || !img.naturalWidth) return;
+    measure();
+    view.scale = view.cover;
+    view.x = 1e6;  // clamp() moves it back to the left and top edges
+    view.y = 1e6;
+    draw();
+  }
+  function fit() {  // Vừa khung: the whole page in view
+    if (!stage || !img.naturalWidth) return;
+    measure();
     view.scale = view.fit;
-    view.x = (stage.clientWidth - img.naturalWidth) / 2;
-    view.y = (stage.clientHeight - img.naturalHeight) / 2;
     draw();
   }
   function zoomAt(factor, cx, cy) {
-    var next = Math.min(MAX * view.fit, Math.max(MIN * view.fit, view.scale * factor));
+    var next = Math.min(MAX * view.cover, Math.max(Math.min(MIN * view.cover, view.fit), view.scale * factor));
     var ratio = next / view.scale;
     // Keep the point under the cursor in place: the image's centre moves away from it by `ratio`.
     var centreX = view.x + img.naturalWidth / 2, centreY = view.y + img.naturalHeight / 2;
@@ -38,9 +64,9 @@
     draw();
   }
   if (stage && img) {
-    img.addEventListener("load", fit);
-    if (img.complete) fit();
-    window.addEventListener("resize", fit);
+    img.addEventListener("load", fill);
+    if (img.complete) fill();
+    window.addEventListener("resize", fill);
     root.querySelectorAll("[data-zoom]").forEach(function (button) {
       button.addEventListener("click", function () {
         var kind = button.getAttribute("data-zoom");
@@ -50,7 +76,7 @@
     });
     root.querySelector("[data-rotate]").addEventListener("click", function () {
       view.rotate = (view.rotate + 90) % 360;
-      fit();
+      fill();
     });
     stage.addEventListener("wheel", function (event) {
       event.preventDefault();
@@ -72,12 +98,12 @@
     function endDrag() { drag = null; stage.classList.remove("is-dragging"); }
     stage.addEventListener("pointerup", endDrag);
     stage.addEventListener("pointercancel", endDrag);
-    stage.addEventListener("keydown", function (event) {  // keyboard: arrows pan, +/- zoom, 0 fits
+    stage.addEventListener("keydown", function (event) {  // keyboard: arrows pan, +/- zoom, 0 back to the default view
       var step = 40, keys = { ArrowLeft: [step, 0], ArrowRight: [-step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] };
       if (keys[event.key]) { view.x += keys[event.key][0]; view.y += keys[event.key][1]; draw(); }
       else if (event.key === "+" || event.key === "=") zoomAt(1.25, stage.clientWidth / 2, stage.clientHeight / 2);
       else if (event.key === "-") zoomAt(0.8, stage.clientWidth / 2, stage.clientHeight / 2);
-      else if (event.key === "0") fit();
+      else if (event.key === "0") fill();
       else return;
       event.preventDefault();
     });
