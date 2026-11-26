@@ -24,7 +24,7 @@ from hasc.reader.reader import CloudReader, TransportError
 from hasc.web.security import hash_password
 from hasc.worker import config, jobs
 from hasc.worker.__main__ import gate_due, main
-from hasc.worker.gate import DAILY_CAP, GATE, run_gate_batch
+from hasc.worker.gate import DAILY_CAP, GATE, INTERRUPTED, _dispatches_on, run_gate_batch
 from hasc.zalo import receiver
 
 A, B = "u-sender-a", "u-sender-b"
@@ -63,7 +63,7 @@ class FakeTransport:
     def __call__(self, body):
         self.bodies.append(body)
         reply = self.replies.pop(0)
-        if isinstance(reply, Exception):
+        if isinstance(reply, BaseException):
             raise reply
         return {"choices": [{"message": {"content": reply}}],
                 "usage": {"cost": 0.0004, "prompt_tokens": 1200, "completion_tokens": 60}}
@@ -142,6 +142,13 @@ class GateTest(unittest.TestCase):
     def snapshot(self):
         return {t: [tuple(r) for r in self.conn.execute(f"SELECT * FROM {t}")]
                 for t in (*TABLES, "zalo_inbox", "gate_calls")}
+
+    def fill_calls(self, n, at):
+        filler = self.deliver(at)
+        self.conn.execute("UPDATE zalo_inbox SET status = 'waiting' WHERE id = ?", (filler,))
+        self.conn.executemany("INSERT INTO gate_calls (inbox_id, at, ok) VALUES (?, ?, 1)",
+                              [(filler, at.astimezone(timezone.utc).isoformat())] * n)
+        self.conn.commit()
 
     def assert_nothing_filed(self):
         self.assertEqual({t: self.count(t) for t in TABLES}, dict.fromkeys(TABLES, 0))
@@ -336,13 +343,6 @@ class BadReplies(GateTest):
 
 
 class DailyCap(GateTest):
-    def fill_calls(self, n, at):
-        filler = self.deliver(at)
-        self.conn.execute("UPDATE zalo_inbox SET status = 'waiting' WHERE id = ?", (filler,))
-        self.conn.executemany("INSERT INTO gate_calls (inbox_id, at, ok) VALUES (?, ?, 1)",
-                              [(filler, at.astimezone(timezone.utc).isoformat())] * n)
-        self.conn.commit()
-
     def test_dispatch_101_of_a_vietnam_day_is_not_made_and_goes_first_next_day(self):
         today = vn(2026, 10, 19, 22)
         self.fill_calls(DAILY_CAP - 3, vn(2026, 10, 19, 0, 1))
@@ -376,7 +376,49 @@ class DailyCap(GateTest):
         self.assertEqual(self.inbox(row)["status"], "filed")
 
 
+class KilledInTransport(BaseException):
+    """The process dies inside the transport call: not an Exception, so nothing in the gate catches it."""
+
+
 class Calls(GateTest):
+    def reopen(self):
+        self.conn.close()
+        self.conn = get_connection(self.db_path)
+        self.addCleanup(self.conn.close)
+
+    def test_a_dispatch_cut_off_inside_the_transport_is_still_recorded_and_counted(self):
+        rows = [self.deliver(vn(2026, 10, 19, 15, n)) for n in range(3)]
+        now = vn(2026, 10, 19, 23)
+        self.transport.replies.extend([front(), KilledInTransport()])
+        with self.assertRaises(KilledInTransport):
+            run_gate_batch(self.conn, self.reader, self.photos, now)
+        self.reopen()
+        self.assertEqual([(r["inbox_id"], r["ok"], r["error"], r["cost_usd"], r["prompt_tokens"])
+                          for r in self.conn.execute("SELECT * FROM gate_calls ORDER BY id")],
+                         [(rows[0], 1, None, 0.0004, 1200), (rows[1], 0, INTERRUPTED, None, None)])
+        self.assertEqual(_dispatches_on(self.conn, now), 2)
+        self.assertEqual([self.inbox(r)["status"] for r in rows], ["filed", "delivered", "delivered"])
+
+        self.assertEqual(self.batch(front(code="2"), front(code="3"), now=now)["new"], 2)
+        self.assertEqual([r["inbox_id"] for r in self.conn.execute("SELECT inbox_id FROM gate_calls ORDER BY id")],
+                         [rows[0], rows[1], rows[1], rows[2]])
+        self.assertEqual([r["ok"] for r in self.conn.execute("SELECT ok FROM gate_calls ORDER BY id")], [1, 0, 1, 1])
+        self.assertEqual(_dispatches_on(self.conn, now), 4)
+        self.assertEqual(self.count("gate_calls", "error = ?", INTERRUPTED), 1)
+
+    def test_a_cut_off_dispatch_counts_toward_the_cap_after_a_restart(self):
+        self.fill_calls(DAILY_CAP - 2, vn(2026, 10, 19, 0, 1))
+        rows = [self.deliver(vn(2026, 10, 19, 15, n)) for n in range(3)]
+        now = vn(2026, 10, 19, 23)
+        self.transport.replies.extend([front(), KilledInTransport()])
+        with self.assertRaises(KilledInTransport):
+            run_gate_batch(self.conn, self.reader, self.photos, now)
+        self.reopen()
+        self.assertEqual(_dispatches_on(self.conn, now), DAILY_CAP)
+        self.assertEqual(self.batch(now=now)["over_cap"], 2)
+        self.assertEqual((len(self.transport.bodies), self.count("gate_calls")), (2, DAILY_CAP))
+        self.assertEqual([self.inbox(r)["status"] for r in rows[1:]], ["delivered", "delivered"])
+
     def test_one_transport_call_per_gated_photo_and_each_recorded(self):
         big = photo_bytes(99, size=(2400, 1800))
         self.deliver(vn(2026, 10, 19, 15), data=big)

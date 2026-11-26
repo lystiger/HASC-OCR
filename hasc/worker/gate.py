@@ -1,8 +1,8 @@
 """Zalo gate (zalo-intake spec R1-R3): one cheap model call per delivered inbox photo, then the filing rules.
 
 The gate reads only the photo's turn, layout, header and a fingerprint of its first rows. The model reports;
-hasc.intake decides. Every dispatch is written to gate_calls before its outcome is applied, so the daily cap
-counts calls that were paid for even if filing then fails, and survives a restart.
+hasc.intake decides. Every dispatch is committed to gate_calls before the transport call leaves, so the daily cap
+counts a call even if the process dies inside it, and survives a restart.
 """
 from datetime import datetime, time, timedelta, timezone
 import io
@@ -33,6 +33,7 @@ SIZE = 1600
 MAX_TOKENS = 3000
 DAILY_CAP = 100
 MALFORMED_LIMIT = 3
+INTERRUPTED = "interrupted"  # error text of a gate_calls row whose reply never came back; its cost is unknown
 COUNTED = ("new", "resend", "back", "waiting", "not_form", "staging_checked", "malformed", "over_cap", "error")
 
 
@@ -100,9 +101,16 @@ def _gate_image(path):
 
 
 def _dispatch(conn, reader, inbox_id, jpeg, stamp):
-    """One transport call, recorded before anything acts on it. Returns the parsed reply or None (malformed)."""
+    """One transport call, recorded before it leaves and completed when the reply comes back.
+
+    The row is committed as an interrupted, costless call first; if the process dies inside the transport it stays
+    that way and still counts toward the cap. Returns the parsed reply or None (malformed)."""
     body = reader._body(reader.model, jpeg, "low", prompt=GATE)
     body["max_tokens"] = MAX_TOKENS
+    with conn:
+        call_id = conn.execute(
+            "INSERT INTO gate_calls (inbox_id, at, ok, error) VALUES (?, ?, 0, ?)", (inbox_id, stamp, INTERRUPTED)
+        ).lastrowid
     reply, error = None, None
     try:
         reply = reader.transport(body)
@@ -113,10 +121,10 @@ def _dispatch(conn, reader, inbox_id, jpeg, stamp):
     number = lambda name: v if isinstance(v := usage.get(name), int | float) and not isinstance(v, bool) else None
     with conn:
         conn.execute("""
-            INSERT INTO gate_calls (inbox_id, at, ok, cost_usd, prompt_tokens, completion_tokens, error)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (inbox_id, stamp, int(error is None), number("cost"), number("prompt_tokens"),
-              number("completion_tokens"), error))
+            UPDATE gate_calls SET ok = ?, cost_usd = ?, prompt_tokens = ?, completion_tokens = ?, error = ?
+            WHERE id = ?
+        """, (int(error is None), number("cost"), number("prompt_tokens"), number("completion_tokens"), error,
+              call_id))
     return parse_gate(text) if error is None else None
 
 
