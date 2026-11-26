@@ -168,6 +168,9 @@ class TestPhotoFolder(unittest.TestCase):
                 scratch.mkdir()
 
                 class DummyReader:
+                    def turn(self, image):
+                        return 0, {}
+
                     def read(self, path):
                         return {
                             "layout": "form_a",

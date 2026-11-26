@@ -61,6 +61,9 @@ class FakeReader:
         self.result_payload = result_payload
         self.invoked_paths: list[str] = []
 
+    def turn(self, image):
+        return 0, {}
+
     def read(self, image_path: str) -> dict:
         self.invoked_paths.append(image_path)
         return self.result_payload

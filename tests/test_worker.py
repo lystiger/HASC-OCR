@@ -43,8 +43,11 @@ def result(*rows, layout="form_a", page=None):
 class FakeReader:
     """Returns or raises the next outcome. Records each path it was asked for and the size of that image."""
 
-    def __init__(self, *outcomes):
-        self.outcomes, self.paths, self.sizes = list(outcomes), [], []
+    def __init__(self, *outcomes, turn=0):
+        self.outcomes, self.paths, self.sizes, self.turn_by = list(outcomes), [], [], turn
+
+    def turn(self, image):
+        return self.turn_by, {"cost": 0.001, "prompt_tokens": 10, "completion_tokens": 1}
 
     def read(self, image_path):
         self.paths.append(image_path)
@@ -77,8 +80,8 @@ class WorkerTest(unittest.TestCase):
         job_id = create_read_job(self.conn, photo_id=photo_id)
         return sheet_id, job_id
 
-    def drain(self, *outcomes):
-        reader = FakeReader(*outcomes)
+    def drain(self, *outcomes, turn=0):
+        reader = FakeReader(*outcomes, turn=turn)
         jobs.run_pending(self.conn, reader, self.scratch)
         return reader
 
@@ -123,6 +126,31 @@ class Queue(WorkerTest):
         self.drain(read)
         job = get_read_job_by_id(self.conn, job_id)
         self.assertEqual((job["status"], job["last_error"]), ("done", "primary: HTTP 502"))
+
+    def test_upside_down_photo_is_turned_for_the_reader_and_the_screen(self):
+        sheet_id, job_id = self.queue()
+        photo = self.conn.execute("SELECT * FROM photos WHERE sheet_id = ?", (sheet_id,)).fetchone()
+        marked = Image.new("RGB", (200, 100), "white")
+        marked.paste((0, 0, 0), (0, 0, 10, 10))
+        marked.save(photo["path"], "JPEG")
+        display = self.root / "display.jpg"
+        display.write_bytes(b"old")
+        self.conn.execute("UPDATE photos SET small_copy_path = ? WHERE id = ?", (str(display), photo["id"]))
+        self.conn.commit()
+        reader = self.drain(result(row(roll_code="1")), turn=180)
+        self.assertEqual(reader.sizes, [(200, 100)])
+        photo = self.conn.execute("SELECT * FROM photos WHERE id = ?", (photo["id"],)).fetchone()
+        self.assertEqual(photo["turn"], 180)
+        with Image.open(display) as shown:
+            self.assertLess(shown.getpixel((shown.width - 3, shown.height - 3))[0], 80)  # mark moved bottom-right
+        job = get_read_job_by_id(self.conn, job_id)
+        self.assertAlmostEqual(job["cost_usd"], 0.001)
+
+    def test_photo_the_right_way_up_keeps_turn_zero(self):
+        sheet_id, _ = self.queue()
+        self.drain(result(row(roll_code="1")))
+        photo = self.conn.execute("SELECT turn FROM photos WHERE sheet_id = ?", (sheet_id,)).fetchone()
+        self.assertEqual(photo["turn"], 0)
 
     def test_reader_gets_the_upright_photo(self):
         self.queue(width=100, height=200)

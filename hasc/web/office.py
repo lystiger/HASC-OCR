@@ -709,7 +709,8 @@ def ensure_display_copy(
 
     try:
         raw_bytes = orig_file.read_bytes()
-        upright_bytes = display_copy(raw_bytes)
+        turn = photo.get("turn", 0) if isinstance(photo, dict) else photo["turn"]
+        upright_bytes = display_copy(raw_bytes, turn or 0)
     except Exception:
         return None  # the page then shows no picture rather than the sideways original
 
