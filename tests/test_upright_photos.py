@@ -137,13 +137,13 @@ class TestUprightPhotos(unittest.TestCase):
             "Downloaded file must be byte-identical to original portrait JPEG",
         )
 
-        # 8. Admin may see the photo but not download it (role table rows 3 and 4)
+        # 8. Admin can view and download the original photo
         conn = get_connection(self.db_path)
         create_user(conn, "admin1", hash_password("pass3"), role="admin", active=1)
         conn.close()
         admin_client = self._login("admin1", "pass3")
         self.assertEqual(admin_client.get(f"/api/photos/{photo_id}/display").status_code, 200)
-        self.assertEqual(admin_client.get(f"/api/photos/{photo_id}/download").status_code, 403)
+        self.assertEqual(admin_client.get(f"/api/photos/{photo_id}/download").content, portrait_bytes)
 
     def test_portrait_photo_created_on_first_view_when_small_copy_path_initially_none(self):
         """Test that if small_copy_path is not populated initially, viewing on office page

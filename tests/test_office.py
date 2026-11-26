@@ -540,7 +540,7 @@ class TestOfficeScreens(unittest.TestCase):
     def test_role_enforcement(self):
         """Roles are enforced:
         - Operator cannot access office routes (403).
-        - Admin cannot pickup or confirm (403).
+        - Admin can pick up, download and confirm.
         - Admin viewing sheet logs admin_open_sheet event.
         """
         conn = self._get_conn()
@@ -566,10 +566,12 @@ class TestOfficeScreens(unittest.TestCase):
         self.assertEqual(op.post(f"/office/sheets/{s1}/pickup", data={"takeover": "false"}).status_code, 403)
         self.assertEqual(op.post(f"/office/sheets/{s1}/confirm", data={"version": "1"}).status_code, 403)
 
-        # Admin forbidden on review actions (pickup, confirm, excel download)
-        self.assertEqual(admin.post(f"/api/sheets/{s1}/pickup", json={"takeover": False}).status_code, 403)
-        self.assertEqual(admin.post(f"/api/sheets/{s1}/confirm", json={"version": 1}).status_code, 403)
-        self.assertEqual(admin.get(f"/api/sheets/{s1}/excel").status_code, 403)
+        # Admin can review sheets through both browser and API routes.
+        self.assertEqual(admin.post(f"/office/sheets/{s1}/pickup", data={"takeover": "false"}, follow_redirects=False).status_code, 303)
+        self.assertEqual(admin.post(f"/office/sheets/{s1}/confirm", data={"version": "1"}, follow_redirects=False).status_code, 303)
+        download = admin.get(f"/api/sheets/{s1}/excel")
+        self.assertEqual(download.status_code, 200)
+        self.assertIn("_meta", load_workbook(io.BytesIO(download.content)).sheetnames)
 
         # Admin CAN view sheet numbers / detail page, which logs admin_open_sheet event
         res_admin_view = admin.get(f"/office/sheets/{s1}")
@@ -603,23 +605,22 @@ class TestOfficeScreens(unittest.TestCase):
         self.assertEqual(emp1.post(f"/api/sheets/{s1}/confirm", json={"version": 1}).status_code, 409)
 
     def test_sheet_page_offers_only_the_actions_the_user_may_take(self):
-        """An admin may look at a sheet but not review it: no pick-up, confirm or correction upload, which
-        only answered 403. Confirm is offered only while the sheet waits for review or is being reviewed."""
+        """Admins can review sheets; confirmation appears only for sheets waiting for review."""
         conn = self._get_conn()
         ids = {status: create_sheet(conn, form="BMMT01-2022/HASC", machine="T1", production_date="2026-10-22",
                                     shift=1, page_no=n, status=status, version=1,
                                     status_since=datetime.now(timezone.utc).isoformat())
                for n, status in enumerate(("needs_review", "in_review", "received", "reading", "failed", "reviewed"), 1)}
         conn.close()
-        # Every review action answers 403 to an admin, the Excel download included (review_sheet).
+        # Admins see the review controls and can download a real workbook.
         page = self.clients["admin"].get(f"/office/sheets/{ids['needs_review']}").text
         self.assertIn("Biểu mẫu Máy T1", page)
-        self.assertNotIn("Thao tác xử lý biểu mẫu", page)
-        for action in ("/pickup", "/confirm", f"/office/sheets/{ids['needs_review']}/excel", "/download"):
-            self.assertNotIn(action, page)
-        self.assertEqual(self.clients["admin"].get(f"/office/sheets/{ids['needs_review']}/excel").status_code, 403)
+        self.assertIn("Nhận kiểm tra", page)
+        for action in ("/pickup", "/confirm", f"/office/sheets/{ids['needs_review']}/excel"):
+            self.assertIn(action, page)
+        self.assertEqual(self.clients["admin"].get(f"/office/sheets/{ids['needs_review']}/excel").status_code, 200)
         self.assertIn(f"/office/sheets/{ids['needs_review']}/excel", self.clients["employee"].get(f"/office/sheets/{ids['needs_review']}").text)
         for status, sheet_id in ids.items():
-            page = self.clients["employee"].get(f"/office/sheets/{sheet_id}").text
+            page = self.clients["admin"].get(f"/office/sheets/{sheet_id}").text
             self.assertEqual(f'action="/office/sheets/{sheet_id}/confirm"' in page, status in ("needs_review", "in_review"), status)
         self.assertIn("/pickup", self.clients["boss"].get(f"/office/sheets/{ids['needs_review']}").text)

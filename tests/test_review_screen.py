@@ -231,13 +231,17 @@ class TestReviewScreen(unittest.TestCase):
     def test_only_reviewers_may_save(self):
         _, table = self.page()
         table.rows[2]["net_kg"] = "85"
-        for name, status in (("op_user", 403), ("admin_user", 403), ("boss_user", 200)):
+        for name, status in (("op_user", 403), ("admin_user", 200), ("boss_user", 200)):
             with self.subTest(name=name):
                 res = self.send(table, client=self.login(name), version=self.sheet()["version"])
                 self.assertEqual(res.status_code, status, res.text)
 
-    def test_a_viewer_gets_a_read_only_table(self):
-        _, table = self.page(self.login("admin_user"))
+    def test_a_page_not_open_for_review_gets_a_read_only_table(self):
+        conn = get_connection(self.db_path)
+        conn.execute("UPDATE sheets SET status = 'failed' WHERE id = ?", (self.sheet_id,))
+        conn.commit()
+        conn.close()
+        _, table = self.page()
         self.assertTrue(table.inputs)
         self.assertTrue(all("readonly" in i for i in table.inputs))
 

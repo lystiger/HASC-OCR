@@ -53,9 +53,9 @@ A new form goes live after form A has met the P64 targets for 4 weeks, and 20 la
 | Upload a photo, see the printed limits | Yes | No | No | No |
 | See the status of own uploads, and which rolls failed a check (roll and problem only, P112) | Yes | n/a | n/a | n/a |
 | See the status of all sheets, and photos | No | Yes | Yes | Yes |
-| Pick up, download, correct, re-upload, confirm, retry, hand-enter | No | Yes | Yes | No |
-| Mark an upload invalid | No | Yes | Yes | No |
-| Mark a machine or shift not running, with a reason | Yes | Yes | Yes | No |
+| Pick up, download, correct, re-upload, confirm, retry, hand-enter | No | Yes | Yes | Yes |
+| Mark an upload invalid | No | Yes | Yes | Yes |
+| Mark a machine or shift not running, with a reason | Yes | Yes | Yes | Yes |
 | See sheet numbers | No | Yes | Yes | Yes, each opening logged |
 | See edit history | No | Own edits | Everyone's | Own actions |
 | Add or deactivate accounts, reset passwords, log out any account | No | No | No | Yes |

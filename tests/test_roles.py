@@ -82,41 +82,41 @@ class TestSection4RoleTable(unittest.TestCase):
                 self._assert_forbidden(role, res, "GET /api/sheets")
 
     def test_role_table_row_4_review_pickup_confirm(self):
-        """Action 4: Pick up, download, correct, re-upload, confirm, retry, hand-enter: Office=Yes, Operator=No, Admin=No"""
+        """Action 4: Pick up, download, correct, re-upload, confirm, retry, hand-enter: Office=Yes, Operator=No, Admin=Yes"""
         for role in ["operator", "employee", "boss", "admin"]:
             client = self.clients[role]
             res = client.post("/api/sheets/1/pickup", json={"takeover": True})  # the employee picks it up first
-            if role in ["employee", "boss"]:
+            if role in ["employee", "boss", "admin"]:
                 self._assert_allowed(role, res, "POST /api/sheets/1/pickup")
             else:
                 self._assert_forbidden(role, res, "POST /api/sheets/1/pickup")
 
     def test_unbuilt_review_endpoints_pass_the_role_check_and_answer_501(self):
-        for role in ["employee", "boss"]:
+        for role in ["employee", "boss", "admin"]:
             client = self.clients[role]
             for res, name in ((client.get("/api/shifts/excel"), "GET /api/shifts/excel"),
                               (client.get("/api/sheets/1/template"), "GET /api/sheets/1/template")):
                 self._assert_allowed_unbuilt(role, res, name)
 
     def test_role_table_row_5_mark_invalid(self):
-        """Action 5: Mark an upload invalid: Office=Yes, Operator=No, Admin=No"""
+        """Action 5: Mark an upload invalid: Office=Yes, Operator=No, Admin=Yes"""
         for role in ["operator", "employee", "boss", "admin"]:
             client = self.clients[role]
             res = client.post("/api/photos/1/invalid", json={"reason": "Blurry"})
-            if role in ["employee", "boss"]:
+            if role in ["employee", "boss", "admin"]:
                 self._assert_allowed_unbuilt(role, res, "POST /api/photos/1/invalid")
             else:
                 self._assert_forbidden(role, res, "POST /api/photos/1/invalid")
 
     def test_role_table_row_6_mark_not_running(self):
-        """Action 6: Mark a machine or shift not running: Operator=Yes, Office=Yes, Admin=No"""
+        """Action 6: Mark a machine or shift not running: Operator=Yes, Office=Yes, Admin=Yes"""
         for role in ["operator", "employee", "boss", "admin"]:
             client = self.clients[role]
             res = client.post(
                 "/api/not-running",
                 json={"machine": "T1", "production_date": "2026-10-19", "shift": 1, "reason": "Bảo trì"},
             )
-            if role in ["operator", "employee", "boss"]:
+            if role in ["operator", "employee", "boss", "admin"]:
                 self._assert_allowed_unbuilt(role, res, "POST /api/not-running")
             else:
                 self._assert_forbidden(role, res, "POST /api/not-running")

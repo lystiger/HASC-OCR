@@ -2,7 +2,8 @@
 # Dot-source it; the caller sets $NonInteractive (CI) before calling the dialogs.
 
 $Account = "hasc"
-$Services = @("hasc-web", "hasc-worker", "hasc-redirect")
+# hasc-zalo is installed only once the Zalo bot is set up (config\zalo.env); every loop checks it exists.
+$Services = @("hasc-web", "hasc-worker", "hasc-redirect", "hasc-zalo")
 $WebsiteUrl = "https://localhost/login"
 # The authority the installer makes for the website's HTTPS (hasc/certs.py), trusted on this PC.
 $CaSubject = "CN=HASC local CA"
