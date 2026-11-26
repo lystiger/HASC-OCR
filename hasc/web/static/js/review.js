@@ -157,8 +157,10 @@
     counter.textContent = left + "/" + flagged.length;
     counter.setAttribute("aria-label", "Còn " + left + " trên " + flagged.length + " ô cần kiểm tra");
   }
-  function check(input) {
-    var bad = input.hasAttribute("data-numeric") && input.value.trim() !== "" && !NUMBER.test(input.value.trim());
+  function check(input, confirming) {
+    // An untouched mark the AI left (its unreadable "?") may stay for Lưu; Xác nhận needs a number.
+    var bad = input.hasAttribute("data-numeric") && input.value.trim() !== "" && !NUMBER.test(input.value.trim())
+      && (confirming || edited(input));
     input.classList.toggle("is-invalid", bad);
     input.setAttribute("aria-invalid", bad ? "true" : "false");
     return !bad;
@@ -215,10 +217,10 @@
     if (!match) return;
     var want = ("dòng " + match[1] + " · " + match[2]).toLowerCase();
     var target = inputs.filter(function (input) { return input.getAttribute("aria-label").toLowerCase().indexOf(want) === 0; })[0];
-    if (target) { select(document.getElementById("tab-rolls")); target.focus(); check(target); }
+    if (target) { select(document.getElementById("tab-rolls")); target.focus(); check(target, true); }
   }
   function send(confirm) {
-    var bad = inputs.filter(function (input) { return !check(input); });
+    var bad = inputs.filter(function (input) { return !check(input, confirm); });
     if (bad.length) {
       ui.toast("Ô " + bad[0].getAttribute("aria-label") + " phải là số.", "error");
       select(document.getElementById("tab-rolls"));

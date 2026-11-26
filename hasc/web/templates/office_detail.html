@@ -11,19 +11,19 @@
   <a href="/office" class="back-link">&larr; Quay lại danh sách biểu mẫu</a>
 
   {% if confirmed %}
-  <div class="alert alert--success" role="status" data-toast="success">Đã xác nhận biểu mẫu thành công (Trạng thái: Đã kiểm tra).</div>
+  <div class="alert alert--success" role="status" data-toast="success" data-toast-only>Đã xác nhận biểu mẫu thành công (Trạng thái: Đã kiểm tra).</div>
   {% endif %}
   {% if corrected is not none %}
-  <div class="alert alert--success" role="status" data-toast="success">Đã lưu bản sửa: {{ corrected }} giá trị thay đổi. Biểu mẫu chuyển sang Đã kiểm tra.</div>
+  <div class="alert alert--success" role="status" data-toast="success" data-toast-only>Đã lưu bản sửa: {{ corrected }} giá trị thay đổi. Biểu mẫu chuyển sang Đã kiểm tra.</div>
   {% endif %}
   {% if saved is not none %}
-  <div class="alert alert--success" role="status" data-toast="success">Đã lưu: {{ saved }} giá trị thay đổi. Biểu mẫu vẫn đang kiểm tra.</div>
+  <div class="alert alert--success" role="status" data-toast="success" data-toast-only>Đã lưu: {{ saved }} giá trị thay đổi. Biểu mẫu vẫn đang kiểm tra.</div>
   {% endif %}
   {% if upload_error %}
   <div class="alert alert--error" role="alert" data-toast="error">{{ upload_error }}</div>
   {% endif %}
   {% if pickup_success %}
-  <div class="alert alert--success" role="status" data-toast="success">Đã nhận kiểm tra biểu mẫu thành công.</div>
+  <div class="alert alert--success" role="status" data-toast="success" data-toast-only>Đã nhận kiểm tra biểu mẫu thành công.</div>
   {% endif %}
   {% if error %}
   <div class="alert alert--error" role="alert" data-toast="error">{{ error }}</div>
@@ -35,7 +35,7 @@
       <div class="review-head__chips">
         <span class="chip chip--{{ sheet.status }}">{{ status_label }}</span>
         {% if is_overdue %}<span class="chip chip--danger">Quá hạn</span>{% endif %}
-        {% if table.flagged %}<span class="chip chip--doubt"><span class="num">{{ table.flagged }}</span> ô cần kiểm tra</span>{% endif %}
+        {% if table.flagged and sheet.status != 'reviewed' %}<span class="chip chip--doubt"><span class="num">{{ table.flagged }}</span> ô cần kiểm tra</span>{% endif %}
       </div>
     </div>
     {% if can_review %}
@@ -110,7 +110,7 @@
           <li><span class="swatch swatch--edited"></span>Chưa lưu</li>
           <li title="Giá trị chép xuống từ dòng trên"><span class="swatch swatch--inherited">Ab</span>Chép xuống</li>
         </ul>
-        {% if table.flagged %}
+        {% if table.flagged and sheet.status != 'reviewed' %}
         <div class="review-tools__next">
           <button type="button" class="btn btn--small btn--secondary" data-next-flag title="Enter: xuống dòng dưới · Tab: sang ô bên phải · F8: ô cần kiểm tra tiếp. Mỗi giá trị đã sửa được ghi lại: ai sửa, lúc nào, cũ và mới.">Ô cần kiểm tra tiếp <span class="num muted" data-flag-count aria-live="polite" aria-label="Còn {{ table.flagged }} trên {{ table.flagged }} ô cần kiểm tra">{{ table.flagged }}/{{ table.flagged }}</span> <kbd>F8</kbd></button>
         </div>
@@ -189,14 +189,11 @@
         {% if can_review and sheet.status in ('needs_review', 'in_review', 'reviewed') %}
         <form method="post" action="/office/sheets/{{ sheet.id }}/excel" enctype="multipart/form-data" class="correction-form" data-loading="Đang tải tệp đã sửa...">
           <h2 class="panel-title">Sửa bằng Excel (cách cũ)</h2>
-          <div class="form-row">
-            <div class="form-field">
-              <label for="correction-file">Tải lên tệp Excel đã sửa (phiên bản {{ sheet.version }})</label>
-              <input type="file" id="correction-file" name="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required />
-            </div>
+          <p class="muted">Tải tệp Excel ở trên, sửa giá trị, rồi tải lên lại. Tải lên là xác nhận biểu mẫu.</p>
+          <div class="correction-form__row">
+            <input type="file" id="correction-file" name="file" class="file-input" aria-label="Tệp Excel đã sửa" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required />
             <button type="submit" class="btn btn--secondary">Tải lên bản sửa</button>
           </div>
-          <p class="muted">Tải tệp Excel ở trên, sửa giá trị, rồi tải lên lại. Tải lên là xác nhận biểu mẫu.</p>
         </form>
         {% endif %}
       </div>

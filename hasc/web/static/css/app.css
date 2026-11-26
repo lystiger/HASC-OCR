@@ -1315,19 +1315,23 @@ body.app-body {
 
 .tabs-bar { display: flex; align-items: center; justify-content: space-between; gap: 0.25rem 0.75rem; flex-wrap: wrap; border-bottom: 1px solid var(--color-border); padding: 0 0.75rem; }
 .tabs { display: flex; gap: 0.25rem; flex: none; }
-.tabs [role="tab"] { min-height: 44px; padding: 0 0.9rem; border: 0; border-bottom: 2px solid transparent; background: none; font: inherit; font-weight: 500; color: var(--color-muted); cursor: pointer; }
+.tabs [role="tab"] { min-height: 44px; padding: 0 0.6rem; border: 0; border-bottom: 2px solid transparent; background: none; font: inherit; font-weight: 500; color: var(--color-muted); cursor: pointer; }
 .tabs [role="tab"][aria-selected="true"] { color: var(--color-text); border-bottom-color: var(--color-action); }
 .tabs [role="tab"]:focus-visible { outline: 2px solid var(--color-action); outline-offset: -2px; }
 .tab-panel { flex: 1; min-height: 0; overflow: auto; padding: 0.5rem 0.75rem 0.75rem; display: flex; flex-direction: column; gap: 0.5rem; }
 .tab-panel[hidden] { display: none; }
 
-/* Legend and flag jump take their own line under the tabs once the half-width panel is too narrow. */
-.review-tools { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 0.4rem 0.75rem; flex: 1 1 auto; padding: 0.3rem 0; }
-.review-tools .legend { justify-content: flex-end; flex: 1 1 auto; }
+/* Tabs and the flag jump share the first line (jump on the right); the legend gets its own full line
+   below, so it never squeezes into a ragged column. The wrapper only groups them for hiding. */
+.review-tools { display: contents; }
+.review-tools__next { flex: none; order: 1; margin-left: auto; }
+.review-tools .legend { order: 2; flex: 1 1 100%; padding: 0.15rem 0 0.5rem; }
 .legend li { white-space: nowrap; }
-.review-tools__next { flex: none; }
+/* Below 1600px the half-width panel has no room for the F8 badge beside the tabs; the tooltip names F8. */
+@media (max-width: 1600px) { .review-tools__next kbd { display: none; } }
 .review-tools[hidden] { display: none; }
 .review-tools__next { display: flex; align-items: center; gap: 0.5rem; }
+.review-tools[hidden] .legend, .review-tools[hidden] .review-tools__next { display: none; }
 .legend { display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; margin: 0; padding: 0; list-style: none; font-size: 0.75rem; color: var(--color-muted); }
 .legend li { display: inline-flex; align-items: center; gap: 0.35rem; }
 .swatch { display: inline-flex; align-items: center; justify-content: center; width: 1.4rem; height: 1rem; border-radius: 3px; border: 1px solid var(--color-border); font-size: 0.65rem; }
@@ -1368,6 +1372,14 @@ kbd { font-family: var(--font-mono); font-size: 0.7rem; padding: 0 0.3rem; borde
 .photo-meta { font-size: 0.85rem; padding: 0.5rem 0; border-top: 1px solid var(--color-border); }
 .photo-meta .alert { margin: 0.35rem 0 0; padding: 0.35rem 0.5rem; font-size: 0.8rem; }
 .panel-title { font-size: 1rem; margin: 0.5rem 0; }
+.correction-form { margin-top: 0.5rem; padding: 0.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-page); display: flex; flex-direction: column; gap: 0.5rem; }
+.correction-form .panel-title { margin: 0; }
+.correction-form p { margin: 0; font-size: 0.85rem; }
+.correction-form__row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+input.file-input { flex: 1 1 14rem; min-width: 0; border: 0; padding: 0; background: none; box-shadow: none; font: inherit; font-size: 0.85rem; color: var(--color-muted); }
+input.file-input::file-selector-button { min-height: 40px; margin-right: 0.6rem; padding: 0 0.9rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-text); font: inherit; font-weight: 500; cursor: pointer; }
+input.file-input::file-selector-button:hover { border-color: var(--color-action); }
+.correction-form__row .btn { min-height: 40px; }
 .history-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
 .history-table th, .history-table td { text-align: left; padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--color-border); vertical-align: top; }
 .history-table th { background: #F1F5F9; position: sticky; top: 0; }

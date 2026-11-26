@@ -167,6 +167,7 @@
       if (box.hascShown) return;
       box.hascShown = true;
       toast(box.textContent.replace(/\s+/g, " ").trim(), box.getAttribute("data-toast"));
+      if (box.hasAttribute("data-toast-only")) box.hidden = true;  // the pop-up is enough where space is short
     });
     root.querySelectorAll('input[type="password"]').forEach(function (input) {
       if (input.hascEye) return;

@@ -110,11 +110,19 @@ class TestReviewScreen(unittest.TestCase):
 
     def test_unchanged_table_saves_nothing(self):
         _, table = self.page()
-        table.rows[2]["net_kg"] = "88"  # the unreadable "?" must be replaced before any save
-        res = self.send(table)
+        res = self.send(table)  # the untouched unreadable "?" may stay while the page is still in review
         self.assertEqual(res.status_code, 200, res.text)
-        self.assertEqual(res.json()["changed"], 1)  # only the "?" cell; "86,4" and copied values round-trip
+        self.assertEqual(res.json()["changed"], 0)  # "86,4", "?" and copied values all round-trip
         self.assertEqual(self.cell(0, "net_kg")["source"], "ai")
+        self.assertEqual(self.cell(2, "net_kg")["value"], "?")
+
+    def test_confirm_needs_a_number_in_place_of_the_unreadable_mark(self):
+        _, table = self.page()
+        res = self.send(table, confirm=True)
+        self.assertEqual(res.status_code, 422)
+        self.assertIn("dòng 3 · Khối lượng Kg · Sau trừ bì phải là số", res.json()["error"]["message"])
+        self.assertEqual(self.sheet()["status"], "needs_review")
+        self.assertEqual(self.send(table, confirm=True, cells={(2, "net_kg"): "85"}).status_code, 200)
 
     def test_save_keeps_the_page_in_review_and_records_each_change(self):
         _, table = self.page()

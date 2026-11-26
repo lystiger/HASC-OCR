@@ -109,14 +109,23 @@ def api_sheet_review(sheet_id: int, payload: ReviewRequest,
         raise _stale()
     if payload.confirm and sheet["status"] not in ("needs_review", "in_review"):
         raise AppError(code="not_reviewable", message="Biểu mẫu này đã được xác nhận.", status_code=409)
+    # Lưu may keep a value the page showed that is not a number (the AI's unreadable "?"), so a page can be
+    # saved part-way; Xác nhận needs every number column to hold a number.
+    shown = [] if payload.confirm else review_table(conn, sheet_id)["rows"]
     values = []
     for number, row in enumerate(payload.rows, start=1):
         if set(row) - set(FIELD_LABELS):
             raise AppError(code="bad_layout", message="Bảng gửi lên có cột lạ. Hãy tải lại trang.", status_code=422)
-        try:
-            values.append({field: normalise(field, row.get(field), f"dòng {number} · {FIELD_LABELS[field]}")
-                           for field in FIELD_LABELS})
-        except LayoutError as error:
-            raise AppError(code="bad_value", message=str(error), status_code=422) from None
+        before = {c["field"]: c["value"] for c in shown[number - 1]["cells"]} if number <= len(shown) else {}
+        checked = {}
+        for field in FIELD_LABELS:
+            raw = row.get(field)
+            try:
+                checked[field] = normalise(field, raw, f"dòng {number} · {FIELD_LABELS[field]}")
+            except LayoutError as error:
+                if raw is None or before.get(field) != raw.strip():
+                    raise AppError(code="bad_value", message=str(error), status_code=422) from None
+                checked[field] = raw.strip()
+        values.append(checked)
     return apply_values(conn, sheet, user, payload.version, payload.row_keys, values, finish=payload.confirm,
                         action="web_confirm" if payload.confirm else "web_save")
