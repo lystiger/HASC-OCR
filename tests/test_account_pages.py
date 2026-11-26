@@ -311,8 +311,8 @@ class TestAccountPages(unittest.TestCase):
 
         # Owner CAN see Quản trị in Add form
         self.assertIn('<option value="admin">Quản trị</option>', owner_html)
-        # Owner can also create operators
-        self.assertIn('<option value="operator"', owner_html)
+        # But NO operator in Add form
+        self.assertNotIn('<option value="operator"', owner_html)
 
         # B. Non-owner admin viewing screen:
         res_normal_view = normal.get("/admin/accounts")
@@ -334,20 +334,20 @@ class TestAccountPages(unittest.TestCase):
         self.assertNotIn('name="action" value="deactivate"', self_row_for_normal)
         self.assertNotIn('name="action" value="logout"', self_row_for_normal)
 
-        # 3. In Add form: non-owner can create operator but cannot create admin
+        # 3. In Add form: non-owner CANNOT create admin or operator
         add_form_normal = re.search(r'<form[^>]*class="add-account-form"[\s\S]*?</form>', normal_html).group(0)
         self.assertNotIn('value="admin"', add_form_normal)
-        self.assertIn('value="operator"', add_form_normal)
+        self.assertNotIn('value="operator"', add_form_normal)
         self.assertIn('value="employee"', add_form_normal)
         self.assertIn('value="boss"', add_form_normal)
 
         # 4. On employee row for normal admin:
-        # Can manage employee, but available roles for change include operator but do not include admin
+        # Can manage employee, but available roles for change do NOT include admin or operator
         emp_row_normal = re.search(r'data-username="emp_user"[\s\S]*?</tr>', normal_html).group(0)
         self.assertIn('name="action" value="reset"', emp_row_normal)
         self.assertIn('name="action" value="deactivate"', emp_row_normal)
         self.assertNotIn('value="admin"', emp_row_normal)
-        self.assertIn('value="operator"', emp_row_normal)
+        self.assertNotIn('value="operator"', emp_row_normal)
 
         # 5. Direct POST attempt by normal_admin on owner account must return 403
         res_forbidden = normal.post(
@@ -367,7 +367,7 @@ class TestAccountPages(unittest.TestCase):
     def test_the_p142_labels(self):
         """Roles on accounts screen use P142 labels:
         employee: Văn phòng, boss: Ban giám đốc, admin: Quản trị, operator: Xưởng.
-        Role picker offers operator.
+        Role picker offers no operator.
         """
         admin = self.clients["owner"]
         res = admin.get("/admin/accounts")
@@ -380,10 +380,10 @@ class TestAccountPages(unittest.TestCase):
         self.assertIn("Quản trị", html)
         self.assertIn("Xưởng", html)
 
-        # Role select in Add Account form offers operator
+        # Role select in Add Account form offers NO operator
         add_form = re.search(r'<form[^>]*class="add-account-form"[\s\S]*?</form>', html).group(0)
-        self.assertIn("operator", add_form)
-        self.assertIn("Xưởng", add_form)
+        self.assertNotIn("operator", add_form)
+        self.assertNotIn("Xưởng", add_form)
 
         # Also verify in ROLE_LABELS mapping
         self.assertEqual(ROLE_LABELS["employee"], "Văn phòng")
