@@ -196,3 +196,47 @@ def plan_match(plans, shift_start, customer, thickness, width):
 def machine_for(plans, shift_start, customer, thickness, width):
     match = plan_match(plans, shift_start, customer, thickness, width)
     return match.machine if match else None
+
+
+PLAN_NOTE = "theo kế hoạch"
+WRITTEN_MACHINE = re.compile(r"[\s.\-]")
+
+
+def _cell_text(cells, field):
+    cell = cells.get(field) or {}
+    value = None if cell.get("unreadable") else cell.get("value")
+    return "" if value is None else str(value).strip()
+
+
+def _whole(text):
+    try:
+        number = float(text.replace(",", "."))
+    except ValueError:
+        return None
+    return int(number) if number.is_integer() else None
+
+
+def assign_row_machines(rows, plans, shift_start):
+    """Set each row's machine cell for a Zalo sheet (spec R6), in place.
+
+    A written Máy cell stays, and a written machine is carried to the rows below it. Otherwise the plan's machine
+    is stored with doubt and the note "theo kế hoạch: <file>"; a plan machine is never carried to other rows.
+    No match leaves the cell blank with doubt.
+    """
+    carried = None
+    for row in rows:
+        cells = row["cells"]
+        written = _cell_text(cells, "machine")
+        if written:
+            normal = WRITTEN_MACHINE.sub("", written).upper()
+            carried = normal if MACHINE.fullmatch(normal) else carried
+            continue
+        if carried:
+            cells["machine"] = {"value": carried, "inherited": True, "doubt": False}
+            continue
+        match = plan_match(plans, shift_start, _cell_text(cells, "customer") or None,
+                           _whole(_cell_text(cells, "thickness_mic")), _whole(_cell_text(cells, "width_mm")))
+        if match:
+            cells["machine"] = {"value": match.machine, "doubt": True, "note": f"{PLAN_NOTE}: {match.file}"}
+        else:
+            cells["machine"] = {"value": None, "doubt": True}

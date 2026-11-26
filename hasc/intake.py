@@ -109,6 +109,11 @@ class Refused(Exception):
     """A person's filing that cannot be done; the message is Vietnamese and the row is unchanged."""
 
 
+def is_zalo_sheet(sheet) -> bool:
+    """A Zalo sheet has no machine of its own: each row carries it."""
+    return sheet["form"] == ZALO_FORM and sheet["machine"] == ""
+
+
 def shift_start(d: date, shift: int) -> datetime:
     return datetime.combine(d, time(7 if shift == 1 else 19), VN)
 
