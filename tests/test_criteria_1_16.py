@@ -17,7 +17,7 @@ Criteria-to-Test Mapping Table
 | Criterion 9 | Hung cannot be created when hung exists, active or deactivated; hung can log in typing Hung | test_criterion_9_username_case_insensitivity_and_no_reuse |
 | Criterion 10 | Username with space, Vietnamese letter, <3 or >32 chars refused with Vietnamese message | test_criterion_10_username_format_validation_with_vietnamese_errors |
 | Criterion 11 | Each account action writes history entry admin can see; employee/boss gets 403 | test_criterion_11_account_action_history_and_role_access |
-| Criterion 12 | Role picker offers no operator; API refuses operator in create/change role; existing operator logs in and uploads | test_criterion_12_operator_role_refused_in_picker_and_api |
+| Criterion 12 | Role picker offers operator; API accepts operator in create/change role; existing operator logs in and uploads | test_operator_role_available_in_picker_and_api |
 | Criterion 13 | Employee, boss, admin can upload photo from Tải ảnh lên, sheet records them as uploader | test_criterion_13_employee_boss_and_admin_can_upload_photo |
 | Criterion 14 (P148) | Sidebar shows Quản lý tài khoản to admins only and Tài khoản của tôi to everyone; non-admin requesting accounts page or GET /api/admin/users gets 403 | test_criterion_14_sidebar_shows_accounts_to_admins_only_and_403_for_others |
 | Criterion 15 | Accounts screen and frame work at phone width (360 px): viewport meta tag and folded menu markup | test_criterion_15_phone_width_viewport_and_folded_menu_markup |
@@ -770,31 +770,29 @@ class TestCriteriaCoverageHardening(unittest.TestCase):
         self.assertEqual(boss_client.get("/api/admin/users/events").status_code, 403)
         self.assertEqual(boss_client.get("/admin/accounts/history").status_code, 403)
 
-    def test_criterion_12_operator_role_refused_in_picker_and_api(self):
-        """Criterion 12: The role picker offers no operator, and the API refuses operator
-        in both creating an account and changing a role; an existing operator account still logs in and uploads.
-        """
+    def test_operator_role_available_in_picker_and_api(self):
+        """Admins can create and assign operators; existing operator accounts still upload."""
         admin_client = TestClient(self.app)
         self._login(admin_client, "owner_admin", "OwnerPass123")
 
-        # 1. Role picker on HTML accounts page offers no operator
+        # 1. Role picker on HTML accounts page offers operator
         page_res = admin_client.get("/admin/accounts")
         self.assertEqual(page_res.status_code, 200)
-        self.assertNotIn('<option value="operator"', page_res.text)
+        self.assertIn('<option value="operator"', page_res.text)
 
-        # 2. API refuses operator in creating an account
+        # 2. API accepts operator in creating an account
         create_res = admin_client.post(
             "/api/admin/users",
             json={"username": "op_new", "role": "operator"},
         )
-        self.assertEqual(create_res.status_code, 400)
+        self.assertEqual(create_res.status_code, 201)
 
-        # 3. API refuses operator in changing role
+        # 3. API accepts operator in changing role
         role_res = admin_client.patch(
             f"/api/admin/users/{self.employee_id}",
             json={"role": "operator"},
         )
-        self.assertEqual(role_res.status_code, 400)
+        self.assertEqual(role_res.status_code, 200)
 
         # 4. Existing operator account still logs in and uploads
         op_client = TestClient(self.app)

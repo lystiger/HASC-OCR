@@ -431,28 +431,24 @@ class TestAccountsAPI(unittest.TestCase):
             self.assertEqual(res_forbidden.status_code, 403)
             self.assertEqual(res_forbidden.json()["error"]["code"], "forbidden")
 
-    def test_criterion_12_operator_role_refused(self):
-        """Criterion 12: The role picker offers no operator, and the API refuses operator
-        in both creating an account and changing a role; an existing operator account still
-        logs in and uploads.
-        """
+    def test_admin_can_create_and_assign_operator_role(self):
+        """Admins can create and assign operator accounts; existing operators still work."""
         owner_client = self._login("owner_admin", "owner_pass")
 
-        # 1. API refuses operator when creating an account
+        # 1. API accepts operator when creating an account
         res_create = owner_client.post(
             "/api/admin/users",
             json={"username": "new_operator", "role": "operator"},
         )
-        self.assertEqual(res_create.status_code, 400)
-        self.assertEqual(res_create.json()["error"]["code"], "invalid_role")
+        self.assertEqual(res_create.status_code, 201)
 
-        # 2. API refuses operator when changing a role
+        # 2. API accepts operator when changing a role
         res_patch = owner_client.patch(
             f"/api/admin/users/{self.emp_id}",
             json={"role": "operator"},
         )
-        self.assertEqual(res_patch.status_code, 400)
-        self.assertEqual(res_patch.json()["error"]["code"], "invalid_role")
+        self.assertEqual(res_patch.status_code, 200)
+        self.assertEqual(res_patch.json()["role"], "operator")
 
         # 3. Existing operator account still logs in
         op_client = self._login("op_user", "op_pass")

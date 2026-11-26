@@ -225,6 +225,19 @@ class TestCorrectionUpload(unittest.TestCase):
             self.assertIn("Chưa chọn tệp Excel đã sửa", self.client.get(res.headers["location"]).text)
         self.assertEqual(self._db("SELECT version, status FROM sheets WHERE id = ?", self.sheet_id), [{"version": 1, "status": "in_review"}])
 
+    def test_admin_can_download_and_upload_corrections(self):
+        conn = get_connection(self.db_path)
+        create_user(conn, "admin_user", hash_password("pass"), role="admin", active=1)
+        conn.close()
+        self.client = TestClient(self.app)
+        self.assertEqual(self.client.post("/api/login", json={"username": "admin_user", "password": "pass"}).status_code, 200)
+        wb = self._download()
+        self._cell(wb, 0, "gross_kg").value = 25.6
+        res = self._upload(wb)
+        self.assertEqual(res.status_code, 200, res.text)
+        self.assertEqual(res.json(), {"version": 2, "status": "reviewed", "changed": 1})
+        self.assertEqual(self._value(0, "gross_kg")["value"], "25.6")
+
     def test_operators_cannot_upload_corrections(self):
         conn = get_connection(self.db_path)
         create_user(conn, "op_user", hash_password("pass"), role="operator", active=1)
