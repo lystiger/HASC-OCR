@@ -25,9 +25,10 @@ router = APIRouter()
 
 STALE_SECONDS = 120  # a healthy receiver beats at least every ~40 s (30 s long poll + timeout margin)
 RECENT = 20
-COUNTS = """
+DOWNLOADED = "'delivered', 'filed', 'waiting', 'not_form', 'staging_checked'"  # saved, whatever the gate did since
+COUNTS = f"""
     COUNT(*) AS photo_events, COALESCE(SUM(redeliveries), 0) AS redeliveries,
-    COALESCE(SUM(status = 'delivered'), 0) AS delivered, COALESCE(SUM(status = 'duplicate'), 0) AS duplicate,
+    COALESCE(SUM(status IN ({DOWNLOADED})), 0) AS delivered, COALESCE(SUM(status = 'duplicate'), 0) AS duplicate,
     COALESCE(SUM(status = 'rejected'), 0) AS rejected, COALESCE(SUM(status = 'failed'), 0) AS failed,
     COALESCE(SUM(status = 'received'), 0) AS waiting
 """
@@ -78,22 +79,34 @@ def usage(conn: sqlite3.Connection, today: date) -> dict:
     return {"month": month, "days": days}
 
 
+OUTCOME_LABELS = {"new": "sẽ thành biểu mẫu mới", "resend": "sẽ là bản gửi lại", "back": "sẽ là mặt sau",
+                  "waiting": "sẽ chờ người xếp", "not_form": "không phải biểu mẫu"}
+
+
+def _recent(row) -> dict:
+    item = dict(row)
+    item["outcome_label"] = OUTCOME_LABELS.get(item.pop("outcome"), "")
+    if item["status"] == "staging_checked" and item["reason"]:
+        item["outcome_label"] += f" ({item['reason']})"
+    return item
+
+
 def zalo_overview(conn: sqlite3.Connection, now: datetime) -> dict:
     today = now.astimezone(timezone(timedelta(hours=7))).date()
     test = conn.execute("""
         SELECT COUNT(*) AS saved, MAX(delivered_at) AS last_at
-        FROM zalo_inbox WHERE staging = 1 AND status IN ('delivered', 'duplicate')
+        FROM zalo_inbox WHERE staging = 1 AND status IN ('delivered', 'staging_checked', 'duplicate')
     """).fetchone()
     last = conn.execute("SELECT MAX(received_at) AS at FROM zalo_inbox").fetchone()["at"]
     recent = conn.execute(f"""
         SELECT id, chat_type, sender_id, chat_id, sender_name, staging, command, received_at, status, attempts, last_error,
-               path IS NOT NULL AS has_photo
+               reason, outcome, path IS NOT NULL AS has_photo
         FROM zalo_inbox ORDER BY id DESC LIMIT {RECENT}
     """).fetchall()
     return {
         "health": receiver_health(conn, now), "last_photo_at": last,
         "staging_test": {"saved": test["saved"], "last_at": test["last_at"]},
-        "usage": usage(conn, today), "recent": [dict(r) for r in recent],
+        "usage": usage(conn, today), "recent": [_recent(r) for r in recent],
         "outgoing": conn.execute("SELECT COUNT(*) FROM zalo_summary WHERE status = 'sent' AND sent_at >= ? AND sent_at < ?",
                                  month_window(today)).fetchone()[0],
         "summary": dict(latest) if (latest := conn.execute(

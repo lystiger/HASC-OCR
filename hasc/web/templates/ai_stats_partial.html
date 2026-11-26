@@ -67,7 +67,7 @@ Trạng thái lấy từ các lượt đọc đã ghi, không gọi thử mô h�
   <h2 class="card__title">14 ngày gần đây</h2>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Ngày</th><th>Lượt đọc</th><th>Lỗi</th><th>Thời gian TB</th><th>Chi phí</th></tr></thead>
+      <thead><tr><th>Ngày</th><th>Lượt đọc</th><th>Lỗi</th><th>Thời gian TB</th><th>Token</th><th>Chi phí</th></tr></thead>
       <tbody>
         {% for d in ai.recent %}
         <tr>
@@ -75,6 +75,7 @@ Trạng thái lấy từ các lượt đọc đã ghi, không gọi thử mô h�
           <td class="num">{{ d.reads or 0 }}</td>
           <td class="num">{{ d.failed or 0 }}</td>
           <td class="num">{{ secs(d.read_s) }}</td>
+          <td class="num">{{ "{:,}".format(d.tokens).replace(",", ".") }}</td>
           <td class="num">{{ d.cost_vnd|vnd }}</td>
         </tr>
         {% endfor %}

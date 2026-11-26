@@ -99,7 +99,11 @@
           <td>{{ "Staging" if z.staging else "Pilot" }} · {{ "nhóm" if z.chat_type == "GROUP" else "tin riêng" }}</td>
           <td>{{ z.sender_name or "—" }} <span class="muted num">…{{ (z.sender_id or "")[-5:] }}</span></td>
           <td>
-            {% if z.status == "delivered" %}<span class="badge badge--ok">Đã lưu, chờ gán ca</span>
+            {% if z.status == "delivered" %}<span class="badge badge--ok">Đã lưu, chờ xử lý</span>
+            {% elif z.status == "filed" %}<span class="badge badge--ok">Đã xếp thành biểu mẫu</span>
+            {% elif z.status == "waiting" %}<span class="badge badge--warn">Chờ người xếp</span> <span class="muted">{{ z.reason }}</span>
+            {% elif z.status == "not_form" %}<span class="badge badge--off">Không phải biểu mẫu</span>
+            {% elif z.status == "staging_checked" %}<span class="badge badge--ok">Đã kiểm thử</span> <span class="muted">{{ z.outcome_label }}</span>
             {% elif z.status == "duplicate" %}<span class="badge badge--off">Ảnh trùng</span>
             {% elif z.status == "received" %}<span class="badge badge--warn">Đang tải ({{ z.attempts }} lần)</span>
             {% elif z.status == "rejected" %}<span class="badge badge--off">Bị loại</span> <span class="muted">{{ z.last_error }}</span>
@@ -121,5 +125,5 @@
   {% else %}
   <p class="muted">Chưa có ảnh nào từ Zalo.</p>
   {% endif %}
-  <p class="muted">Ảnh trong hộp thư chưa thành biểu mẫu và chưa được AI đọc: cần biết máy, ngày, ca và trang trước.</p>
+  <p class="muted">Cứ vài giờ hệ thống xem từng ảnh mới: ảnh hợp lệ được xếp thành biểu mẫu rồi AI đọc, ảnh chưa chắc thì chờ văn phòng xếp. Ảnh kiểm thử chỉ ghi kết quả, không tạo biểu mẫu.</p>
 </section>
