@@ -147,6 +147,7 @@
   var inputs = Array.prototype.slice.call(root.querySelectorAll("input.cell"));
   var flagged = inputs.filter(function (input) { return input.hasAttribute("data-flag"); });
   var counter = root.querySelector("[data-flag-count]");
+  var lastFlag = -1;
   var NUMBER = /^-?\d+([.,]\d+)?$/;
 
   function edited(input) { return input.value !== input.getAttribute("data-orig"); }
@@ -175,7 +176,7 @@
     });
     if (input.classList.contains("is-inherited")) input.classList.add("was-inherited");
     input.addEventListener("focus", function () {
-      if (input.hasAttribute("data-flag")) { input.classList.add("is-seen"); updateCount(); }
+      if (input.hasAttribute("data-flag")) { input.classList.add("is-seen"); lastFlag = flagged.indexOf(input); updateCount(); }
     });
     input.addEventListener("keydown", function (event) {
       if (event.key !== "Enter") return;
@@ -187,17 +188,19 @@
   });
   function nextFlag() {
     if (!flagged.length) return;
+    // Where the person last was among the flagged cells: clicking the button or another tab moves focus away.
     var current = flagged.indexOf(document.activeElement);
+    if (current < 0) current = lastFlag;
+    // The next cell not yet looked at; once all have been, simply the next one, round and round.
+    var candidate = flagged[(current + 1) % flagged.length];
     for (var step = 1; step <= flagged.length; step++) {
-      var candidate = flagged[(current + step) % flagged.length];
-      if (!candidate.classList.contains("is-seen") || step === flagged.length) {
-        select(document.getElementById("tab-rolls"));
-        candidate.focus();
-        candidate.select();
-        candidate.scrollIntoView({ block: "nearest", inline: "nearest" });
-        return;
-      }
+      var unseen = flagged[(current + step) % flagged.length];
+      if (!unseen.classList.contains("is-seen")) { candidate = unseen; break; }
     }
+    select(document.getElementById("tab-rolls"));
+    candidate.focus();
+    candidate.select();
+    candidate.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
   var nextButton = root.querySelector("[data-next-flag]") || document.querySelector("[data-next-flag]");
   if (nextButton) nextButton.addEventListener("click", nextFlag);

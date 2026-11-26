@@ -1314,7 +1314,7 @@ body.app-body {
 .viewer__empty { padding: 2rem; color: var(--color-muted); }
 
 .tabs-bar { display: flex; align-items: center; justify-content: space-between; gap: 0.25rem 0.75rem; flex-wrap: wrap; border-bottom: 1px solid var(--color-border); padding: 0 0.75rem; }
-.tabs { display: flex; gap: 0.25rem; flex: none; }
+.tabs-bar .tabs { display: flex; gap: 0.25rem; flex: none; margin-bottom: 0; border-bottom: 0; }  /* the bar draws the line */
 .tabs [role="tab"] { min-height: 44px; padding: 0 0.6rem; border: 0; border-bottom: 2px solid transparent; background: none; font: inherit; font-weight: 500; color: var(--color-muted); cursor: pointer; }
 .tabs [role="tab"][aria-selected="true"] { color: var(--color-text); border-bottom-color: var(--color-action); }
 .tabs [role="tab"]:focus-visible { outline: 2px solid var(--color-action); outline-offset: -2px; }
@@ -1325,6 +1325,7 @@ body.app-body {
    below, so it never squeezes into a ragged column. The wrapper only groups them for hiding. */
 .review-tools { display: contents; }
 .review-tools__next { flex: none; order: 1; margin-left: auto; }
+.review-tools__next .btn { min-height: 30px; padding: 0.15rem 0.6rem; font-size: 0.8rem; font-weight: 600; }
 .review-tools .legend { order: 2; flex: 1 1 100%; padding: 0.15rem 0 0.5rem; }
 .legend li { white-space: nowrap; }
 /* Below 1600px the half-width panel has no room for the F8 badge beside the tabs; the tooltip names F8. */
