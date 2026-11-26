@@ -106,7 +106,8 @@ def process_job(conn, job, reader, scratch_dir, photos_dir=None):
     _write_result(conn, photo, result)
     with conn:
         conn.execute("UPDATE read_jobs SET reader_name = ? WHERE id = ?", (result["reader_name"], job["id"]))
-    update_read_job(conn, job["id"], status="done", finished_at=now_iso())
+    update_read_job(conn, job["id"], status="done", finished_at=now_iso(),
+                    last_error=result.get("fallback_reason"))
     update_sheet_status(conn, photo["sheet_id"], "needs_review")
     return "done"
 

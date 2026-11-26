@@ -141,6 +141,14 @@ class Fallback(unittest.TestCase):
         self.assertTrue(all(c["doubt"] for c in result["rows"][0]["cells"].values()))
         self.assertEqual(transport.bodies[-1]["model"], "secondary")
 
+    def test_fallback_result_says_why_the_main_model_failed(self):
+        transport = FakeTransport(*[reader.TransportError("down")] * 3, reply([ROW]))
+        r = reader.CloudReader(transport, NAMES, model="primary", fallback="secondary", sleep=lambda s: None)
+        self.assertEqual(r.read(b"jpg")["fallback_reason"], "primary: down")
+
+    def test_main_model_result_has_no_fallback_reason(self):
+        self.assertNotIn("fallback_reason", make(reply([ROW])).read(b"jpg"))
+
 
 if __name__ == "__main__":
     unittest.main()

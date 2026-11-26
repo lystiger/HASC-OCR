@@ -92,7 +92,9 @@ class CloudReader:
         except ReaderError as error:
             if error.kind == "not_form_a" or not self.fallback:
                 raise
+            reason = str(error)
         result = self._read_with(self.fallback, image, effort)
+        result["fallback_reason"] = reason  # kept on the job, so a page of doubtful cells has a cause
         for cell in [*result["page"].values(), *(c for r in result["rows"] for c in r["cells"].values())]:
             cell["doubt"] = True
         return result

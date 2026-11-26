@@ -116,6 +116,14 @@ class Queue(WorkerTest):
         self.assertEqual(data[0]["cells"]["gross_kg"]["value"], "15.8")
         self.assertEqual(data[0]["cells"]["gross_kg"]["flag"], "none")
 
+    def test_fallback_read_keeps_the_main_model_error(self):
+        _, job_id = self.queue()
+        read = result(row(roll_code="1"))
+        read["fallback_reason"] = "primary: HTTP 502"
+        self.drain(read)
+        job = get_read_job_by_id(self.conn, job_id)
+        self.assertEqual((job["status"], job["last_error"]), ("done", "primary: HTTP 502"))
+
     def test_reader_gets_the_upright_photo(self):
         self.queue(width=100, height=200)
         reader = self.drain(result(row(roll_code="1")))
