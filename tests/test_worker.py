@@ -395,7 +395,7 @@ class Entry(WorkerTest):
     def test_once_drains_the_queue_with_the_injected_reader(self):
         _, job_id = self.queue()
         reader = FakeReader(result(row(roll_code="1")))
-        with mock.patch.dict(os.environ, {"HASC_DB_PATH": str(self.db_path)}):
+        with mock.patch.dict(os.environ, {"HASC_DB_PATH": str(self.db_path), config.ENV_VAR: ""}):
             main(["--once"], reader_factory=lambda: reader)
         self.assertEqual(get_read_job_by_id(self.conn, job_id)["status"], "done")
 

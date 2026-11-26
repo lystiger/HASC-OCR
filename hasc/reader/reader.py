@@ -15,6 +15,8 @@ import urllib.request
 
 from PIL import Image
 
+from hasc.images import TURNS
+
 FIELDS = ["machine", "customer", "film_type", "roll_code", "pellet_formula", "mixing_shift_date",
           "thickness_mic", "width_mm", "length_mm", "gross_kg", "core_kg", "cover_kg", "net_kg",
           *(f"thickness_{i}" for i in range(1, 7)), "thickness_avg", "diameter_a", "diameter_b",
@@ -46,7 +48,6 @@ Example row line: customer=AB film_type=GT roll_code=1 thickness_mic=50 width_mm
 TURN_PROMPT = ("This photo shows a paper form on a desk. Look at the printed text (titles, column labels). "
                "Which way must the photo be turned so the printed text reads normally? Answer with exactly one word: "
                "none, 180, left (turn 90 degrees counter-clockwise) or right (turn 90 degrees clockwise).")
-TURNS = {"none": 0, "180": 180, "left": 90, "right": 270}  # degrees counter-clockwise, as PIL rotates
 TURN_SIZE = 800
 
 

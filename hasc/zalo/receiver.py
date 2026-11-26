@@ -9,7 +9,7 @@ mention it or reply to it (tested 2026-11-11: plain group photos never arrived),
 stay supported but are not the intake path. A source is ("PRIVATE", sender id) or ("GROUP", chat id),
 mapped to 1 for staging or 0 for pilot.
 A kept event is written first and downloaded after, so a failed download stays in the inbox for
-retry. Nothing here creates a sheet or a read job: an inbox photo has no machine, date, shift or page.
+retry. Nothing here creates a sheet or a read job: the worker's Zalo gate (hasc.worker.gate) files photos.
 
 The token sits in every API URL, so no URL, response body or exception text is ever logged or stored.
 """
@@ -182,8 +182,10 @@ def deliver(conn, item, photos_dir, fetch=fetch):
         _finish(conn, item["id"], "rejected", attempts, "không phải tệp ảnh", photo_url=None)
         return "rejected"
     sha256 = hashlib.sha256(data).hexdigest()
+    # Every status a saved photo can reach: a byte-identical resend after gating is still a duplicate, never re-gated.
     same = conn.execute("""
-        SELECT path FROM zalo_inbox WHERE sha256 = ? AND status = 'delivered' AND staging = ? AND id != ?
+        SELECT path FROM zalo_inbox WHERE sha256 = ? AND staging = ? AND id != ?
+          AND status IN ('delivered', 'filed', 'waiting', 'not_form', 'staging_checked')
     """, (sha256, item["staging"], item["id"])).fetchone()  # a staging test photo never hides a pilot one
     if same:
         path = same["path"]

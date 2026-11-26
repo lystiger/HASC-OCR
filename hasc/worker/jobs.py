@@ -77,16 +77,16 @@ def resolve_photo_path(photo_path_str: str | Path, photos_dir: Path | None = Non
     return p
 
 
-def run_pending(conn, reader, scratch_dir, photos_dir=None):
+def run_pending(conn, reader, scratch_dir, photos_dir=None, plan_dir=None):
     """Work the queue until no job is queued. Returns how many jobs were claimed."""
     count = 0
     while (job := claim_job(conn)) is not None:
-        process_job(conn, job, reader, scratch_dir, photos_dir=photos_dir)
+        process_job(conn, job, reader, scratch_dir, photos_dir=photos_dir, plan_dir=plan_dir)
         count += 1
     return count
 
 
-def process_job(conn, job, reader, scratch_dir, photos_dir=None):
+def process_job(conn, job, reader, scratch_dir, photos_dir=None, plan_dir=None):
     """Run one claimed job. Returns 'done', 'queued' (to retry) or 'failed'."""
     photo = get_photo_by_id(conn, job["photo_id"])
     update_sheet_status(conn, photo["sheet_id"], "reading")
@@ -95,13 +95,16 @@ def process_job(conn, job, reader, scratch_dir, photos_dir=None):
     file_path = resolve_photo_path(photo["path"], photos_dir)
     try:
         raw = file_path.read_bytes()
-        image = upright(raw)
-        turn, usage = reader.turn(image)
-        _add_usage(conn, job["id"], usage)
-        if turn:
-            image = upright(raw, turn)
-        if turn != photo["turn"]:
-            _set_turn(conn, photo, raw, turn, photos_dir)
+        if photo["turn_checked"]:  # the Zalo gate already said which way up it is (spec R2)
+            image = upright(raw, photo["turn"])
+        else:
+            image = upright(raw)
+            turn, usage = reader.turn(image)
+            _add_usage(conn, job["id"], usage)
+            if turn:
+                image = upright(raw, turn)
+            if turn != photo["turn"]:
+                _set_turn(conn, photo, raw, turn, photos_dir)
         upright_path = Path(scratch_dir) / f"job{job['id']}.jpg"
         upright_path.write_bytes(image)
         result = reader.read(str(upright_path))
