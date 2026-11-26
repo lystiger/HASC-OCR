@@ -20,6 +20,7 @@ from hasc.db import (
     upsert_page_value,
 )
 from hasc.db.queries import now_iso
+from hasc.images import display_copy
 from hasc.reader.photo import upright
 from hasc.reader.reader import ReaderError
 from hasc.rules import rules
@@ -93,8 +94,16 @@ def process_job(conn, job, reader, scratch_dir, photos_dir=None):
         photos_dir = get_default_photos_dir()
     file_path = resolve_photo_path(photo["path"], photos_dir)
     try:
+        raw = file_path.read_bytes()
+        image = upright(raw)
+        turn, usage = reader.turn(image)
+        _add_usage(conn, job["id"], usage)
+        if turn:
+            image = upright(raw, turn)
+        if turn != photo["turn"]:
+            _set_turn(conn, photo, raw, turn, photos_dir)
         upright_path = Path(scratch_dir) / f"job{job['id']}.jpg"
-        upright_path.write_bytes(upright(file_path.read_bytes()))
+        upright_path.write_bytes(image)
         result = reader.read(str(upright_path))
     except (ReaderError, OSError) as error:
         _add_usage(conn, job["id"], getattr(error, "usage", None))
@@ -106,9 +115,20 @@ def process_job(conn, job, reader, scratch_dir, photos_dir=None):
     _write_result(conn, photo, result)
     with conn:
         conn.execute("UPDATE read_jobs SET reader_name = ? WHERE id = ?", (result["reader_name"], job["id"]))
-    update_read_job(conn, job["id"], status="done", finished_at=now_iso())
+    update_read_job(conn, job["id"], status="done", finished_at=now_iso(),
+                    last_error=result.get("fallback_reason"))
     update_sheet_status(conn, photo["sheet_id"], "needs_review")
     return "done"
+
+
+def _set_turn(conn, photo, raw, turn, photos_dir):
+    """Store the turn and remake the display copy, so the review screen shows what the reader read."""
+    with conn:
+        conn.execute("UPDATE photos SET turn = ? WHERE id = ?", (turn, photo["id"]))
+    if photo["small_copy_path"]:
+        shown = resolve_photo_path(photo["small_copy_path"], photos_dir)
+        if shown.is_file():
+            shown.write_bytes(display_copy(raw, turn))
 
 
 def _add_usage(conn, job_id, usage):

@@ -50,20 +50,32 @@ def apply_correction(conn: sqlite3.Connection, sheet_id: int, user: dict, data: 
         raise AppError(code="bad_layout", message=str(error), status_code=422) from None
     if parsed["sheet_id"] != sheet_id:
         raise AppError(code="bad_layout", message="Tệp này thuộc một biểu mẫu khác.", status_code=422)
-    if parsed["version"] != sheet["version"]:
+    return apply_values(conn, sheet, user, parsed["version"], parsed["row_keys"], parsed["rows"], finish=True,
+                        action="reupload")
+
+
+def apply_values(conn: sqlite3.Connection, sheet, user: dict, version: int, row_keys: list, values_by_row: list,
+                 finish: bool, action: str) -> dict:
+    """Apply a page's full set of values, as the Excel file or the review screen shows them (P154).
+
+    finish=True marks the page reviewed, like a re-upload or `Xác nhận`. finish=False (`Lưu`) keeps it in
+    review, so the person can come back; a page already reviewed stays reviewed.
+    """
+    sheet_id = sheet["id"]
+    if version != sheet["version"]:
         raise _stale()
     if sheet["status"] not in CORRECTABLE:
         raise AppError(code="not_reviewable", message="Biểu mẫu này chưa có dữ liệu để sửa.", status_code=409)
 
     rows = get_sheet_data(conn, sheet_id)
-    if [str(r["row_key"]) for r in rows] != parsed["row_keys"]:
+    if [str(r["row_key"]) for r in rows] != [str(k) for k in row_keys] or len(values_by_row) != len(rows):
         raise _stale()
     shown = _prepare_rows(rows)  # what the downloaded file showed, copied-down values included
 
     now = security.now().isoformat()
     changes, updates = [], []
     run = {}  # carried field -> the new value of the run's written row above
-    for row, display, values in zip(rows, shown, parsed["rows"]):
+    for row, display, values in zip(rows, shown, values_by_row):
         if all(values[f] is None for _, _, f in COLUMNS) and any(
                 c.get("value") not in (None, "") for c in row["cells"].values()):
             raise AppError(code="bad_layout", status_code=422,
@@ -101,11 +113,15 @@ def apply_correction(conn: sqlite3.Connection, sheet_id: int, user: dict, data: 
     with conn:
         # Checked again inside the write: a reader or another upload that changed the sheet since
         # it was read above has raised its version, so this upload is stale and nothing is written.
-        version = sheet["version"] + (1 if changes or updates else 0)
+        # The status is checked too: a confirm without changes keeps the version, and a save read
+        # before it must not turn the page back to in_review. A finish always restamps status_since.
+        new_version = sheet["version"] + (1 if changes or updates else 0)
+        status = "reviewed" if finish or sheet["status"] == "reviewed" else "in_review"
         claimed = conn.execute("""
-            UPDATE sheets SET version = ?, status = 'reviewed', status_since = ?,
-                picked_up_by = COALESCE(picked_up_by, ?) WHERE id = ? AND version = ?
-        """, (version, now, user["id"], sheet_id, sheet["version"]))
+            UPDATE sheets SET version = ?, status = ?,
+                status_since = CASE WHEN ? OR status != ? THEN ? ELSE status_since END,
+                picked_up_by = COALESCE(picked_up_by, ?) WHERE id = ? AND version = ? AND status = ?
+        """, (new_version, status, finish, status, now, user["id"], sheet_id, sheet["version"], sheet["status"]))
         if claimed.rowcount != 1:
             raise _stale()
         for c in changes:
@@ -128,12 +144,13 @@ def apply_correction(conn: sqlite3.Connection, sheet_id: int, user: dict, data: 
                 INSERT INTO events (at, user_id, action, sheet_id, row_id, field, old_value, new_value, detail)
                 VALUES (?, ?, 'value_carry', ?, ?, ?, ?, ?, 'carried')
             """, (now, user["id"], sheet_id, u["row_id"], u["field"], u["old"], u["new"]))
-        conn.execute("UPDATE rows SET reviewed = 1 WHERE sheet_id = ? AND invalid = 0", (sheet_id,))
+        if finish:
+            conn.execute("UPDATE rows SET reviewed = 1 WHERE sheet_id = ? AND invalid = 0", (sheet_id,))
         conn.execute("""
             INSERT INTO events (at, user_id, action, sheet_id, old_value, new_value, detail)
-            VALUES (?, ?, 'reupload', ?, ?, ?, ?)
-        """, (now, user["id"], sheet_id, str(sheet["version"]), str(version), f"changed={len(changes)}"))
-    return {"version": version, "status": "reviewed", "changed": len(changes)}
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (now, user["id"], action, sheet_id, str(sheet["version"]), str(new_version), f"changed={len(changes)}"))
+    return {"version": new_version, "status": status, "changed": len(changes)}
 
 
 def _read_upload(file: UploadFile) -> bytes:

@@ -20,6 +20,9 @@ class CloudPhotoReader:
     def __init__(self, cloud):
         self.cloud = cloud
 
+    def turn(self, image):
+        return self.cloud.turn(image)
+
     def read(self, image_path):
         return read_sheet(self.cloud, Path(image_path).read_bytes())
 

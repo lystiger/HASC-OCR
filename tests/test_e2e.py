@@ -61,6 +61,9 @@ class FakeReader:
         self.result_payload = result_payload
         self.invoked_paths: list[str] = []
 
+    def turn(self, image):
+        return 0, {}
+
     def read(self, image_path: str) -> dict:
         self.invoked_paths.append(image_path)
         return self.result_payload
@@ -260,7 +263,7 @@ class TestEndToEndFlow(unittest.TestCase):
         detail_res = office_client.get(f"/office/sheets/{sheet_id}")
         self.assertEqual(detail_res.status_code, 200)
         self.assertIn("Cần kiểm tra", detail_res.text)
-        self.assertIn("Đúng, xác nhận", detail_res.text)
+        self.assertIn(">Xác nhận<", detail_res.text)
 
         # --- Step 5: Office user downloads .xlsx and checks net-weight column sum ---
         excel_res = office_client.get(f"/api/sheets/{sheet_id}/excel")

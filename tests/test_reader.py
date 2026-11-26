@@ -120,6 +120,16 @@ class Retry(unittest.TestCase):
         result = make(bad, reply([ROW])).read(b"jpg")
         self.assertIn("gross_kg", result["rows"][0]["cells"])
 
+    def test_shift_written_as_ca_on_the_first_line_is_kept(self):
+        result = make(reply([ROW], page="day=4 month=11 year=2026 ca=1")).read(b"jpg")
+        self.assertEqual(result["page"]["shift"]["value"], "1")
+        self.assertEqual(len(result["rows"]), 1)
+
+    def test_other_unknown_page_key_is_dropped_not_fatal(self):
+        result = make(reply([ROW], page="day=4 machine=T1")).read(b"jpg")
+        self.assertEqual(result["page"]["day"]["value"], "4")
+        self.assertEqual(len(result["rows"]), 1)
+
     def test_gives_up_after_three_tries(self):
         errors = [reader.TransportError("boom")] * 3
         with self.assertRaises(ReaderError) as caught:
@@ -140,6 +150,47 @@ class Fallback(unittest.TestCase):
         self.assertEqual(result["reader_name"], "secondary")
         self.assertTrue(all(c["doubt"] for c in result["rows"][0]["cells"].values()))
         self.assertEqual(transport.bodies[-1]["model"], "secondary")
+
+    def test_fallback_result_says_why_the_main_model_failed(self):
+        transport = FakeTransport(*[reader.TransportError("down")] * 3, reply([ROW]))
+        r = reader.CloudReader(transport, NAMES, model="primary", fallback="secondary", sleep=lambda s: None)
+        self.assertEqual(r.read(b"jpg")["fallback_reason"], "primary: down")
+
+    def test_main_model_result_has_no_fallback_reason(self):
+        self.assertNotIn("fallback_reason", make(reply([ROW])).read(b"jpg"))
+
+
+def answer(text, cost=0.001):
+    return {"choices": [{"message": {"content": text}}], "usage": {"cost": cost}}
+
+
+class Turn(unittest.TestCase):
+    def photo(self):
+        import io
+        from PIL import Image
+        out = io.BytesIO()
+        Image.new("RGB", (3200, 2400), "white").save(out, "JPEG")
+        return out.getvalue()
+
+    def test_answers_map_to_counter_clockwise_degrees(self):
+        for text, degrees in (("none", 0), ("180", 180), ("left", 90), ("Right.", 270), ("180\n", 180)):
+            r = make(answer(text))
+            self.assertEqual(r.turn(self.photo())[0], degrees, text)
+
+    def test_asks_the_main_model_with_a_small_copy(self):
+        import base64, io
+        from PIL import Image
+        r = make(answer("none"))
+        degrees, usage = r.turn(self.photo())
+        body = r.transport.bodies[0]
+        self.assertEqual(body["model"], "primary")
+        sent = body["messages"][0]["content"][1]["image_url"]["url"].split(",", 1)[1]
+        self.assertEqual(max(Image.open(io.BytesIO(base64.b64decode(sent))).size), reader.TURN_SIZE)
+        self.assertEqual(usage["cost"], 0.001)
+
+    def test_an_unclear_answer_or_a_failed_call_turns_nothing(self):
+        self.assertEqual(make(answer("upside down maybe")).turn(self.photo())[0], 0)
+        self.assertEqual(make(reader.TransportError("down")).turn(self.photo())[0], 0)
 
 
 if __name__ == "__main__":

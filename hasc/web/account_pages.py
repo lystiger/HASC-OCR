@@ -92,7 +92,7 @@ def get_augmented_events(conn: sqlite3.Connection) -> list[dict]:
     augmented = []
     for e in raw_events:
         item = dict(e)
-        item["action_label"] = ACTION_LABELS.get(item["action"], item["action"])
+        item["action_label"] = ACTION_LABELS.get(item["action"], "Việc khác")
         item["detail_text"] = format_event_detail(item)
         augmented.append(item)
     return augmented

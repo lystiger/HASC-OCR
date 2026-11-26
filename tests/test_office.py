@@ -322,7 +322,7 @@ class TestOfficeScreens(unittest.TestCase):
         self.assertIn(f"/api/photos/{photo_id}", html)
         self.assertIn("Nhận kiểm tra", html)
         self.assertIn("Tải tệp Excel", html)
-        self.assertIn("Đúng, xác nhận", html)
+        self.assertIn(">Xác nhận<", html)
 
         # Photo view endpoint
         res_photo = emp_client.get(f"/api/photos/{photo_id}")
@@ -615,7 +615,7 @@ class TestOfficeScreens(unittest.TestCase):
         # Admins see the review controls and can download a real workbook.
         page = self.clients["admin"].get(f"/office/sheets/{ids['needs_review']}").text
         self.assertIn("Biểu mẫu Máy T1", page)
-        self.assertIn("Thao tác xử lý biểu mẫu", page)
+        self.assertIn("Nhận kiểm tra", page)
         for action in ("/pickup", "/confirm", f"/office/sheets/{ids['needs_review']}/excel"):
             self.assertIn(action, page)
         self.assertEqual(self.clients["admin"].get(f"/office/sheets/{ids['needs_review']}/excel").status_code, 200)

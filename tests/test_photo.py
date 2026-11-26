@@ -31,7 +31,17 @@ class Upright(unittest.TestCase):
         self.assertEqual(photo.upright(data), data)
 
 
+    def test_turn_rotates_a_landscape_photo_half_round(self):
+        image = opened(photo.upright(jpeg(200, 100, mark_top_left=True), turn=180))
+        self.assertEqual(image.size, (200, 100))
+        self.assertLess(image.getpixel((195, 95))[0], 50)  # the old top-left corner is now bottom-right
+
+
 class DisplayCopy(unittest.TestCase):
     def test_portrait_phone_photo_becomes_a_small_landscape_copy(self):
         image = opened(images.display_copy(jpeg(3000, 4000)))
         self.assertEqual(image.size, (1600, 1200))
+
+    def test_display_copy_takes_the_same_turn(self):
+        image = opened(images.display_copy(jpeg(200, 100, mark_top_left=True), turn=180))
+        self.assertLess(image.getpixel((195, 95))[0], 50)

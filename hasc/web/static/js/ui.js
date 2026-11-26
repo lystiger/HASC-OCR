@@ -81,19 +81,20 @@
     field.classList.remove("is-invalid");
     field.removeAttribute("aria-invalid");
     field.removeAttribute("aria-describedby");
-    var note = field.parentElement.querySelector(".field-error");
+    var note = (field.closest(".password-field") || field).parentElement.querySelector(".field-error");
     if (note) note.remove();
   }
 
   function markError(target, text) {
     target.classList.add("is-invalid");
     target.setAttribute("aria-invalid", "true");
-    var note = target.parentElement.querySelector(".field-error");
+    var box = target.closest(".password-field") || target;  // the note goes below the eye button too
+    var note = box.parentElement.querySelector(".field-error");
     if (!note) {
       note = document.createElement("div");
       note.className = "field-error";
       note.id = "field-error-" + Math.random().toString(36).slice(2, 8);
-      target.insertAdjacentElement("afterend", note);
+      box.insertAdjacentElement("afterend", note);
     }
     note.textContent = text;
     target.setAttribute("aria-describedby", note.id);
@@ -133,6 +134,31 @@
     return true;
   }
 
+  var EYE = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+  var EYE_OFF = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.1 10.1 0 0 1 12 19c-6.5 0-10-7-10-7a18.4 18.4 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.1 9.1 0 0 1 12 4c6.5 0 10 7 10 7a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/></svg>';
+
+  // An eye button on each password field shows what was typed; pressed again, it hides it.
+  function addEye(input) {
+    var box = document.createElement("span");
+    box.className = "password-field";
+    input.parentNode.insertBefore(box, input);
+    box.appendChild(input);
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "password-toggle";
+    function show(on) {
+      input.type = on ? "text" : "password";
+      button.innerHTML = on ? EYE_OFF : EYE;
+      button.setAttribute("aria-label", on ? "Ẩn mật khẩu" : "Hiện mật khẩu");
+      button.setAttribute("aria-pressed", on ? "true" : "false");
+    }
+    button.addEventListener("click", function () { show(input.type === "password"); input.focus(); });
+    // Hidden again on sending, so a password manager sees a password field and nothing stays shown.
+    if (input.form) input.form.addEventListener("submit", function () { show(false); });
+    show(false);
+    box.appendChild(button);
+  }
+
   // Runs on the page and again on every part htmx swaps in (the accounts screen after an add), which
   // would otherwise lose the Vietnamese checks and messages. Each box and form is set up once.
   function setUp(root) {
@@ -141,6 +167,12 @@
       if (box.hascShown) return;
       box.hascShown = true;
       toast(box.textContent.replace(/\s+/g, " ").trim(), box.getAttribute("data-toast"));
+      if (box.hasAttribute("data-toast-only")) box.hidden = true;  // the pop-up is enough where space is short
+    });
+    root.querySelectorAll('input[type="password"]').forEach(function (input) {
+      if (input.hascEye) return;
+      input.hascEye = true;
+      addEye(input);
     });
     root.querySelectorAll("form").forEach(function (form) {
       if (form.hascReady) return;

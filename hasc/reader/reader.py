@@ -5,12 +5,15 @@ known names are normalised, and failures are retried and then passed to a fallba
 Plain lines beat a JSON schema on the tuning set: fewer misplaced widths at half the cost.
 """
 import base64
+import io
 import json
 import re
 import socket
 import time
 import urllib.error
 import urllib.request
+
+from PIL import Image
 
 FIELDS = ["machine", "customer", "film_type", "roll_code", "pellet_formula", "mixing_shift_date",
           "thickness_mic", "width_mm", "length_mm", "gross_kg", "core_kg", "cover_kg", "net_kg",
@@ -37,6 +40,14 @@ Customers are written in shorthand. Write customer as the standard name from thi
 Write film_type as the standard name from this list: {products}.
 If a written name matches nothing on a list, write it as written.
 Example row line: customer=AB film_type=GT roll_code=1 thickness_mic=50 width_mm=600 length_mm=1500 gross_kg=55,4 core_kg=1,8 cover_kg=0,4 net_kg=53,2"""
+
+# Asked before each read. Phones held the other way give upside-down sheets (3 October backs, 2 of 3 November
+# Zalo photos). On all 82 October-November photos at 800 px this answered right 82 times, about $0.0013 each.
+TURN_PROMPT = ("This photo shows a paper form on a desk. Look at the printed text (titles, column labels). "
+               "Which way must the photo be turned so the printed text reads normally? Answer with exactly one word: "
+               "none, 180, left (turn 90 degrees counter-clockwise) or right (turn 90 degrees clockwise).")
+TURNS = {"none": 0, "180": 180, "left": 90, "right": 270}  # degrees counter-clockwise, as PIL rotates
+TURN_SIZE = 800
 
 
 class ReaderError(Exception):
@@ -92,7 +103,9 @@ class CloudReader:
         except ReaderError as error:
             if error.kind == "not_form_a" or not self.fallback:
                 raise
+            reason = str(error)
         result = self._read_with(self.fallback, image, effort)
+        result["fallback_reason"] = reason  # kept on the job, so a page of doubtful cells has a cause
         for cell in [*result["page"].values(), *(c for r in result["rows"] for c in r["cells"].values())]:
             cell["doubt"] = True
         return result
@@ -118,6 +131,27 @@ class CloudReader:
         kind = "timeout" if getattr(last, "timeout", False) else "other"
         raise ReaderError(kind, f"{model}: {last}", dict(self.spent))
 
+    def turn(self, image):
+        """(degrees counter-clockwise to turn the upright photo, usage). Any failure or unclear answer: 0."""
+        small = Image.open(io.BytesIO(image)).convert("RGB")
+        small.thumbnail((TURN_SIZE, TURN_SIZE))
+        out = io.BytesIO()
+        small.save(out, "JPEG", quality=85)
+        self.spent = {"cost": 0.0, "prompt_tokens": 0, "completion_tokens": 0, "tries": 1}
+        body = self._body(self.model, out.getvalue(), "low", prompt=TURN_PROMPT)
+        body["max_tokens"] = 2000
+        try:
+            reply = self.transport(body)
+        except TransportError:
+            return 0, dict(self.spent)
+        self._count(reply)
+        try:
+            words = (reply["choices"][0]["message"]["content"] or "").lower().split()
+        except (KeyError, IndexError, TypeError):
+            words = []
+        word = words[0].strip(".,") if words else ""
+        return TURNS.get(word, 0), dict(self.spent)
+
     def _count(self, reply):
         usage = (reply.get("usage") if isinstance(reply, dict) else None) or {}
         for key, name in (("cost", "cost"), ("prompt_tokens", "prompt_tokens"), ("completion_tokens", "completion_tokens")):
@@ -125,13 +159,13 @@ class CloudReader:
             if isinstance(value, int | float) and not isinstance(value, bool):
                 self.spent[key] += value
 
-    def _body(self, model, image, effort):
+    def _body(self, model, image, effort, prompt=None):
         data = base64.b64encode(image).decode()
         return {
             "model": model, "temperature": 0, "max_tokens": 12000, "reasoning": {"effort": effort},
             "provider": {"data_collection": "deny"}, "usage": {"include": True},
             "messages": [{"role": "user", "content": [
-                {"type": "text", "text": self.prompt},
+                {"type": "text", "text": prompt or self.prompt},
                 {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{data}"}}]}],
         }
 
@@ -147,8 +181,12 @@ class CloudReader:
             raise InvalidReply("no key=value lines")
         head = dict(pair.split("=", 1) for pair in KEY.split(lines[0]))
         layout = head.pop("layout", None)
-        if layout not in ("form_a", "back", "other") or not set(head) <= set(PAGE):
+        if layout not in ("form_a", "back", "other"):
             raise InvalidReply(f"bad first line {lines[0][:120]!r}")
+        # Gemini sometimes names the shift after the printed label (ca=1). A stray page key once cost a whole
+        # read three times over and a fallback; the rows are what matter, so unknown page keys are dropped.
+        if "ca" in head:
+            head.setdefault("shift", head["ca"])
         rows = []
         for line in lines[1:]:
             pairs = [pair.split("=", 1) for pair in KEY.split(line)]
