@@ -231,6 +231,26 @@ class TestReceiver(ZaloTestCase):
         self.assertEqual(state["last_error"], "lỗi nội bộ: RuntimeError")
         self.assertGreater(state["heartbeat_at"], state["last_error_at"])
 
+    def test_no_internet_at_start_is_retried_not_fatal(self):
+        methods = []
+
+        def offline_then_online(token, method, payload=None):
+            methods.append(method)
+            if methods.count("getMe") == 1:
+                raise ZaloError("getMe: không kết nối được tới Zalo")
+            if method == "getUpdates":
+                raise KeyboardInterrupt  # one poll after reconnecting is enough
+            return {}
+
+        waits = []
+        with mock.patch.dict("os.environ", {"HASC_DB_PATH": str(self.db_path)}):
+            code = main([], settings=(TOKEN, SOURCES, None), call=offline_then_online, sleep=waits.append)
+        self.assertEqual(code, 0)
+        self.assertEqual(methods, ["getMe", "getMe", "getWebhookInfo", "getUpdates"])
+        self.assertEqual(waits, [5])
+        state = self.conn.execute("SELECT * FROM zalo_receiver").fetchone()
+        self.assertEqual(state["last_error"], "getMe: không kết nối được tới Zalo")
+
     def test_more_than_ten_photos_in_one_poll_are_all_kept(self):
         events = [image_event(f"m{i}") for i in range(12)]
         colors = iter(range(12))

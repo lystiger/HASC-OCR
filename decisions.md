@@ -91,3 +91,18 @@
 **Consequences:** More disk (about 20 years of photos at P72's estimate) and a machine built to run continuously. Windows Update must be paused and run in planned shutdowns, since the shifts cover 24 hours. Accepted risk: office staff share the PC; EFS stops them reading the data as themselves, but an administrator account could still copy the encrypted files, and losing the `hasc` profile without the exported EFS key loses the data. The README "Setting Up the Windows Production PC" section is the procedure.
 
 **What would make this wrong:** Office use slows the PC enough to delay reads, staff restart or shut it down during shifts, or a Windows-only fault reaches production that CI did not catch.
+
+## ADR 9: Reaching the office PC from afar through Tailscale (2026-11-19)
+**Context:** Every Windows change needs a run on Windows before it merges, but CI is blocked by GitHub billing and Lystiger cannot always be at the office PC. PR #49 (the `hasc-zalo` service, P152) waits for exactly this: its Windows criteria are UNPROVEN only for lack of a Windows run. The installer asks its questions in dialog windows, so a plain command line is not enough for an interactive install.
+
+**Options:** Wait until Lystiger is at the PC. Fix GitHub billing so CI runs the Windows job. Tailscale on the PC and Lystiger's laptop, then Remote Desktop (Windows Pro) or RustDesk (Windows Home) over it. Open Remote Desktop to the internet through the router.
+
+**Decision (Lystiger):** Tailscale, with Remote Desktop on Pro or RustDesk on Home, chosen by the PC's edition. Fixing billing stays the way to get CI back, and it does not need the PC. #49 waits for one of the two, and the web review screen goes first meanwhile. Conditions (Claude's recommendation, accepted with the decision):
+- The PC's owner (the boss or IT) approves remote access to the company PC before anything is installed.
+- A Tailscale access rule lets only Lystiger's devices reach the PC.
+- The Tailscale account uses two-factor login.
+- Remote Desktop is never opened to the internet directly.
+
+**Consequences:** Releases can be tested and installed without being in the office, also outside shifts. The Tailscale account becomes a key to the production PC and to the data the `hasc` account can read. Without a desktop session (Home edition, no RustDesk), the installer can still run over Windows OpenSSH with `-NonInteractive -Yes` and its parameters. That path has not been tested.
+
+**What would make this wrong:** The owner refuses remote access, or company IT blocks Tailscale's traffic. Remote sessions also disturb office staff, who use the same PC.

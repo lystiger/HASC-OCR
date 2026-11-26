@@ -62,18 +62,19 @@ def main(argv=None, settings=None, call=receiver.call, fetch=receiver.fetch, sle
     failures = 0
     try:
         beat(conn, started=True)
-        try:
-            check_connection(token, call)
-        except ZaloError as error:
-            beat(conn, error=str(error))
-            print(f"Stopped: {error}")
-            return 1
         staging = sum(sources.values())
         sends = (f"Daily summary at 9:00 to group {mask(summary_chat)}." if summary_chat
                  else "No chat messages are sent.")
-        print(f"Receiving from {staging} staging and {len(sources) - staging} pilot source(s). {sends}", flush=True)
+        connected = False
         while True:
             try:
+                # A service starts at boot, maybe before the internet is up: a failed check is retried like
+                # any other error, so the receiver recovers without a restart (P152).
+                if not connected:
+                    check_connection(token, call)
+                    connected = True
+                    print(f"Receiving from {staging} staging and {len(sources) - staging} pilot source(s). {sends}",
+                          flush=True)
                 poll_once(conn, token, sources, photos_dir, call, fetch, args.show_ids)
                 failures = 0
                 if summary_chat and send_due_summary(conn, token, summary_chat, clock(), call) == "sent":
