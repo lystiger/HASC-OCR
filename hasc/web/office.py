@@ -28,6 +28,7 @@ from hasc.web.auth import get_active_user, get_db
 from hasc.web.errors import AppError
 from hasc.web.review import review_history, review_table
 from hasc.web.roles import ROLE_PERMISSIONS, require_role
+from hasc.web.zalo_filing import waiting_count
 
 
 router = APIRouter()
@@ -262,6 +263,7 @@ def render_office_screen(
             "user": user,
             "sheets": sheets,
             "yesterday": yesterday,
+            "zalo_waiting": waiting_count(conn) if user["role"] in ROLE_PERMISSIONS["file_zalo_photo"] else 0,
             "filters": {
                 "machine": machine or "",
                 "date": date or "",

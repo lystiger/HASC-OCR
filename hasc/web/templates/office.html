@@ -23,6 +23,12 @@
     </form>
   </div>
 
+  {% if zalo_waiting %}
+  <div class="alert alert--warn" role="status" style="margin-bottom: 1rem;">
+    <a href="/zalo/cho-xep"><strong class="num">{{ zalo_waiting }}</strong> ảnh Zalo đang chờ xếp</a>
+  </div>
+  {% endif %}
+
   <!-- Filter Form (Works as plain GET form) -->
   <div class="card" style="margin-bottom: 1.5rem; padding: 1rem 1.25rem;">
     <form method="get" action="/office" class="filter-form" data-loading="Đang lọc...">

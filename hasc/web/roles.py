@@ -32,6 +32,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
     "manage_ai_budget": {"admin"},
     # 12. Zalo inbox on the AI page: bosses and admins see it, only admins retry a failed download
     "manage_zalo": {"admin"},
+    # 13. Waiting Zalo photos: look at them and file them in one step (zalo-intake spec R8)
+    "file_zalo_photo": {"employee", "admin"},
 }
 
 ROLE_GROUPS: dict[str, set[str]] = {
