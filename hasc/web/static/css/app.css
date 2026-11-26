@@ -1296,9 +1296,8 @@ body.app-body {
 .chip--reading, .chip--queued { background: #F1F5F9; color: var(--color-muted); border-color: var(--color-border); }
 .chip--doubt { background: #FEF9C3; color: #713F12; border-color: #FDE68A; }
 
-/* Photo on top at its own shape (whole sheet, no empty frame space), table below; only the table scrolls. */
-.review { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 0.75rem; flex: 1; min-height: 0; }
-.review .viewer { justify-self: center; width: 100%; max-width: calc(40vh * var(--photo-ratio, 1.7778)); }
+/* Photo left, table right, both the full height of the window; only the table scrolls. */
+.review { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.75rem; flex: 1; min-height: 0; }
 .viewer, .review-panel { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); box-shadow: var(--shadow-light); min-height: 0; display: flex; flex-direction: column; }
 /* Controls float over the photo's corner, so the photo keeps the whole frame. */
 .viewer { position: relative; }
@@ -1308,13 +1307,13 @@ body.app-body {
 .viewer__btn:hover, .viewer__btn.is-active { background: #3B4D5A; color: #FFFFFF; }
 .viewer__btn:focus-visible { outline: 2px solid #FDBA74; outline-offset: 1px; }
 .viewer__zoom { color: #E2E8F0; min-width: 3.5rem; text-align: center; font-size: 0.85rem; }
-.viewer__stage { position: relative; width: 100%; aspect-ratio: var(--photo-ratio, 1.7778); overflow: hidden; background: #0F172A; cursor: grab; touch-action: none; border-radius: var(--radius-md); }
+.viewer__stage { position: relative; width: 100%; flex: 1; min-height: 0; overflow: hidden; background: #0F172A; cursor: grab; touch-action: none; border-radius: var(--radius-md); }
 .viewer__stage.is-dragging { cursor: grabbing; }
 .viewer__stage:focus-visible { outline: 2px solid var(--color-action); outline-offset: -2px; }
 .viewer__stage img { position: absolute; left: 0; top: 0; max-width: none; transform-origin: center center; user-select: none; }
 .viewer__empty { padding: 2rem; color: var(--color-muted); }
 
-.tabs-bar { display: flex; align-items: center; justify-content: space-between; gap: 0.25rem 0.75rem; flex-wrap: nowrap; border-bottom: 1px solid var(--color-border); padding: 0 0.75rem; }
+.tabs-bar { display: flex; align-items: center; justify-content: space-between; gap: 0.25rem 0.75rem; flex-wrap: wrap; border-bottom: 1px solid var(--color-border); padding: 0 0.75rem; }
 .tabs { display: flex; gap: 0.25rem; flex: none; }
 .tabs [role="tab"] { min-height: 44px; padding: 0 0.9rem; border: 0; border-bottom: 2px solid transparent; background: none; font: inherit; font-weight: 500; color: var(--color-muted); cursor: pointer; }
 .tabs [role="tab"][aria-selected="true"] { color: var(--color-text); border-bottom-color: var(--color-action); }
@@ -1322,8 +1321,10 @@ body.app-body {
 .tab-panel { flex: 1; min-height: 0; overflow: auto; padding: 0.5rem 0.75rem 0.75rem; display: flex; flex-direction: column; gap: 0.5rem; }
 .tab-panel[hidden] { display: none; }
 
-.review-tools { display: flex; justify-content: flex-end; align-items: center; gap: 0.4rem 0.75rem; flex: 1; min-width: 0; padding: 0.3rem 0; }
-.review-tools .legend { justify-content: flex-end; min-width: 0; }
+/* Legend and flag jump take their own line under the tabs once the half-width panel is too narrow. */
+.review-tools { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 0.4rem 0.75rem; flex: 1 1 auto; padding: 0.3rem 0; }
+.review-tools .legend { justify-content: flex-end; flex: 1 1 auto; }
+.legend li { white-space: nowrap; }
 .review-tools__next { flex: none; }
 .review-tools[hidden] { display: none; }
 .review-tools__next { display: flex; align-items: center; gap: 0.5rem; }
@@ -1376,7 +1377,8 @@ kbd { font-family: var(--font-mono); font-size: 0.7rem; padding: 0 0.3rem; borde
   .page--review { height: auto; }
   .tabs-bar { flex-wrap: wrap; }
   .review-tools { flex-wrap: wrap; }
-  .review { height: auto; }
+  .review { height: auto; grid-template-columns: minmax(0, 1fr); }
+  .viewer__stage { flex: none; aspect-ratio: var(--photo-ratio, 1.7778); }
   .review-table-wrap { max-height: 70vh; }
   .review-panel { min-height: 70vh; }
 }

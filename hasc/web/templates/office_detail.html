@@ -31,12 +31,11 @@
 
   <header class="review-head">
     <div>
-      <h1 class="review-head__title">Biểu mẫu Máy {{ sheet.machine }} · {{ sheet.production_date|vndate }} · Ca {{ sheet.shift }} · Trang {{ sheet.page_no }}</h1>
+      <h1 class="review-head__title">Biểu mẫu {{ sheet.production_date|vndate }} · Ca {{ sheet.shift }} · Trang {{ sheet.page_no }}</h1>
       <div class="review-head__chips">
         <span class="chip chip--{{ sheet.status }}">{{ status_label }}</span>
         {% if is_overdue %}<span class="chip chip--danger">Quá hạn</span>{% endif %}
         {% if table.flagged %}<span class="chip chip--doubt"><span class="num">{{ table.flagged }}</span> ô cần kiểm tra</span>{% endif %}
-        <span class="muted">Phiên bản <strong class="num">{{ sheet.version }}</strong></span>
       </div>
     </div>
     {% if can_review %}
