@@ -141,6 +141,18 @@ class TestReviewScreen(unittest.TestCase):
         self.assertIn("Lưu trên web", html)  # the history tab
         self.assertIn("Dòng 1 · Khối lượng Kg · Sau trừ bì", html)
 
+    def test_history_shows_no_raw_event_names(self):
+        from hasc.db import create_event
+        conn = get_connection(self.db_path)
+        for action in ("read_done", "read_failed", "some_new_event"):
+            create_event(conn, None, action, sheet_id=self.sheet_id)
+        conn.close()
+        html, _ = self.page()
+        for raw in ("read_done", "read_failed", "some_new_event"):
+            self.assertNotIn(raw, html)
+        for text in ("Đọc ảnh xong", "Đọc ảnh không được", "Việc khác", "Hệ thống"):
+            self.assertIn(text, html)
+
     def test_confirm_saves_and_marks_reviewed(self):
         _, table = self.page()
         res = self.send(table, confirm=True, cells={(2, "net_kg"): "85"})

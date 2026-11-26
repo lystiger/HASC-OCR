@@ -209,7 +209,7 @@
               {% for e in history %}
               <tr>
                 <td class="num">{{ e.at|vntime }}</td>
-                <td>{{ e.username or '-' }}</td>
+                <td>{{ e.username or 'Hệ thống' }}</td>
                 <td>{{ e.label }}</td>
                 <td>{% if e.field %}Dòng {{ e.row_number }} · {{ e.field_label }}{% endif %}</td>
                 <td class="num">{% if e.field %}{{ e.old_value if e.old_value is not none else '(trống)' }}{% endif %}</td>

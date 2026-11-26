@@ -10,7 +10,7 @@
   var img = root.querySelector("[data-photo]");
   var label = root.querySelector("[data-zoom-label]");
   var view = { scale: 1, fit: 1, cover: 1, rotate: 0, x: 0, y: 0 };
-  var MIN = 0.25, MAX = 6;  // of the default (filled) view
+  var MIN = 0.25, MAX = 6;  // of the photo filling the frame
 
   function size() {  // the photo's on-screen size at the current scale and turn
     var turned = view.rotate % 180 !== 0;
@@ -30,7 +30,7 @@
   function draw() {
     clamp();
     img.style.transform = "translate(" + view.x + "px," + view.y + "px) rotate(" + view.rotate + "deg) scale(" + view.scale + ")";
-    if (label) label.textContent = Math.round(view.scale / view.cover * 100) + "%";
+    if (label) label.textContent = Math.round(view.scale / view.fit * 100) + "%";  // Vừa khung is 100%
   }
   function measure() {
     var turned = view.rotate % 180 !== 0;
@@ -40,15 +40,7 @@
     view.fit = Math.min(stage.clientWidth / w, stage.clientHeight / h);
     view.cover = Math.max(stage.clientWidth / w, stage.clientHeight / h);
   }
-  function fill() {  // the default: the photo fills the frame, starting at the sheet's top-left
-    if (!stage || !img.naturalWidth) return;
-    measure();
-    view.scale = view.cover;
-    view.x = 1e6;  // clamp() moves it back to the left and top edges
-    view.y = 1e6;
-    draw();
-  }
-  function fit() {  // Vừa khung: the whole page in view
+  function fit() {  // the default, Vừa khung: the whole page in view
     if (!stage || !img.naturalWidth) return;
     measure();
     view.scale = view.fit;
@@ -65,9 +57,9 @@
     draw();
   }
   if (stage && img) {
-    img.addEventListener("load", fill);
-    if (img.complete) fill();
-    window.addEventListener("resize", fill);
+    img.addEventListener("load", fit);
+    if (img.complete) fit();
+    window.addEventListener("resize", fit);
     root.querySelectorAll("[data-zoom]").forEach(function (button) {
       button.addEventListener("click", function () {
         var kind = button.getAttribute("data-zoom");
@@ -77,7 +69,7 @@
     });
     root.querySelector("[data-rotate]").addEventListener("click", function () {
       view.rotate = (view.rotate + 90) % 360;
-      fill();
+      fit();
     });
     stage.addEventListener("wheel", function (event) {
       event.preventDefault();
@@ -104,7 +96,7 @@
       if (keys[event.key]) { view.x += keys[event.key][0]; view.y += keys[event.key][1]; draw(); }
       else if (event.key === "+" || event.key === "=") zoomAt(1.25, stage.clientWidth / 2, stage.clientHeight / 2);
       else if (event.key === "-") zoomAt(0.8, stage.clientWidth / 2, stage.clientHeight / 2);
-      else if (event.key === "0") fill();
+      else if (event.key === "0") fit();
       else return;
       event.preventDefault();
     });

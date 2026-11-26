@@ -35,8 +35,11 @@ ACTION_LABELS = {
     "takeover": "Tiếp quản kiểm tra",
     "retry": "Đọc lại",
     "invalid": "Đánh dấu ảnh không hợp lệ",
-    "admin_open_sheet": "Admin mở biểu mẫu",
+    "admin_open_sheet": "Quản trị viên mở biểu mẫu",
+    "read_done": "Đọc ảnh xong",
+    "read_failed": "Đọc ảnh không được",
 }
+OTHER_ACTION = "Việc khác"  # never show a raw event name to office staff
 HISTORY_LIMIT = 200
 
 
@@ -87,7 +90,7 @@ def review_history(conn: sqlite3.Connection, sheet_id: int) -> list[dict]:
         FROM events e LEFT JOIN users u ON u.id = e.user_id LEFT JOIN rows r ON r.id = e.row_id
         WHERE e.sheet_id = ? ORDER BY e.id DESC LIMIT {HISTORY_LIMIT}
     """, (sheet_id,)).fetchall()
-    return [{**dict(e), "label": ACTION_LABELS.get(e["action"], e["action"]),
+    return [{**dict(e), "label": ACTION_LABELS.get(e["action"], OTHER_ACTION),
              "field_label": FIELD_LABELS.get(e["field"], e["field"])} for e in events]
 
 
