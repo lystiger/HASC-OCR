@@ -21,14 +21,13 @@ from hasc.db import (
     get_default_photos_dir,
 )
 from hasc.images import display_copy
+from hasc.intake import ALLOWED_MACHINES, MAX_FILE_SIZE, is_valid_image, save_photo_file
 from hasc.web.auth import get_active_user, get_authenticated_user, get_db
 from hasc.web.errors import AppError
 from hasc.web.roles import require_role
 
 router = APIRouter()
 
-MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB per spec Functional / criterion 14
-ALLOWED_MACHINES = ("T1", "T3", "T6")
 MAX_PAPERS = 50  # far more papers than one machine fills in a shift
 
 
@@ -143,32 +142,6 @@ def extract_exif_camera_time(file_bytes: bytes) -> str | None:
     return None
 
 
-def is_valid_image(file_bytes: bytes) -> tuple[bool, str]:
-    """Check if the bytes represent a valid image (JPEG, PNG, HEIC, etc.)."""
-    if not file_bytes:
-        return False, ""
-
-    try:
-        with Image.open(io.BytesIO(file_bytes)) as img:
-            fmt = img.format or "JPEG"
-            return True, fmt
-    except Exception:
-        pass
-
-    # Check for HEIC / HEIF ISOBMFF header
-    if len(file_bytes) >= 12 and file_bytes[4:8] == b"ftyp":
-        major_brand = file_bytes[8:12].lower()
-        if major_brand in (b"heic", b"heix", b"mif1", b"msf1", b"hevc", b"hevx"):
-            return True, "HEIC"
-        box_len = int.from_bytes(file_bytes[0:4], "big")
-        compatible = file_bytes[16 : min(box_len, 64)].lower()
-        for b in (b"heic", b"heix", b"mif1", b"msf1"):
-            if b in compatible:
-                return True, "HEIC"
-
-    return False, ""
-
-
 def check_image_quality(file_bytes: bytes) -> list[str]:
     """Test blur, darkness, resolution, and form table structure.
     Returns Vietnamese warnings; never blocks upload (criterion 13).
@@ -199,21 +172,6 @@ def check_image_quality(file_bytes: bytes) -> list[str]:
         pass
 
     return warnings
-
-
-def save_photo_file(
-    photos_dir: Path, file_bytes: bytes, filename: str | None, sha256: str
-) -> Path:
-    photos_dir = Path(photos_dir).resolve()
-    photos_dir.mkdir(parents=True, exist_ok=True)
-    ext = ".jpg"
-    if filename:
-        p_ext = Path(filename).suffix.lower()
-        if p_ext in (".jpg", ".jpeg", ".png", ".heic", ".heif", ".webp"):
-            ext = p_ext
-    saved_path = (photos_dir / f"{sha256}{ext}").resolve()
-    saved_path.write_bytes(file_bytes)
-    return saved_path
 
 
 def get_operator_uploads(conn: sqlite3.Connection, user_id: int) -> list[dict]:

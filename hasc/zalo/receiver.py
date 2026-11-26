@@ -23,7 +23,7 @@ import urllib.request
 from pathlib import Path
 
 from hasc.db.queries import now_iso
-from hasc.web.operator import MAX_FILE_SIZE, is_valid_image, save_photo_file
+from hasc.intake import MAX_FILE_SIZE, is_valid_image, save_photo_file
 
 API = "https://bot-api.zaloplatforms.com/bot{token}/{method}"
 POLL_TIMEOUT = 30  # seconds Zalo holds an empty getUpdates

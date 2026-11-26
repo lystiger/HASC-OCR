@@ -13,7 +13,7 @@ from datetime import date, datetime, time, timedelta, timezone
 
 from hasc.db import list_not_running, list_sheets
 from hasc.excel.daily_report import MACHINES, SHIFTS, _collect
-from hasc.web.operator import ALLOWED_MACHINES
+from hasc.intake import ALLOWED_MACHINES
 from hasc.zalo.receiver import ZaloError, ZaloUncertain, call
 
 VN = timezone(timedelta(hours=7))  # Vietnam has no daylight saving
