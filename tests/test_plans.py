@@ -205,6 +205,21 @@ class TestPlanRules(PlanFiles):
         self.assertEqual(self.machine(shift(15), "Song Sao", 10, 20), "T1")
         self.assertIsNone(self.machine(shift(15), "Song Sao", 70, 800))
 
+    def test_song_sao_takes_the_two_whole_numbers_after_the_code_with_words_before_it(self):
+        self.add("KHSX SONG SAO 27.10.pdf", plan_text(
+            "26/10/2026 16:00",
+            "T6 Hồng trắng CTĐXL-02 70 740 40 390 350 1 1300 4 62,6 250,5",
+            "T6 Sao Vàng trắng 350 + CTVT-25 70 900 40 390 350 1 1300 4 62,6 250,5",
+            "T6 Song 23.10 + 40 TĐ-IN60 giấy 850 60 390",
+            "T1 Hồng trắng CTĐXL-09 55,5 600 40",
+            "ghi chú T1 CTĐXL-10 45 700",
+        ))
+        start = shift(27, 7)
+        self.assertEqual(plan_match(self.load(), start, "Song Sao", 70, 740), PlanMatch("T6", "KHSX SONG SAO 27.10.pdf"))
+        self.assertEqual(self.machine(start, "Song Sao", 70, 900), "T6")
+        self.assertEqual([(l.machine, l.thickness, l.width) for l in self.load().plans[0].lines],
+                         [("T6", 70, 740), ("T6", 70, 900)])
+
     def test_song_sao_lines_in_an_ordinary_plan_follow_the_ordinary_rule(self):
         self.add("KHSX 14.10.pdf", plan_text("14/10/2026 09:00", "T6   CT0123   70   740"))
         self.assertIsNone(self.machine(shift(15), "Song Sao", 70, 740))

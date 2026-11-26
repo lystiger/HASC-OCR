@@ -18,7 +18,7 @@ VN = ZoneInfo("Asia/Ho_Chi_Minh")
 CORE_WORDS = ("giấy", "nhựa", "thêm")
 MACHINE = re.compile(r"[TM]\d")
 RECEIVED = re.compile(r"\d{1,2}[.,]\d{1,2}")
-SONG_SAO_LINE = re.compile(r"\s*([TM]\d)\s+(?:CT|TĐ-)\S*\s+(\d+)\s+(\d+)")
+SONG_SAO_CODE = ("CT", "TĐ-")
 UPDATED = re.compile(r"(\d{1,2})/(\d{1,2})/(\d{4})\s+(\d{1,2}):(\d{2})")
 FILE_DATE = re.compile(r"(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?")
 SONG_SAO = "Song Sao"
@@ -78,9 +78,11 @@ def _plan_lines(name, text, aliases):
         if not tokens or not MACHINE.fullmatch(tokens[0]):
             continue
         if song_sao:
-            found = SONG_SAO_LINE.match(line)
-            if found:
-                lines.append(PlanLine(found[1], _canon(aliases, SONG_SAO), int(found[2]), int(found[3])))
+            # The product name, and sometimes other words, sit between the machine and the product code.
+            code = next((i for i, word in enumerate(tokens[1:], 1) if word.startswith(SONG_SAO_CODE)), None)
+            after = tokens[code + 1:code + 3] if code else []
+            if len(after) == 2 and all(word.isdecimal() for word in after):
+                lines.append(PlanLine(tokens[0], _canon(aliases, SONG_SAO), int(after[0]), int(after[1])))
             continue
         core = next((i for i, word in enumerate(tokens[:-2]) if word.lower() in CORE_WORDS
                      and tokens[i + 1].isdecimal() and tokens[i + 2].isdecimal()), None)
