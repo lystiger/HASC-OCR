@@ -12,8 +12,8 @@ when it is back, until 23:59; after that the day is skipped and the next morning
 from datetime import date, datetime, time, timedelta, timezone
 
 from hasc.db import list_not_running, list_sheets
-from hasc.excel.daily_report import MACHINES, SHIFTS, _collect
-from hasc.intake import ALLOWED_MACHINES
+from hasc.excel.daily_report import MACHINES, SHIFTS, UNKNOWN_MACHINE, _collect
+from hasc.intake import ALLOWED_MACHINES, is_zalo_sheet
 from hasc.zalo.receiver import ZaloError, ZaloUncertain, call
 
 VN = timezone(timedelta(hours=7))  # Vietnam has no daylight saving
@@ -26,12 +26,21 @@ def _kg(value: float) -> str:
     return f"{round(value, 1):g}".replace(".", ",")
 
 
+def _zalo_photo_lines(conn) -> list[str]:
+    """Pilot Zalo photos still waiting for a person, and ones the gate has not reached; each only when N > 0."""
+    counts = {status: n for status, n in conn.execute(
+        "SELECT status, COUNT(*) FROM zalo_inbox WHERE staging = 0 AND status IN ('waiting', 'delivered') GROUP BY status")}
+    return [f"{counts[status]} ảnh Zalo {what}" for status, what in
+            (("waiting", "đang chờ xếp"), ("delivered", "chưa xử lý")) if counts.get(status)]
+
+
 def summary_text(conn, production_date: date) -> str:
     day = production_date.strftime("%d/%m/%Y")
     iso = production_date.isoformat()
-    sheets = [s for s in list_sheets(conn, production_date=iso) if s["machine"] in MACHINES]
+    sheets = [s for s in list_sheets(conn, production_date=iso) if s["machine"] in MACHINES or is_zalo_sheet(s)]
+    photos = _zalo_photo_lines(conn)
     if not sheets:
-        return f"[HASC] Không có số liệu ngày {day}."
+        return "\n".join([f"[HASC] Không có số liệu ngày {day}.", *photos])
     lines, _ = _collect(conn, iso)
     text = [f"[HASC] Số liệu ngày {day} (Ca 1 + Ca 2)"]
     film_kg = bag_kg = 0.0
@@ -39,7 +48,7 @@ def summary_text(conn, production_date: date) -> str:
     for shift in SHIFTS:
         text.append(f"Ca {shift}:")
         shown = False
-        for machine in MACHINES:
+        for machine in (*MACHINES, UNKNOWN_MACHINE):
             section = lines.get((shift, machine))
             if not section:
                 continue
@@ -62,7 +71,9 @@ def summary_text(conn, production_date: date) -> str:
     total = f"Tổng: {_kg(film_kg)} kg màng, {rolls} cuộn"
     text.append(total + (f"; túi {_kg(bag_kg)} kg" if bag_kg else ""))
     # Only a form A page counts as the shift's sheet; a back page alone still leaves form A missing.
-    received = {(s["machine"], s["shift"]) for s in sheets if (s["layout"] or "form_a") == "form_a"}
+    received = {(s["machine"], s["shift"]) for s in sheets if not is_zalo_sheet(s) and (s["layout"] or "form_a") == "form_a"}
+    received |= {(machine, shift) for (shift, machine), section in lines.items()
+                 if any(key[0] == "form_a" and line["zalo"] for key, line in section.items())}  # a Zalo row says its own machine
     idle = {(r["machine"], r["shift"]) for r in list_not_running(conn, iso)}
     missing = [f"{m} Ca {s}" for s in SHIFTS for m in ALLOWED_MACHINES if (m, s) not in received | idle]
     if missing:
@@ -70,6 +81,7 @@ def summary_text(conn, production_date: date) -> str:
     pending = sum(s["status"] != "reviewed" for s in sheets)
     if pending:
         text.append(f"Chưa xác nhận: {pending} tờ")
+    text.extend(photos)
     return "\n".join(text)
 
 

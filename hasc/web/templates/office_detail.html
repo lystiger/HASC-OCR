@@ -2,7 +2,7 @@
 
 {% block nav_office_active %}is-active{% endblock %}
 
-{% block title %}Biểu mẫu Máy {{ sheet.machine }} · Ca {{ sheet.shift }} · Trang {{ sheet.page_no }} – HASC VN{% endblock %}
+{% block title %}Biểu mẫu Máy {{ machine_label }} · Ca {{ sheet.shift }} · Trang {{ sheet.page_no }} – HASC VN{% endblock %}
 
 {% block content %}
 {# Review screen (P154): photo on the left, the page's table on the right. #}
@@ -35,6 +35,7 @@
       <div class="review-head__chips">
         <span class="chip chip--{{ sheet.status }}">{{ status_label }}</span>
         {% if is_overdue %}<span class="chip chip--danger">Quá hạn</span>{% endif %}
+        {% if resent %}<span class="chip chip--doubt">gửi lại</span>{% endif %}
         {% if table.flagged and sheet.status != 'reviewed' %}<span class="chip chip--doubt"><span class="num">{{ table.flagged }}</span> ô cần kiểm tra</span>{% endif %}
       </div>
     </div>
@@ -87,7 +88,7 @@
         <button type="button" class="viewer__btn" data-rotate aria-label="Xoay 90 độ">Xoay</button>
       </div>
       <div class="viewer__stage" data-stage tabindex="0" aria-label="Ảnh: kéo để di chuyển, cuộn chuột để phóng to">
-        <img src="/api/photos/{{ photos[0].id }}/display" alt="Ảnh biểu mẫu Máy {{ sheet.machine }}, trang {{ sheet.page_no }}" data-photo draggable="false" />
+        <img src="/api/photos/{{ photos[0].id }}/display" alt="Ảnh biểu mẫu Máy {{ machine_label }}, trang {{ sheet.page_no }}" data-photo draggable="false" />
       </div>
       {% else %}
       <p class="viewer__empty">Chưa có ảnh nào cho biểu mẫu này.</p>
@@ -163,7 +164,7 @@
 
       <div role="tabpanel" id="panel-info" aria-labelledby="tab-info" class="tab-panel" hidden>
         <dl class="info-grid">
-          <div><dt>Máy</dt><dd>{{ sheet.machine }}</dd></div>
+          <div><dt>Máy</dt><dd>{{ machine_label }}</dd></div>
           <div><dt>Ngày sản xuất</dt><dd class="num">{{ sheet.production_date|vndate }}</dd></div>
           <div><dt>Ca</dt><dd>{{ sheet.shift }}</dd></div>
           <div><dt>Trang</dt><dd>{{ sheet.page_no }}</dd></div>

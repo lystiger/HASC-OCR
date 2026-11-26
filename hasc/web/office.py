@@ -23,6 +23,7 @@ from hasc.db import (
 )
 from hasc.excel import build_page_workbook, page_filename
 from hasc.images import display_copy
+from hasc.intake import ZALO_FORM, machine_label
 from hasc.web.auth import get_active_user, get_db
 from hasc.web.errors import AppError
 from hasc.web.review import review_history, review_table
@@ -100,6 +101,9 @@ def format_time_waited(status_since: str | None, now_dt: datetime | None = None)
     return f"{days} ngày"
 
 
+ZALO_FILTER = "Zalo"  # the machine filter's choice for sheets whose machines are per row
+
+
 def get_office_sheets(
     conn: sqlite3.Connection,
     machine: str | None = None,
@@ -122,7 +126,8 @@ def get_office_sheets(
                p.uploaded_by AS uploader_id,
                u.username AS uploader_username,
                p.uploaded_at AS first_uploaded_at,
-               pu.username AS picked_up_by_username
+               pu.username AS picked_up_by_username,
+               EXISTS (SELECT 1 FROM events e WHERE e.sheet_id = s.id AND e.action = 'zalo_resend') AS resent
         FROM sheets s
         LEFT JOIN (
             SELECT sheet_id, uploaded_by, uploaded_at
@@ -135,7 +140,10 @@ def get_office_sheets(
     clauses: list[str] = []
     params: list[Any] = []
 
-    if machine:
+    if machine == ZALO_FILTER:
+        clauses.append("s.machine = '' AND s.form = ?")
+        params.append(ZALO_FORM)
+    elif machine:
         clauses.append("s.machine = ?")
         params.append(machine)
     if production_date:
@@ -174,6 +182,8 @@ def get_office_sheets(
             "id": r["id"],
             "form": r["form"],
             "machine": r["machine"],
+            "machine_label": machine_label(r["machine"]),
+            "resent": bool(r["resent"]),
             "production_date": r["production_date"],
             "shift": r["shift"],
             "page_no": r["page_no"],
@@ -385,6 +395,9 @@ def office_sheet_detail_page(
         context={
             "user": user,
             "sheet": sheet,
+            "machine_label": machine_label(sheet["machine"]),
+            "resent": conn.execute("SELECT 1 FROM events WHERE sheet_id = ? AND action = 'zalo_resend'",
+                                   (sheet_id,)).fetchone() is not None,
             "status_label": status_label,
             "is_overdue": is_overdue,
             "time_waited": time_waited,

@@ -103,7 +103,7 @@ NUMERIC_FIELDS = {
 
 
 def page_filename(machine: str, production_date: date, shift: int, page_no: int) -> str:
-    return f"HASC_{machine}_{production_date.isoformat()}_Ca{shift}_Trang{page_no}.xlsx"
+    return f"HASC_{machine or 'Zalo'}_{production_date.isoformat()}_Ca{shift}_Trang{page_no}.xlsx"
 
 
 def _fill(hex_color: str) -> PatternFill:
@@ -137,7 +137,7 @@ def _write_header(ws, sheet: dict) -> None:
     ws["A2"] = (
         f"Ngày: {production_date.day}   Tháng: {production_date.month}   "
         f"Năm: {production_date.year}   Ca: {sheet['shift']}   "
-        f"Máy: {sheet['machine']}   Trang: {sheet['page_no']}"
+        f"Máy: {sheet['machine'] or 'theo dòng'}   Trang: {sheet['page_no']}"
     )
     ws["A3"] = f"Tên nhân viên trong ca: {sheet.get('crew', '')}"
     ws["A4"] = "Kí hiệu:"

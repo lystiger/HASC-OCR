@@ -6,6 +6,10 @@ the office. A line that includes a sheet not yet Reviewed is marked `Chưa xác 
 
 A row's machine is the one written in its Máy cell (form A rev 3 writes it on the first row and whenever the
 machine changes), carried down the page; rows before any written machine use the machine picked at upload.
+
+A Zalo sheet has no machine of its own: each row's Máy cell holds it (written, or the plan's, set by the worker).
+Rows with no usable machine go under UNKNOWN_MACHINE, and a Zalo sheet's product details carry down within that
+sheet only.
 """
 
 from collections import defaultdict
@@ -17,6 +21,7 @@ from openpyxl.utils import get_column_letter
 
 from hasc.db import get_photos_for_sheet, get_sheet_data, get_user_by_id, list_sheets
 from hasc.excel import style
+from hasc.intake import is_zalo_sheet
 
 FORM_NO = "HASC281224"
 TITLE = "BÁO CÁO SẢN XUẤT NGÀY"
@@ -35,6 +40,7 @@ HEADINGS = (
     "Ký xác nhận",
 )
 COLUMN_WIDTHS = (10, 24, 22, 34, 16, 18, 10, 18, 18, 18)
+UNKNOWN_MACHINE = "chưa rõ máy"
 PENDING_NOTE = "Chưa xác nhận"
 UNREAD_NOTE = "Có khối lượng chưa đọc được, chưa cộng"
 UNCLEAR_MACHINE_NOTE = "Máy ghi không rõ: {}"
@@ -77,7 +83,8 @@ def _collect(conn, production_date: str):
     leaders = defaultdict(list)
     carried_by_section = {}
     for sheet in sorted(list_sheets(conn, production_date=production_date), key=lambda s: (s["shift"], s["machine"], s["page_no"])):
-        if sheet["machine"] not in MACHINES:
+        zalo = is_zalo_sheet(sheet)
+        if not zalo and sheet["machine"] not in MACHINES:
             continue
         photos = [photo for photo in get_photos_for_sheet(conn, sheet["id"]) if not photo["invalid"]]
         valid_photo_ids = {photo["id"] for photo in photos}
@@ -88,13 +95,16 @@ def _collect(conn, production_date: str):
         machine = sheet["machine"]
         # Product details carry down by the machine picked at upload, so a row that only writes a new Máy
         # keeps the product above it.
-        carried = carried_by_section.setdefault((sheet["shift"], sheet["machine"], layout), {})
+        section_key = ("zalo", sheet["id"]) if zalo else (sheet["shift"], sheet["machine"], layout)
+        carried = carried_by_section.setdefault(section_key, {})
         for row in get_sheet_data(conn, sheet["id"]):
             cells = row["cells"]
             if not _from_valid_photos(cells, valid_photo_ids):
                 continue
             written = _written_machine(cells)
-            if written in MACHINES:
+            if zalo:
+                machine = written if written in MACHINES else UNKNOWN_MACHINE
+            elif written in MACHINES:
                 machine = written
             section = lines[(sheet["shift"], machine)]
             for field in CARRIED_FIELDS:
@@ -110,7 +120,8 @@ def _collect(conn, production_date: str):
                 code = f"{thickness}x{width}x{_text(cells, 'length_mm')}"
             key = (layout, _text(cells, "customer"), _text(cells, "film_type"), code)
             line = section.setdefault(key, {"net": 0.0, "rolls": 0, "unconfirmed": False, "unread": False,
-                                            "unclear_machines": []})
+                                            "unclear_machines": [], "zalo": False})
+            line["zalo"] = line["zalo"] or zalo
             as_written = _text(cells, "machine").strip()
             if written and written not in MACHINES and as_written not in line["unclear_machines"]:
                 line["unclear_machines"].append(as_written)
@@ -154,7 +165,7 @@ def build_daily_report(conn, production_date: date) -> Workbook:
         ws.row_dimensions[row].height = 32
         row += 1
         first_line = row
-        for machine in MACHINES:
+        for machine in MACHINES + ((UNKNOWN_MACHINE,) if lines.get((shift, UNKNOWN_MACHINE)) else ()):
             section = lines.get((shift, machine))
             if not section:
                 _write_values(ws, row, [machine])

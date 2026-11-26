@@ -38,6 +38,9 @@ ACTION_LABELS = {
     "admin_open_sheet": "Quản trị viên mở biểu mẫu",
     "read_done": "Đọc ảnh xong",
     "read_failed": "Đọc ảnh không được",
+    "zalo_filed": "Ảnh Zalo được xếp thành biểu mẫu",
+    "zalo_resend": "Ảnh Zalo gửi lại",
+    "zalo_back": "Ảnh Zalo mặt sau được ghép",
 }
 OTHER_ACTION = "Việc khác"  # never show a raw event name to office staff
 HISTORY_LIMIT = 200

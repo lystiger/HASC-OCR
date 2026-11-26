@@ -114,6 +114,14 @@ def is_zalo_sheet(sheet) -> bool:
     return sheet["form"] == ZALO_FORM and sheet["machine"] == ""
 
 
+ZALO_MACHINE_LABEL = "Zalo · theo dòng"
+
+
+def machine_label(machine: str) -> str:
+    """What a screen shows for a sheet's machine column; a Zalo sheet's machines are per row."""
+    return machine or ZALO_MACHINE_LABEL
+
+
 def shift_start(d: date, shift: int) -> datetime:
     return datetime.combine(d, time(7 if shift == 1 else 19), VN)
 
