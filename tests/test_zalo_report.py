@@ -17,12 +17,16 @@ from hasc.web.app import create_app
 from hasc.web.security import hash_password
 from hasc.zalo.summary import summary_text
 from tests import test_daily_report as daily
+from tests.test_zalo_hygiene import forbid_sends
 
 ZALO = ""
 
 
 class ZaloReport(unittest.TestCase):
-    setUp = daily.DailyReport.setUp
+    def setUp(self):
+        daily.DailyReport.setUp(self)
+        forbid_sends(self)
+
     sheet = daily.DailyReport.sheet
     roll = daily.DailyReport.roll
     build = daily.DailyReport.build
@@ -155,6 +159,7 @@ class ZaloPageExcel(unittest.TestCase):
             upsert_cell(conn, row_id, "gross_kg", "25.4")
             upsert_cell(conn, row_id, "machine", machine, flag=flag, note=note)
         self.conn = conn
+        forbid_sends(self)
         self.client = TestClient(self.app)
         self.assertEqual(self.client.post("/api/login", json={"username": "employee", "password": "pass"}).status_code, 200)
 

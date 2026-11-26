@@ -17,6 +17,7 @@ from hasc.intake import ZALO_FORM
 from hasc.plans import Plan, PlanLine, Plans, assign_row_machines
 from hasc.worker import jobs
 from tests.test_plans import pdf_bytes
+from tests.test_zalo_hygiene import forbid_sends
 from tests.test_worker import FakeReader, result, row
 
 VN = ZoneInfo("Asia/Ho_Chi_Minh")
@@ -123,6 +124,7 @@ class ZaloSheetRead(unittest.TestCase):
         os.environ.pop("HASC_KNOWN_NAMES", None)
         os.environ.pop("HASC_WORKER_ENV", None)
         self.addCleanup(env.stop)
+        forbid_sends(self)
 
     def queue(self, machine, form=ZALO_FORM):
         sheet_id = create_sheet(self.conn, form=form, machine=machine, production_date="2026-10-21", shift=1)

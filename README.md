@@ -94,7 +94,7 @@ python3 -m hasc.worker --once
 
 ## Zalo Receiver (staging)
 
-`python -m hasc.zalo` runs the Zalo bot. Workers send sheet photos to the bot in a private chat. The receiver long-polls the Zalo Bot API and keeps photos from allowed senders in the Zalo inbox. Its only chat message is the daily summary (see below). Inbox photos do not become sheets and are not read by the AI yet: they wait until their machine, date, shift and page are known. The AI page (`/ai`, section **Zalo Bot**) shows the receiver's health, the inbox and the usage counts. Pilot counts exclude staging senders.
+`python -m hasc.zalo` runs the Zalo bot. Workers send sheet photos to the bot in a private chat. The receiver long-polls the Zalo Bot API and keeps photos from allowed senders in the Zalo inbox. Its only chat message is the daily summary (see below). Inbox photos become sheets through the worker's gate (see **Zalo Gate** below). The AI page (`/ai`, section **Zalo Bot**) shows the receiver's health, the inbox and the usage counts. Pilot counts exclude staging senders.
 
 Group chats are not the intake path. Zalo passes a group message to a bot only when it mentions the bot or replies to it. In a test on 2026-11-11, plain photos posted in a group never reached the bot, and a private photo did.
 
@@ -121,6 +121,22 @@ To find a worker's sender ID, start the receiver with `--show-ids` and have the 
 **Daily summary (P151).** With `ZALO_SUMMARY_CHAT_ID=<group id>` in the file, the receiver posts yesterday's numbers to that group at 9:00 Vietnam time: kg and rolls per shift and machine, sheets not received, and sheets not confirmed. Each day is sent at most once. A failed send is retried every 10 minutes, up to 3 tries. A timeout is never retried, because the message may already have arrived. The AI page shows the latest summary or its error. Without the setting the bot sends nothing. To find a group's ID, mention the bot in the group while the receiver runs with `--show-ids`.
 
 Run only one receiver per bot. The receiver stops without changing anything if the bot has a webhook set, because `getUpdates` does not work while one is set.
+
+## Zalo Gate and Plans
+
+The worker turns the receiver's photos into sheets. Set these in the worker env file (`HASC_WORKER_ENV`):
+
+```ini
+# Minutes between gate batches. Unset or 0: no gating, the inbox only collects photos.
+HASC_GATE_MINUTES=120
+# Folder of production plan PDFs (KHSX). The worker reads them to give each row its machine.
+HASC_PLAN_DIR=/absolute/path/to/production plan
+```
+
+- **Gate.** One cheap model call per photo reads the layout, the handwritten date and shift, and the first rows (a fingerprint). The code decides: the year comes from the send time, a date that disagrees with the send time waits, and a second front with the same date, shift and fingerprint is a resend of the same paper. A back pairs with the same sender's front sent in the 30 minutes before it. At most 100 gate calls per Vietnam day; the rest wait for the next day. One extra batch runs at 08:30 so the 9:00 summary sees the 7:00 shift change. A restart gates at once.
+- **Waiting photos.** Photos the gate will not file wait with a Vietnamese reason. Employees and admins open `/zalo/cho-xep` (linked from the sheet list), look at the photo and file it as a front (date, shift) or a back (paper). Filing makes no model call.
+- **Machines.** A Zalo sheet has no machine of its own. After the full read each row gets its machine: the `Máy` cell if written, else the plan's machine (shown flagged with the note `theo kế hoạch` and the plan file), else blank and flagged. Rows without a machine count under `chưa rõ máy` in the daily report and the 9:00 summary.
+- **Way back.** Set `HASC_GATE_MINUTES=0` and restart the worker. Sheets already filed stay.
 
 ## Daily Report (Báo cáo sản xuất ngày)
 
