@@ -10,11 +10,10 @@ import os
 import re
 import unicodedata
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
-VN = ZoneInfo("Asia/Ho_Chi_Minh")
+VN = timezone(timedelta(hours=7))
 CORE_WORDS = ("giấy", "nhựa", "thêm")
 MACHINE = re.compile(r"[TM]\d")
 RECEIVED = re.compile(r"\d{1,2}[.,]\d{1,2}")

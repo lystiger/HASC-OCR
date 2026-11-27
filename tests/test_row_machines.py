@@ -1,5 +1,5 @@
 """Row machines of a Zalo sheet (zalo-intake spec R6, criterion 10): made-up plans and rows, a fake reader."""
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import gc
 import io
 import os
@@ -7,7 +7,6 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest import mock
-from zoneinfo import ZoneInfo
 
 from PIL import Image
 
@@ -20,7 +19,7 @@ from tests.test_plans import pdf_bytes
 from tests.test_zalo_hygiene import forbid_sends
 from tests.test_worker import FakeReader, result, row
 
-VN = ZoneInfo("Asia/Ho_Chi_Minh")
+VN = timezone(timedelta(hours=7))
 START = datetime(2026, 10, 21, 7, 0, tzinfo=VN)
 
 

@@ -56,5 +56,23 @@ class NoPrivateData(unittest.TestCase):
                 self.assertNotIn(private, text, f"{path.relative_to(ROOT)} names {private}")
 
 
+class NoTimeZoneDatabase(unittest.TestCase):
+    """Windows Python has no time-zone database and the project ships no tzdata: use a fixed offset."""
+
+    def test_no_module_under_hasc_imports_zoneinfo_or_tzdata(self):
+        for path in python_files("hasc"):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    names = [alias.name for alias in node.names]
+                elif isinstance(node, ast.ImportFrom) and node.level == 0:
+                    names = [node.module or ""]
+                else:
+                    continue
+                for name in names:
+                    self.assertNotIn(name.split(".")[0], {"zoneinfo", "tzdata"},
+                                     f"{path.relative_to(ROOT)} imports {name}")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -4,15 +4,14 @@ import logging
 import os
 import tempfile
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
-from zoneinfo import ZoneInfo
 
 from hasc import plans as plans_module
 from hasc.plans import PlanMatch, load_plans, machine_for, plan_match
 
-VN = ZoneInfo("Asia/Ho_Chi_Minh")
+VN = timezone(timedelta(hours=7))
 NAMES = {"customers": {"VinFast": ["VINFAST", "Vin Fast"], "Song Sao": ["SS"]}, "products": {}}
 
 
