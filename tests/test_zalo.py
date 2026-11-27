@@ -287,7 +287,7 @@ class TestReceiver(ZaloTestCase):
         def offline(token, method, payload=None):
             raise ZaloError("getMe: không kết nối được tới Zalo")
 
-        streams = [io.TextIOWrapper(io.BytesIO(), encoding="cp1252") for _ in range(2)]
+        streams = [io.TextIOWrapper(io.BytesIO(), encoding="cp1252", newline="\n") for _ in range(2)]
         with mock.patch.dict("os.environ", {"HASC_DB_PATH": str(self.db_path)}), \
                 mock.patch("sys.stdout", streams[0]), mock.patch("sys.stderr", streams[1]):
             code = main(["--once"], settings=(TOKEN, SOURCES, None), call=offline)

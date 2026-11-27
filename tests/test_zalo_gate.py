@@ -783,17 +783,29 @@ class WorkerLoop(GateTest):
         self.assertEqual(self.conn.execute("SELECT status FROM read_jobs").fetchone()[0], "done")
 
     def test_worker_stamps_each_dispatch_with_the_time_it_is_made_not_the_batch_start(self):
-        self.deliver(datetime.now(timezone.utc))
+        # The Windows clock is coarse, so two real readings can be equal: the worker's time source steps instead.
+        start = datetime.now(timezone.utc)
+        readings = []
+
+        class SteppingDatetime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                readings.append(start + timedelta(seconds=len(readings)))
+                return readings[-1]
+
+        self.deliver(start)
         self.transport.replies.append(OTHER)
         seen = []
         real = run_gate_batch
-        with mock.patch("hasc.worker.__main__.run_gate_batch",
-                        side_effect=lambda *a, **k: (seen.append((a[3], k["clock"]())), real(*a, **k))[1]):
+        with mock.patch("hasc.worker.__main__.datetime", SteppingDatetime), \
+                mock.patch("hasc.worker.__main__.run_gate_batch",
+                           side_effect=lambda *a, **k: (seen.append((a[3], k["clock"]())), real(*a, **k))[1]):
             self.run_worker(120)
         (batch_start, clock_reading), = seen
-        self.assertGreater(clock_reading, batch_start)
+        self.assertEqual(batch_start, readings[0])
+        self.assertEqual(clock_reading, readings[1])
         stamped = datetime.fromisoformat(self.conn.execute("SELECT at FROM gate_calls").fetchone()[0])
-        self.assertGreater(stamped, batch_start)
+        self.assertEqual(stamped, readings[2])  # the reading made right before the dispatch, after the batch start
 
     def test_worker_without_gate_minutes_leaves_the_inbox_alone(self):
         row = self.deliver(datetime.now(timezone.utc))
