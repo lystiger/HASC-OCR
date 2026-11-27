@@ -20,10 +20,10 @@
     <tbody>
       {% for s in sheets %}
       <tr class="{% if s.is_overdue %}row-overdue{% endif %}" {% if s.is_overdue %}style="background: #FEF2F2;"{% endif %}>
-        <td><strong class="num">{{ s.machine }}</strong></td>
+        <td><strong class="num">{{ s.machine_label }}</strong></td>
         <td class="num">{{ s.production_date|vndate }}</td>
         <td>Ca {{ s.shift }}</td>
-        <td>Trang {{ s.page_no }}</td>
+        <td>Trang {{ s.page_no }}{% if s.resent %} <span class="badge badge--warn">gửi lại</span>{% endif %}</td>
         <td>
           <span class="badge badge--{{ s.status }}" style="font-weight: 500;">
             {{ s.status_label }}

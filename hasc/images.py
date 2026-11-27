@@ -8,6 +8,8 @@ import io
 
 from PIL import Image, ImageOps
 
+TURNS = {"none": 0, "180": 180, "left": 90, "right": 270}  # a model's turn word, in degrees counter-clockwise as PIL rotates
+
 
 def upright(jpeg, turn=0):
     """Portrait photos turn to landscape; then `turn` more degrees counter-clockwise (the stored photo turn)."""

@@ -1,0 +1,99 @@
+{% extends "office_base.html" %}
+
+{% block nav_office_active %}is-active{% endblock %}
+
+{% block title %}Ảnh Zalo chờ xếp – HASC VN{% endblock %}
+
+{% block content %}
+<div class="page">
+  <a href="/office" class="back-link">&larr; Quay lại danh sách biểu mẫu</a>
+  <div class="page-header">
+    <div>
+      <h1>Ảnh Zalo chờ xếp</h1>
+      <p class="page-header__sub">Những ảnh hệ thống chưa dám tự xếp. Xem ảnh rồi chọn ngày, ca để xếp thành mặt trước, hoặc chọn tờ để xếp thành mặt sau. Cũ nhất lên đầu.</p>
+    </div>
+  </div>
+
+  {% if done %}
+  <div class="alert alert--success" role="status" data-toast="success" data-toast-only>{{ done }}</div>
+  {% endif %}
+  {% if error %}
+  <div class="alert alert--error" role="alert" data-toast="error">{{ error }}</div>
+  {% endif %}
+
+  {% if not rows %}
+  <div class="alert" style="background: var(--color-surface); border: 1px dashed var(--color-border); color: var(--color-muted); text-align: center; padding: 2rem 1rem;">
+    Không có ảnh Zalo nào đang chờ xếp.
+  </div>
+  {% else %}
+  <p class="muted"><span class="num">{{ total }}</span> ảnh đang chờ · trang <span class="num">{{ page }}</span>/<span class="num">{{ pages }}</span></p>
+  {% for r in rows %}
+  <section class="card" id="anh-{{ r.id }}" style="margin-bottom: 1rem; padding: 1rem 1.25rem;">
+    <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-start;">
+      <div style="flex: 0 0 220px;">
+        {% if r.has_photo %}
+        <a href="/zalo/cho-xep/{{ r.id }}/photo" target="_blank" rel="noopener">
+          <img src="/zalo/cho-xep/{{ r.id }}/photo" alt="Ảnh Zalo số {{ r.id }}" loading="lazy" style="max-width: 220px; max-height: 220px; border-radius: 6px; border: 1px solid var(--color-border);" />
+        </a>
+        {% else %}
+        <span class="badge badge--danger">Không còn tệp ảnh</span>
+        {% endif %}
+      </div>
+      <div style="flex: 1 1 320px;">
+        <p style="margin-top: 0;">
+          <span class="badge {{ 'badge--off' if r.status == 'not_form' else 'badge--warn' }}">{{ 'Không phải biểu mẫu' if r.status == 'not_form' else 'Đang chờ xếp' }}</span>
+          <strong>{{ r.reason }}</strong>
+        </p>
+        <p class="muted">Người gửi: {{ r.sender }} · Gửi lúc <span class="num">{{ r.sent_at|vntime }}</span></p>
+
+        {% if r.has_photo %}
+        <form method="post" action="/zalo/cho-xep/{{ r.id }}/mat-truoc" class="inline-form" data-loading="Đang xếp...">
+          <input type="hidden" name="page" value="{{ page }}" />
+          <div class="form-field" style="margin-bottom: 0;">
+            <label for="front-date-{{ r.id }}" style="font-size: 0.85rem;">Ngày sản xuất</label>
+            <input type="date" id="front-date-{{ r.id }}" name="production_date" value="{{ r.suggest_date }}" required />
+          </div>
+          <div class="form-field" style="margin-bottom: 0;">
+            <label for="front-shift-{{ r.id }}" style="font-size: 0.85rem;">Ca</label>
+            <select id="front-shift-{{ r.id }}" name="shift">
+              <option value="1" {% if r.suggest_shift == 1 %}selected{% endif %}>Ca 1</option>
+              <option value="2" {% if r.suggest_shift == 2 %}selected{% endif %}>Ca 2</option>
+            </select>
+          </div>
+          <button type="submit" class="btn">Xếp mặt trước</button>
+        </form>
+
+        <form method="post" action="/zalo/cho-xep/{{ r.id }}/mat-sau" class="inline-form" style="margin-top: 0.75rem;" data-loading="Đang xếp...">
+          <input type="hidden" name="page" value="{{ page }}" />
+          <div class="form-field" style="margin-bottom: 0;">
+            <label for="back-date-{{ r.id }}" style="font-size: 0.85rem;">Ngày của tờ</label>
+            <input type="date" id="back-date-{{ r.id }}" name="production_date" value="{{ r.suggest_date }}" required />
+          </div>
+          <div class="form-field" style="margin-bottom: 0;">
+            <label for="back-shift-{{ r.id }}" style="font-size: 0.85rem;">Ca</label>
+            <select id="back-shift-{{ r.id }}" name="shift">
+              <option value="1" {% if r.suggest_shift == 1 %}selected{% endif %}>Ca 1</option>
+              <option value="2" {% if r.suggest_shift == 2 %}selected{% endif %}>Ca 2</option>
+            </select>
+          </div>
+          <div class="form-field" style="margin-bottom: 0;">
+            <label for="back-paper-{{ r.id }}" style="font-size: 0.85rem;">Tờ số</label>
+            <input type="number" id="back-paper-{{ r.id }}" name="paper_no" min="1" value="1" required style="width: 5rem;" />
+          </div>
+          <button type="submit" class="btn btn--secondary">Xếp mặt sau</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+  {% endfor %}
+
+  {% if pages > 1 %}
+  <nav class="filter-form__actions" aria-label="Chuyển trang">
+    {% if page > 1 %}<a class="btn btn--secondary" href="/zalo/cho-xep?page={{ page - 1 }}">Trang trước</a>{% endif %}
+    {% if page < pages %}<a class="btn btn--secondary" href="/zalo/cho-xep?page={{ page + 1 }}">Trang sau</a>{% endif %}
+  </nav>
+  {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

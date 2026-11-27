@@ -47,7 +47,17 @@ def month_cost_usd(conn: sqlite3.Connection, today: date) -> float:
         SELECT COALESCE(SUM(cost_usd), 0) AS usd FROM read_jobs
         WHERE COALESCE(finished_at, started_at) >= ? AND COALESCE(finished_at, started_at) < ?
     """, (start, end)).fetchone()
-    return float(row["usd"])
+    return float(row["usd"]) + _gate_month(conn, start, end)["cost_usd"]
+
+
+def _gate_month(conn: sqlite3.Connection, start: str, end: str) -> dict:
+    """What the Zalo gate's dispatches cost in [start, end): every dispatch is a paid call, failed ones included."""
+    row = conn.execute("""
+        SELECT COALESCE(SUM(cost_usd), 0) AS cost_usd,
+               COALESCE(SUM(prompt_tokens), 0) + COALESCE(SUM(completion_tokens), 0) AS tokens
+        FROM gate_calls WHERE at >= ? AND at < ?
+    """, (start, end)).fetchone()
+    return {"cost_usd": float(row["cost_usd"]), "tokens": int(row["tokens"])}
 
 
 def budget_status(conn: sqlite3.Connection, today: date) -> dict:
@@ -92,18 +102,32 @@ def accuracy(conn: sqlite3.Connection, start_day: str, end_day: str) -> dict:
 
 
 def daily(conn: sqlite3.Connection, first_day: date, last_day: date) -> dict[str, dict]:
-    """{YYYY-MM-DD: {reads, failed, cost_usd, read_s}} per Vietnam day, for days with any read."""
+    """{YYYY-MM-DD: {reads, failed, cost_usd, tokens, read_s}} per Vietnam day, for days with any read or gate call.
+
+    cost_usd and tokens add the Zalo gate's dispatches of that day to the full reads."""
     day = LOCAL_DAY.format(col="COALESCE(finished_at, started_at)")
     rows = conn.execute(f"""
         SELECT {day} AS day,
                SUM(status = 'done') AS reads, SUM(status = 'failed') AS failed,
                COALESCE(SUM(cost_usd), 0) AS cost_usd,
+               COALESCE(SUM(prompt_tokens), 0) + COALESCE(SUM(completion_tokens), 0) AS tokens,
                AVG(CASE WHEN status = 'done' THEN (julianday(finished_at) - julianday(started_at)) * 86400 END) AS read_s
         FROM read_jobs
         WHERE COALESCE(finished_at, started_at) IS NOT NULL AND {day} BETWEEN ? AND ?
         GROUP BY day
     """, (first_day.isoformat(), last_day.isoformat())).fetchall()
-    return {r["day"]: dict(r) for r in rows}
+    per_day = {r["day"]: dict(r) for r in rows}
+    gate_day = LOCAL_DAY.format(col="at")
+    for r in conn.execute(f"""
+        SELECT {gate_day} AS day, COALESCE(SUM(cost_usd), 0) AS cost_usd,
+               COALESCE(SUM(prompt_tokens), 0) + COALESCE(SUM(completion_tokens), 0) AS tokens
+        FROM gate_calls WHERE {gate_day} BETWEEN ? AND ? GROUP BY day
+    """, (first_day.isoformat(), last_day.isoformat())):
+        info = per_day.setdefault(r["day"], {"day": r["day"], "reads": 0, "failed": 0, "cost_usd": 0, "tokens": 0,
+                                             "read_s": None})
+        info["cost_usd"] = float(info["cost_usd"]) + float(r["cost_usd"])
+        info["tokens"] = int(info["tokens"] or 0) + int(r["tokens"])
+    return per_day
 
 
 def heatmap(per_day: dict[str, dict], today: date, rate: int) -> list[list[dict]]:
@@ -125,7 +149,8 @@ def heatmap(per_day: dict[str, dict], today: date, rate: int) -> list[list[dict]
 
 def _day_row(day: date, info: dict, rate: int) -> dict:
     return {"day": day, "reads": int(info.get("reads") or 0), "failed": int(info.get("failed") or 0),
-            "read_s": info.get("read_s"), "cost_vnd": round(float(info.get("cost_usd") or 0) * rate)}
+            "read_s": info.get("read_s"), "tokens": int(info.get("tokens") or 0),
+            "cost_vnd": round(float(info.get("cost_usd") or 0) * rate)}
 
 
 def ai_overview(conn: sqlite3.Connection, today: date) -> dict:
@@ -146,13 +171,14 @@ def ai_overview(conn: sqlite3.Connection, today: date) -> dict:
     heat_start = today - timedelta(days=today.weekday() + 7 * (HEATMAP_WEEKS - 1))
     per_day = daily(conn, heat_start, today)
     reads = int(month["reads"] or 0)
-    cost_vnd = round(float(month["cost_usd"]) * budget["rate"])
+    gate = _gate_month(conn, start, end)
+    cost_vnd = round((float(month["cost_usd"]) + gate["cost_usd"]) * budget["rate"])
     recent = [(today - timedelta(days=i)) for i in range(14)]
     return {
         "today": today, "month_label": f"{today.month:02d}/{today.year}",
         "reads": reads, "failed": int(month["failed"] or 0), "waiting": int(month["waiting"] or 0),
         "read_s": month["read_s"], "total_s": month["total_s"],
-        "tokens": int(month["prompt_tokens"]) + int(month["completion_tokens"]),
+        "tokens": int(month["prompt_tokens"]) + int(month["completion_tokens"]) + gate["tokens"],
         "cost_vnd": cost_vnd, "cost_per_read_vnd": round(cost_vnd / reads) if reads else None,
         "budget": budget,
         "quality": accuracy(conn, first.isoformat(), next_month.isoformat()),

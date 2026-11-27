@@ -282,6 +282,23 @@ class TestReceiver(ZaloTestCase):
             if send != "sendMessage":
                 self.assertNotIn(send, summary)
 
+    def test_a_cp1252_console_cannot_crash_the_receiver_while_it_reports_an_error(self):
+        # The office PC may print to a cp1252 console or file: a Vietnamese error must not raise there.
+        def offline(token, method, payload=None):
+            raise ZaloError("getMe: không kết nối được tới Zalo")
+
+        streams = [io.TextIOWrapper(io.BytesIO(), encoding="cp1252", newline="\n") for _ in range(2)]
+        with mock.patch.dict("os.environ", {"HASC_DB_PATH": str(self.db_path)}), \
+                mock.patch("sys.stdout", streams[0]), mock.patch("sys.stderr", streams[1]):
+            code = main(["--once"], settings=(TOKEN, SOURCES, None), call=offline)
+            streams[0].flush()
+        self.assertEqual(code, 1)
+        printed = streams[0].buffer.getvalue().decode("cp1252")
+        self.assertIn("Error: getMe: kh", printed)  # the message is reported, what cp1252 lacks escaped
+        self.assertIn("k\\u1ebft", printed)
+        state = self.conn.execute("SELECT * FROM zalo_receiver").fetchone()
+        self.assertEqual(state["last_error"], "getMe: không kết nối được tới Zalo")  # the database keeps it whole
+
     def test_webhook_in_use_stops_without_changing_it(self):
         def fake_call(token, method, payload=None):
             return {"url": "https://example.com/hook"} if method == "getWebhookInfo" else {}

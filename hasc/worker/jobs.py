@@ -4,8 +4,11 @@ The website queues a job in read_jobs. The worker claims one job at a time, turn
 reads it, copies down product details, and flags rule failures and doubtful cells. Flags never change
 a number. A failed attempt is queued again until MAX_ATTEMPTS, then the sheet is marked failed.
 """
+from datetime import date
+import logging
 from pathlib import Path
 
+from hasc import intake, plans as production_plans
 from hasc.db import (
     create_event,
     create_row,
@@ -13,6 +16,7 @@ from hasc.db import (
     get_page_values,
     get_photo_by_id,
     get_rows_for_sheet,
+    get_sheet_by_id,
     increment_sheet_version,
     update_read_job,
     update_sheet_status,
@@ -25,6 +29,7 @@ from hasc.reader.photo import upright
 from hasc.reader.reader import ReaderError
 from hasc.rules import rules
 
+log = logging.getLogger(__name__)
 MAX_ATTEMPTS = 3
 CARRIED = ("customer", "film_type", "pellet_formula", "mixing_shift_date", "thickness_mic", "width_mm",
            "length_mm")  # weights are never carried (P115)
@@ -77,16 +82,16 @@ def resolve_photo_path(photo_path_str: str | Path, photos_dir: Path | None = Non
     return p
 
 
-def run_pending(conn, reader, scratch_dir, photos_dir=None):
+def run_pending(conn, reader, scratch_dir, photos_dir=None, plan_dir=None):
     """Work the queue until no job is queued. Returns how many jobs were claimed."""
     count = 0
     while (job := claim_job(conn)) is not None:
-        process_job(conn, job, reader, scratch_dir, photos_dir=photos_dir)
+        process_job(conn, job, reader, scratch_dir, photos_dir=photos_dir, plan_dir=plan_dir)
         count += 1
     return count
 
 
-def process_job(conn, job, reader, scratch_dir, photos_dir=None):
+def process_job(conn, job, reader, scratch_dir, photos_dir=None, plan_dir=None):
     """Run one claimed job. Returns 'done', 'queued' (to retry) or 'failed'."""
     photo = get_photo_by_id(conn, job["photo_id"])
     update_sheet_status(conn, photo["sheet_id"], "reading")
@@ -95,13 +100,16 @@ def process_job(conn, job, reader, scratch_dir, photos_dir=None):
     file_path = resolve_photo_path(photo["path"], photos_dir)
     try:
         raw = file_path.read_bytes()
-        image = upright(raw)
-        turn, usage = reader.turn(image)
-        _add_usage(conn, job["id"], usage)
-        if turn:
-            image = upright(raw, turn)
-        if turn != photo["turn"]:
-            _set_turn(conn, photo, raw, turn, photos_dir)
+        if photo["turn_checked"]:  # the Zalo gate already said which way up it is (spec R2)
+            image = upright(raw, photo["turn"])
+        else:
+            image = upright(raw)
+            turn, usage = reader.turn(image)
+            _add_usage(conn, job["id"], usage)
+            if turn:
+                image = upright(raw, turn)
+            if turn != photo["turn"]:
+                _set_turn(conn, photo, raw, turn, photos_dir)
         upright_path = Path(scratch_dir) / f"job{job['id']}.jpg"
         upright_path.write_bytes(image)
         result = reader.read(str(upright_path))
@@ -112,6 +120,7 @@ def process_job(conn, job, reader, scratch_dir, photos_dir=None):
 
     _add_usage(conn, job["id"], result.get("usage"))
     carry_down(result["rows"])
+    _set_row_machines(conn, photo["sheet_id"], result["rows"], plan_dir)
     _write_result(conn, photo, result)
     with conn:
         conn.execute("UPDATE read_jobs SET reader_name = ? WHERE id = ?", (result["reader_name"], job["id"]))
@@ -119,6 +128,20 @@ def process_job(conn, job, reader, scratch_dir, photos_dir=None):
                     last_error=result.get("fallback_reason"))
     update_sheet_status(conn, photo["sheet_id"], "needs_review")
     return "done"
+
+
+def _set_row_machines(conn, sheet_id, rows, plan_dir):
+    """A Zalo sheet has no machine of its own: each row gets one from its Máy cell, else from the plan (R6)."""
+    sheet = get_sheet_by_id(conn, sheet_id)
+    if not intake.is_zalo_sheet(sheet):
+        return
+    start = intake.shift_start(date.fromisoformat(sheet["production_date"]), sheet["shift"])
+    try:
+        plans = production_plans.load_plans(plan_dir)
+    except Exception as error:  # a plan problem must not stop the read: rows then stay blank and flagged
+        log.warning("plans not loaded: %s: %s", type(error).__name__, error)
+        plans = production_plans.Plans((), {})
+    production_plans.assign_row_machines(rows, plans, start)
 
 
 def _set_turn(conn, photo, raw, turn, photos_dir):
@@ -218,7 +241,7 @@ def _cell_flags(row, layout):
         elif field in rule_note:
             flags[field] = ("rule", rule_note[field])
         elif cell.get("doubt"):
-            flags[field] = ("doubt", None)
+            flags[field] = ("doubt", cell.get("note"))
         else:
             flags[field] = ("none", None)
     return flags
