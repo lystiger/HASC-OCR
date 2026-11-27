@@ -330,8 +330,15 @@ def _place_front(conn, row, key, gate):
 
 
 def _not_a_front(row):
+    """Whether a row can never be the front of a back (R5). A row that was filed or checked is a front or not by how
+    it was filed, so a person's filing of a photo (R8) stands whatever the gate's layout said; only a row not filed
+    yet goes by the gate's layout."""
+    if row["outcome"] in FRONT_OUTCOMES:
+        return False
+    if row["outcome"] == "back":
+        return True
     layout = json.loads(row["gate_reply"]).get("layout") if row["gate_reply"] else None
-    return row["status"] == "not_form" or row["outcome"] in ("not_form", "back") or layout in ("back", "other")
+    return row["status"] == "not_form" or row["outcome"] == "not_form" or layout in ("back", "other")
 
 
 def _pair_back(conn, row):

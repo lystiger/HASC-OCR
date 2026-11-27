@@ -51,11 +51,15 @@ def parse_gate(text: str | None) -> dict | None:
     return fields if fields.get("layout") in LAYOUTS else None
 
 
-def run_gate_batch(conn, reader, photos_dir: Path, now: datetime) -> dict:
-    """Gate the delivered inbox rows in id order, at most DAILY_CAP dispatches per Vietnam day. Counts by outcome."""
+def run_gate_batch(conn, reader, photos_dir: Path, now: datetime, clock=None) -> dict:
+    """Gate the delivered inbox rows in id order, at most DAILY_CAP dispatches per Vietnam day. Counts by outcome.
+
+    `now` is the batch start. Each dispatch is stamped with the time `clock()` gives when it is made (R1: counted by
+    dispatch time), and the day's count is taken again whenever the Vietnam date changes inside a batch. Without a
+    clock every dispatch is stamped `now`; the worker passes the real one."""
     counts = dict.fromkeys(COUNTED, 0)
-    stamp = now.astimezone(timezone.utc).isoformat()
-    used = _dispatches_on(conn, now)
+    clock = clock or (lambda: now)
+    day, used = None, 0
     ids = [r["id"] for r in conn.execute("SELECT id FROM zalo_inbox WHERE status = 'delivered' ORDER BY id")]
     for position, inbox_id in enumerate(ids):
         row = conn.execute("SELECT * FROM zalo_inbox WHERE id = ?", (inbox_id,)).fetchone()
@@ -65,15 +69,20 @@ def run_gate_batch(conn, reader, photos_dir: Path, now: datetime) -> dict:
             path = intake.inbox_file(row, photos_dir)
             if path is None:
                 outcome = intake.record_wait(conn, inbox_id, intake.WAIT_NO_FILE, None, now)
-            elif used >= DAILY_CAP:
-                counts["over_cap"] = len(ids) - position
-                break
-            elif (jpeg := _gate_image(path)) is None:
-                outcome = intake.record_wait(conn, inbox_id, intake.WAIT_BAD_IMAGE, None, now)
             else:
-                used += 1
-                gate = _dispatch(conn, reader, inbox_id, jpeg, stamp)
-                outcome = _settle(conn, row, gate, photos_dir, now)
+                dispatched = clock()
+                if (today := dispatched.astimezone(intake.VN).date()) != day:
+                    day, used = today, _dispatches_on(conn, dispatched)
+                if used >= DAILY_CAP:
+                    counts["over_cap"] = len(ids) - position
+                    break
+                if (jpeg := _gate_image(path)) is None:
+                    outcome = intake.record_wait(conn, inbox_id, intake.WAIT_BAD_IMAGE, None, now)
+                else:
+                    used += 1
+                    stamp = dispatched.astimezone(timezone.utc).isoformat()
+                    gate = _dispatch(conn, reader, inbox_id, jpeg, stamp)
+                    outcome = _settle(conn, row, gate, photos_dir, now)
         except Exception as error:  # one row's failure must not stop the batch; the row stays delivered
             print(f"Gate: Zalo photo {inbox_id} not filed: {type(error).__name__}: {error}", flush=True)
             outcome = "error"

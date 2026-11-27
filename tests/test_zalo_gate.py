@@ -124,9 +124,10 @@ class GateTest(unittest.TestCase):
                 VALUES (?, 'PRIVATE', ?, ?, ?, 0, ?, ?, 'delivered', ?, ?, ?, ?)
             """, (sender, f"m{self.seed}", sender, staging, at, at, str(path), sha, len(data), at)).lastrowid
 
-    def batch(self, *replies, now=None):
+    def batch(self, *replies, now=None, clock=None):
         self.transport.replies.extend(replies)
-        counts = run_gate_batch(self.conn, self.reader, self.photos, now or vn(2026, 10, 19, 23))
+        extra = {"clock": clock} if clock else {}
+        counts = run_gate_batch(self.conn, self.reader, self.photos, now or vn(2026, 10, 19, 23), **extra)
         self.assertEqual(self.transport.replies, [], "every queued reply was asked for")
         return counts
 
@@ -376,6 +377,64 @@ class DailyCap(GateTest):
         self.assertEqual(self.inbox(row)["status"], "filed")
 
 
+class StepClock:
+    """A clock that moves forward each time it is read, so a batch can run across midnight."""
+
+    def __init__(self, start, step=timedelta(seconds=1)):
+        self.at, self.step = start, step
+
+    def __call__(self):
+        now, self.at = self.at, self.at + self.step
+        return now
+
+
+class MidnightBatches(GateTest):
+    def vn_day_counts(self):
+        counts = {}
+        for r in self.conn.execute("SELECT at FROM gate_calls"):
+            day = datetime.fromisoformat(r["at"]).astimezone(VN).date().isoformat()
+            counts[day] = counts.get(day, 0) + 1
+        return counts
+
+    def test_a_batch_that_runs_past_midnight_records_each_dispatch_on_its_own_vietnam_day(self):
+        for n in range(150):
+            self.deliver(vn(2026, 10, 19, 15) + timedelta(minutes=n))
+        start = vn(2026, 10, 19, 23, 59) + timedelta(seconds=58)
+        first = self.batch(*[OTHER] * 102, now=start, clock=StepClock(start))
+        self.assertEqual((first["not_form"], first["over_cap"]), (102, 48))
+        self.assertEqual(self.vn_day_counts(), {"2026-10-19": 2, "2026-10-20": DAILY_CAP})
+        self.assertEqual(self.batch(now=vn(2026, 10, 20, 0, 30), clock=StepClock(vn(2026, 10, 20, 0, 30)))["over_cap"], 48)
+        self.assertEqual(len(self.transport.bodies), 102)
+
+        second = self.batch(*[OTHER] * 48, now=vn(2026, 10, 21, 0, 0), clock=StepClock(vn(2026, 10, 21, 0, 0)))
+        self.assertEqual(second["not_form"], 48)
+        self.assertEqual(self.vn_day_counts(), {"2026-10-19": 2, "2026-10-20": DAILY_CAP, "2026-10-21": 48})
+        at = [datetime.fromisoformat(r["at"]) for r in self.conn.execute("SELECT at FROM gate_calls ORDER BY id")]
+        self.assertEqual(at[0], start)
+        self.assertEqual(at[2], vn(2026, 10, 20, 0, 0))
+        self.assertEqual(len(set(at)), len(at), "each dispatch has its own time, not the batch start")
+
+    def test_the_ai_page_counts_each_dispatch_on_the_day_it_was_made(self):
+        from hasc.web.ai_stats import daily
+        for n in range(4):
+            self.deliver(vn(2026, 10, 19, 15, n))
+        start = vn(2026, 10, 19, 23, 59) + timedelta(seconds=58)
+        self.batch(*[OTHER] * 4, now=start, clock=StepClock(start))
+        per_day = daily(self.conn, date(2026, 10, 19), date(2026, 10, 20))
+        self.assertEqual({d: round(v["cost_usd"], 4) for d, v in per_day.items()},
+                         {"2026-10-19": 0.0008, "2026-10-20": 0.0008})
+        self.assertEqual({d: v["tokens"] for d, v in per_day.items()}, {"2026-10-19": 2520, "2026-10-20": 2520})
+
+    def test_the_cap_is_recounted_when_the_date_changes_mid_batch(self):
+        self.fill_calls(DAILY_CAP, vn(2026, 10, 19, 9))  # 19 Oct is full
+        rows = [self.deliver(vn(2026, 10, 19, 15, n)) for n in range(2)]
+        late = vn(2026, 10, 19, 23, 59) + timedelta(seconds=59)
+        self.assertEqual(self.batch(now=late, clock=StepClock(late))["over_cap"], 2)  # 19 Oct is full
+        counts = self.batch(OTHER, OTHER, now=late, clock=StepClock(late + timedelta(seconds=2)))
+        self.assertEqual(counts["not_form"], 2)
+        self.assertEqual([self.inbox(r)["status"] for r in rows], ["not_form", "not_form"])
+
+
 class KilledInTransport(BaseException):
     """The process dies inside the transport call: not an Exception, so nothing in the gate catches it."""
 
@@ -594,6 +653,35 @@ class PersonFiling(GateTest):
         self.assertEqual(str(refused.exception), intake.PAGE_TAKEN)
         self.assertEqual(self.inbox(other)["status"], "waiting")
 
+    def test_a_back_pairs_with_a_photo_a_person_filed_as_a_front_whatever_the_gate_said(self):
+        for name, gate_said in (("layout other", OTHER), ("layout back", back())):
+            with self.subTest(name):
+                for table in ("gate_calls", "zalo_inbox", "read_jobs", "page_values", "events", "photos", "sheets"):
+                    self.conn.execute(f"DELETE FROM {table}")
+                self.conn.commit()
+                photo = self.deliver(vn(2026, 10, 19, 15))
+                self.batch(gate_said)
+                self.assertIn(self.inbox(photo)["status"], ("not_form", "waiting"))
+                self.assertEqual(intake.file_front_by_person(self.conn, photo, date(2026, 10, 19), 1, self.user,
+                                                             self.photos), "new")
+                side = self.deliver(vn(2026, 10, 19, 15, 5))
+                self.assertEqual(self.batch(back())["back"], 1)
+                item = self.inbox(side)
+                self.assertEqual((item["status"], item["outcome"], item["page_no"]), ("filed", "back", 2))
+                self.assertEqual(self.sheet(side)["production_date"], "2026-10-19")
+                self.assertEqual(self.sheet(side)["page_no"], 2)
+
+    def test_a_back_does_not_pair_with_a_photo_a_person_filed_as_a_back_whatever_the_gate_said(self):
+        photo = self.deliver(vn(2026, 10, 19, 15))
+        self.batch(front(shift=3))  # a front by layout, waiting for its shift
+        self.assertEqual((self.inbox(photo)["status"], self.inbox(photo)["reason"]), ("waiting", intake.WAIT_BAD_SHIFT))
+        self.assertEqual(intake.file_back_by_person(self.conn, photo, date(2026, 10, 18), 2, 3, self.user, self.photos),
+                         "back")
+        side = self.deliver(vn(2026, 10, 19, 15, 5))
+        self.batch(back())
+        self.assertEqual((self.inbox(side)["status"], self.inbox(side)["reason"]), ("waiting", intake.WAIT_NO_FRONT))
+        self.assertEqual(self.count("sheets"), 1)
+
     def test_person_cannot_file_a_row_without_its_photo_file(self):
         row = self.deliver(vn(2026, 10, 19, 15))
         self.batch(OTHER)
@@ -664,6 +752,19 @@ class WorkerLoop(GateTest):
         self.run_worker(120)
         self.assertEqual(self.inbox(row)["status"], "filed")
         self.assertEqual(self.conn.execute("SELECT status FROM read_jobs").fetchone()[0], "done")
+
+    def test_worker_stamps_each_dispatch_with_the_time_it_is_made_not_the_batch_start(self):
+        self.deliver(datetime.now(timezone.utc))
+        self.transport.replies.append(OTHER)
+        seen = []
+        real = run_gate_batch
+        with mock.patch("hasc.worker.__main__.run_gate_batch",
+                        side_effect=lambda *a, **k: (seen.append((a[3], k["clock"]())), real(*a, **k))[1]):
+            self.run_worker(120)
+        (batch_start, clock_reading), = seen
+        self.assertGreater(clock_reading, batch_start)
+        stamped = datetime.fromisoformat(self.conn.execute("SELECT at FROM gate_calls").fetchone()[0])
+        self.assertGreater(stamped, batch_start)
 
     def test_worker_without_gate_minutes_leaves_the_inbox_alone(self):
         row = self.deliver(datetime.now(timezone.utc))

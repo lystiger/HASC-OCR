@@ -50,7 +50,9 @@ def main(argv=None, reader_factory=None, photos_dir=None):
                     if now.astimezone(VN).time() >= MORNING_BATCH:
                         last_morning = now.astimezone(VN).date()
                     try:
-                        print(f"Gate: {run_gate_batch(conn, reader.cloud, resolved_photos_dir, now)}", flush=True)
+                        counts = run_gate_batch(conn, reader.cloud, resolved_photos_dir, now,
+                                                clock=lambda: datetime.now(timezone.utc))
+                        print(f"Gate: {counts}", flush=True)
                     except Exception as error:  # reading must go on; the next batch retries the photos
                         print(f"Gate batch failed: {type(error).__name__}: {error}", flush=True)
                 done = run_pending(conn, reader, Path(scratch), photos_dir=resolved_photos_dir,
