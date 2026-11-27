@@ -54,8 +54,8 @@ def parse_gate(text: str | None) -> dict | None:
 def run_gate_batch(conn, reader, photos_dir: Path, now: datetime, clock=None) -> dict:
     """Gate the delivered inbox rows in id order, at most DAILY_CAP dispatches per Vietnam day. Counts by outcome.
 
-    `now` is the batch start. Each dispatch is stamped with the time `clock()` gives when it is made (R1: counted by
-    dispatch time), and the day's count is taken again whenever the Vietnam date changes inside a batch. Without a
+    `now` is the batch start. Each dispatch is stamped with the time `clock()` gives right before it is made, after its image is
+    prepared (R1: counted by dispatch time), and the day's count is taken again whenever the Vietnam date changes inside a batch. Without a
     clock every dispatch is stamped `now`; the worker passes the real one."""
     counts = dict.fromkeys(COUNTED, 0)
     clock = clock or (lambda: now)
@@ -70,15 +70,15 @@ def run_gate_batch(conn, reader, photos_dir: Path, now: datetime, clock=None) ->
             if path is None:
                 outcome = intake.record_wait(conn, inbox_id, intake.WAIT_NO_FILE, None, now)
             else:
-                dispatched = clock()
-                if (today := dispatched.astimezone(intake.VN).date()) != day:
-                    day, used = today, _dispatches_on(conn, dispatched)
-                if used >= DAILY_CAP:
-                    counts["over_cap"] = len(ids) - position
-                    break
                 if (jpeg := _gate_image(path)) is None:
                     outcome = intake.record_wait(conn, inbox_id, intake.WAIT_BAD_IMAGE, None, now)
                 else:
+                    dispatched = clock()  # read after the image is prepared: the dispatch leaves at this time
+                    if (today := dispatched.astimezone(intake.VN).date()) != day:
+                        day, used = today, _dispatches_on(conn, dispatched)
+                    if used >= DAILY_CAP:
+                        counts["over_cap"] = len(ids) - position
+                        break
                     used += 1
                     stamp = dispatched.astimezone(timezone.utc).isoformat()
                     gate = _dispatch(conn, reader, inbox_id, jpeg, stamp)

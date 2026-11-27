@@ -414,6 +414,35 @@ class MidnightBatches(GateTest):
         self.assertEqual(at[2], vn(2026, 10, 20, 0, 0))
         self.assertEqual(len(set(at)), len(at), "each dispatch has its own time, not the batch start")
 
+    def test_a_dispatch_is_counted_and_stamped_on_the_day_its_transport_call_is_made(self):
+        """Preparing the first image crosses midnight; the clock is read after that, not before."""
+        from hasc.worker import gate as gate_module
+        for n in range(102):
+            self.deliver(vn(2026, 10, 19, 15) + timedelta(minutes=n))
+        now = [vn(2026, 10, 19, 23, 59) + timedelta(seconds=59)]
+        prepared, real, made = [], gate_module._gate_image, []
+
+        def slow_image(path):
+            if not prepared:  # the first image takes two seconds: 19 Oct 23:59:59 -> 20 Oct 00:00:01
+                now[0] += timedelta(seconds=2)
+            prepared.append(path)
+            return real(path)
+
+        def transport(body):
+            made.append(now[0])
+            return FakeTransport.__call__(self.transport, body)
+
+        self.reader.transport = transport
+        with mock.patch.object(gate_module, "_gate_image", slow_image):
+            counts = self.batch(*[OTHER] * DAILY_CAP, now=now[0], clock=lambda: now[0])
+        self.assertEqual((counts["not_form"], counts["over_cap"]), (DAILY_CAP, 2))
+        self.assertEqual(len(made), DAILY_CAP)
+        self.assertEqual({t.astimezone(VN).date().isoformat() for t in made}, {"2026-10-20"})
+        self.assertEqual(self.vn_day_counts(), {"2026-10-20": DAILY_CAP})
+        stamped = [datetime.fromisoformat(r["at"]).astimezone(VN).date() for r in
+                   self.conn.execute("SELECT at FROM gate_calls ORDER BY id")]
+        self.assertEqual(stamped, [t.astimezone(VN).date() for t in made])
+
     def test_the_ai_page_counts_each_dispatch_on_the_day_it_was_made(self):
         from hasc.web.ai_stats import daily
         for n in range(4):
