@@ -249,7 +249,8 @@ class TestPlanRules(PlanFiles):
             self.assertEqual(self.machine(shift(15)), "T1")
             self.assertEqual(reads.call_count, 2)
             self.texts["KHSX 14.10.pdf"] = plan_text("14/10/2026 09:00", line("T3", "VinFast", 45, 1200))
-            os.utime(path, ns=(10**18 + 5, 10**18 + 5))
+            changed = 10**18 + 2 * 10**9  # whole seconds: NTFS keeps mtime in 100 ns steps, so 5 ns would be lost
+            os.utime(path, ns=(changed, changed))
             self.assertEqual(self.machine(shift(15)), "T3")
             self.assertEqual(reads.call_count, 3)
             path.unlink()
