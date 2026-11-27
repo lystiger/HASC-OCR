@@ -14,6 +14,7 @@ import sys
 import time
 from pathlib import Path
 
+from hasc.console import make_output_safe
 from hasc.db import get_connection, get_default_photos_dir
 from hasc.worker.config import read_env
 from hasc.zalo import receiver
@@ -50,6 +51,7 @@ def settings_from_env(env_path=None):
 
 def main(argv=None, settings=None, call=receiver.call, fetch=receiver.fetch, sleep=time.sleep,
          clock=lambda: datetime.now(timezone.utc)):
+    make_output_safe()
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--once", action="store_true", help="poll once, download what is waiting, then exit")
     parser.add_argument("--photos-dir", type=Path, default=None, help="directory where photos are stored")

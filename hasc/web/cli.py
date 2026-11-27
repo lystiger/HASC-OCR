@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 import sys
 
+from hasc.console import make_output_safe
 from hasc.db import (
     create_user,
     get_connection,
@@ -68,6 +69,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    make_output_safe()
     parser = build_parser()
     args = parser.parse_args(argv)
 

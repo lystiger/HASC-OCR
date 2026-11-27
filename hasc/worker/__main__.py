@@ -10,6 +10,7 @@ import tempfile
 import time
 from pathlib import Path
 
+from hasc.console import make_output_safe
 from hasc.db import get_connection, get_default_photos_dir
 from hasc.intake import VN
 from hasc.worker.config import cloud_reader_from_env, worker_settings
@@ -31,6 +32,7 @@ def gate_due(last_batch: datetime | None, last_morning: date | None, now: dateti
 
 
 def main(argv=None, reader_factory=None, photos_dir=None):
+    make_output_safe()
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--once", action="store_true", help="work the queue until it is empty, then exit")
     parser.add_argument("--photos-dir", type=Path, default=None, help="directory where photos are stored")
